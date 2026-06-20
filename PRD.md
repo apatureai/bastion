@@ -1,187 +1,482 @@
 # Apature MCP Review - Product Requirements Document
 
 Created: 2026-06-15
-Source: extracted from `apature-systems/core` PRD as of 2026-06-15.
+Revised: 2026-06-19
+Status: research-backed product specification
+Canonical company context: `apatureai/core`
+Primary dependencies: `apatureai/judgment-engine`, `apatureai/ui-dna`, `apatureai/ui-graph`
+Revenue and enforcement surface: `apatureai/gate`
 
 ## 1. Product Summary
 
-Apature MCP Review exposes the design critique engine to coding agents through MCP tools. It lets an agent check a generated UI, apply fixes itself, then ask Apature to recheck the result.
+Apature MCP Review is the in-loop, read-only design-review surface that coding agents call before CI. It accepts a tenant-authorized preview URL, submits a grounded design review, returns compact evidence-backed findings, and rechecks the customer's fix.
 
-The product is the in-loop surface for AI-assisted development. It is how Apature becomes the thing agents call before their work reaches CI.
+Core promise:
 
-Core promise: the agent is the hands; Apature is the eyes.
+> Apature is the eyes; the customer's agent is the hands.
+
+MCP Review does not write code, edit files, commit, push, open pull requests, submit forms, or mutate the customer's application. It produces judgment and proof. Gate remains the independent CI enforcement layer when an agent does not call MCP Review, ignores a result, or fails to fix it.
+
+This customer-facing read-only posture does not imply that every MCP tool is annotated read-only. Submit, recheck, and cancel mutate Apature job or budget state; only result retrieval is protocol-read-only.
 
 ## 2. Company Role
 
 MCP Review is distribution and data acquisition, not the primary revenue surface.
 
-It supports the company in three ways:
+It supports Apature in four ways:
 
-- It reaches developers at generation time, where AI-codegen users already live.
-- It creates dense fix-then-recheck labels for the revealed-preference dataset.
-- It defends against coding-agent platforms rebuilding the reviewer themselves by making Apature the neutral tool agents call.
+- reaches developers inside the coding-agent workflow;
+- creates high-density fix-then-recheck labels;
+- makes Apature the neutral reviewer across mixed-agent teams;
+- reduces the number of low-quality findings that reach Gate.
 
-CI remains the revenue surface. MCP is the growth channel and data factory.
+The business hierarchy is:
 
-## 3. Users And Buyers
+1. Gate is the enforceable review and primary paid surface.
+2. MCP Review is included distribution with metered heavy usage.
+3. UI DNA and feedback data improve both surfaces.
+
+MCP Review must not become an independent browser agent or a cheaper substitute for Gate.
+
+## 3. Users, Buyers, and Jobs
 
 Primary users:
 
-- Developers using coding agents inside Cursor, Claude Code, Codex, or similar tools.
-- Agentic coding workflows that need visual verification before opening a PR.
+- frontend developers using Codex, Claude Code, Cursor, VS Code, GitHub Copilot, or similar agents;
+- coding agents that can deploy or access a preview and apply code changes;
+- platform teams standardizing pre-CI agent workflows.
 
-Buyer:
+Economic buyer:
 
-- Same team that buys Gate for CI enforcement.
-- Metered usage can be sold as an add-on for heavy agent loops.
+- the same engineering, platform, or design-system team that buys Gate.
 
-## 4. Scope
+Primary job:
 
-In scope for v1:
+> Review the rendered UI my agent just changed, tell the agent exactly what is wrong and why, then verify the fix before CI.
 
-- MCP server exposing grounded design review tools.
-- `design_review(url, routes?, viewports?)`.
-- `design_recheck(url, finding_ids)`.
-- `design_direction(url, brief)` after the review rubric stabilizes.
-- Ownership-verified preview domains per tenant.
-- Per-tenant and per-PR recheck budgets.
-- Rate limiting and exponential backoff for retry storms.
-- Structured findings with concrete token, class, and element references.
-- Before/after annotated pairs for rechecks.
-- Feedback event capture for every recheck outcome.
+Secondary job:
 
-Out of scope:
+> Return the smallest grounded evidence view needed to repair one finding without flooding the agent's context window.
 
-- Writing code.
-- Editing files.
-- Opening pull requests.
-- Committing fixes.
-- Capturing arbitrary public URLs without tenant ownership verification.
-- Replacing CI Gate. MCP helps the agent do better work, but Gate remains the enforceable neutral review.
+## 4. Product Principles
 
-## 5. Tool Contract
+### 4.1 Eyes, not hands
 
-### `design_review`
+Outputs may contain:
 
-Inputs:
+- observed visual facts;
+- UI-DNA rules and provenance;
+- element references;
+- token, class, component, or layout suggestions;
+- code-location guesses and repair constraints;
+- before/after evidence.
 
-- `url`: preview URL under a verified domain.
-- `routes`: optional list of routes.
-- `viewports`: optional viewport list.
+Outputs must not contain:
 
-Output:
+- a unified diff presented as authoritative;
+- a claim that source code was changed;
+- commands that write to the repository;
+- credentials or captured secrets;
+- instructions derived from untrusted page content.
 
-- Critique object with grade, findings, not-reviewed list, and annotated screenshot links.
+### 4.2 Gate stays enforceable
 
-### `design_recheck`
+MCP Review can help an agent reach a better state, but only Gate owns:
 
-Inputs:
+- GitHub delivery;
+- advisory or blocking policy;
+- PR-head supersession;
+- sticky comments and Check Runs;
+- merge-bound enforcement and paid workflow packaging.
 
-- `url`: preview URL under a verified domain.
-- `finding_ids`: findings from a prior critique.
+### 4.3 Compact by default
 
-Output:
+The default result is a summary plus a finding index. Full findings, evidence, and UI Graph neighborhoods are retrieved on demand.
 
-- Pass/fail per finding.
-- New evidence and confidence.
-- Before/after annotated screenshot pair.
+This minimizes:
 
-### `design_direction`
+- context-window consumption;
+- accidental prompt injection exposure;
+- tool-result truncation;
+- repeated transfer of screenshots and DOM-derived facts.
 
-Inputs:
+### 4.4 Explicit uncertainty
 
-- `url`: preview URL.
-- `brief`: high-level desired direction.
+Every result must distinguish:
 
-Output:
+- observation from judgment;
+- deterministic evidence from model inference;
+- supported fact from unknown;
+- pass, fail, and inconclusive recheck outcomes.
 
-- Grounded recommendations using the repo's tokens, component conventions, brand context, and UI DNA.
+### 4.5 Protocol sessions are not product sessions
 
-This tool ships only after ordinary review quality is stable because ungrounded art direction is the highest-hallucination surface.
+Review state is keyed by explicit tenant-bound job and review IDs. It is never authorized, budgeted, or recovered solely through an MCP transport session ID.
 
-## 6. Architecture
+## 5. Scope
 
-MCP Review is a thin product layer over the same backend interface as Gate:
+### 5.1 In scope for v1
 
-`critique(images, context) -> Findings`
+- remote Streamable HTTP MCP endpoint;
+- OAuth 2.1 authorization for interactive clients;
+- scoped bearer-token compatibility for clients without remote OAuth;
+- verified-preview authorization;
+- asynchronous review jobs;
+- `design_review`;
+- `design_review_get`;
+- `design_recheck`;
+- `design_review_cancel`;
+- compact and paginated findings;
+- focused UI Graph views;
+- structured evidence and artifact references;
+- rate limits, review-unit budgets, idempotency, and retry guidance;
+- recheck-loop limits and unchanged-target detection;
+- automatic feedback event emission;
+- compatibility fixtures for Codex, Claude Code, Cursor, VS Code, and GitHub Copilot;
+- observability, audit logs, and evaluation hooks.
 
-Major components:
+### 5.2 Deferred
 
-- MCP protocol server.
-- Tenant and domain verification.
-- Capture orchestration using the shared capture pipeline.
-- Qwen3-VL critique adapter through the shared model abstraction.
-- Recheck optimizer that captures only relevant elements when possible.
-- Usage meter and budget enforcer.
-- Feedback event writer.
+- `design_direction`, until a separate quality and hallucination evaluation passes;
+- native MCP Tasks as the only async mechanism;
+- MCP Apps or other embedded review UI;
+- enterprise-managed authorization extension;
+- subscription/push notifications for completed jobs;
+- a local capture sidecar.
 
-The product must preserve byte-identical repo context blocks where possible so downstream prefix caching and eval comparability remain intact.
+### 5.3 Out of scope
 
-## 7. Security
+- browser capture implementation;
+- model selection, prompting, and validation internals;
+- canonical UI DNA storage or extraction;
+- UI Graph construction;
+- GitHub publishing;
+- code edits, generated patches, commits, or pull requests;
+- localhost browser sessions and overlays;
+- autonomous browser exploration;
+- arbitrary public-URL review;
+- replacing Gate.
 
-The MCP surface creates two special risks:
+## 6. Product Surface
 
-- SSRF via arbitrary URLs.
-- Cost blowups from recheck loops.
+### 6.1 `design_review`
 
-Required controls:
+Submits a review job for a verified preview.
 
-- Reject any URL that is not under a pre-registered, ownership-verified domain.
-- Deny internal, metadata, link-local, and rebinding IP targets at capture egress.
-- Per-tenant, per-PR, and per-agent-session budgets.
-- Exponential backoff after repeated failed rechecks.
-- No write credentials of any kind.
-- No filesystem access to the customer's repository through this server.
+Required input:
 
-## 8. Success Metrics
+- `url`;
+- `client_request_id`.
 
-Adoption:
+Optional input:
 
-- Active MCP tenants.
-- Agent sessions invoking Apature tools.
-- Ratio of MCP users who also install Gate.
+- routes;
+- viewports;
+- depth;
+- expected revision;
+- response mode.
 
-Loop quality:
+The tool returns a job envelope immediately. A cache hit may return the same envelope already in `completed` state.
 
-- Findings fixed and passed on recheck.
-- Average rechecks per finding.
-- Recheck false-pass and false-fail rate.
+### 6.2 `design_review_get`
 
-Data moat:
+Retrieves:
 
-- Labeled fix-then-pass examples.
-- Time from finding to resolved state.
-- Per-team memory improvements from in-loop labels.
+- status only;
+- compact summary;
+- paginated findings;
+- focused neighborhoods for selected findings;
+- evidence references or selected inline evidence.
 
-Cost:
+The default view is `summary`, not the entire review.
 
-- Cost per successful recheck.
-- Retry storm incidents, target zero.
+### 6.3 `design_recheck`
 
-## 9. Milestones
+Submits a recheck against findings from a prior completed review.
 
-MVP:
+The tool:
 
-- `design_review` and `design_recheck`.
-- Domain verification.
-- Rate limits and budget controls.
-- Agent-readable structured output.
-- Annotated before/after recheck artifact.
+- preserves the original review and evidence;
+- captures only the required route, viewport, and element scope when reliable;
+- falls back to broader capture explicitly when focused capture is unsafe;
+- returns `passed`, `failed`, or `inconclusive` per finding;
+- records a before/after evidence relationship;
+- refuses infinite or unchanged recheck loops.
 
-Next:
+### 6.4 `design_review_cancel`
 
-- `design_direction`.
-- Deeper integration with UI DNA source-of-truth queries.
-- Per-agent usage analytics for teams.
+Requests best-effort cancellation.
 
-## 10. Open Risks
+Cancellation:
 
-- MCP monetization is less mature than CI monetization.
-- Agent platforms may add their own visual review loops.
-- URL verification and SSRF protection must be correct before launch.
-- An agent can call the tool repeatedly in a loop unless budgets are enforced.
-- Recheck results may be noisy if the target deploy updates mid-loop.
+- stops queued work immediately;
+- cooperatively stops capture or judgment when possible;
+- never changes a terminal result;
+- does not refund already consumed review units;
+- marks the job cancelled even if an upstream operation cannot be interrupted.
 
-## 11. Repository Boundary
+### 6.5 Deferred `design_direction`
 
-This repo owns the MCP product surface, agent-facing tool contracts, metering policy, and recheck UX. It should not become the implementation home for the whole critique engine.
+Higher-level art direction is not a v1 tool. It ships only when:
+
+- ordinary finding precision is stable;
+- recommendations remain UI-DNA grounded;
+- generic aesthetic advice is below the agreed false-positive threshold;
+- a dedicated agent-fix eval shows improvement over ordinary findings.
+
+## 7. Recommended Product Decisions
+
+### 7.1 MCP over CLI as the primary distribution surface
+
+MCP is better than a CLI for routine agent use because it provides discoverable schemas, structured results, standardized auth, and one integration across clients.
+
+CLI remains useful for:
+
+- local contract testing;
+- operator diagnostics;
+- fixture generation;
+- environments whose agent cannot connect to remote MCP.
+
+The CLI must call the same product API and must not become a separate behavior contract.
+
+### 7.2 Remote hosted capture over a local sidecar
+
+Hosted capture is the v1 default for verified remote previews because it gives Apature:
+
+- one security boundary;
+- deterministic capture versions;
+- consistent artifact provenance;
+- centralized budgets and observability;
+- comparable feedback labels.
+
+A local sidecar is deferred to Pointer. Mixing localhost capture into MCP Review would duplicate Pointer's live-session boundary and create installation, supply-chain, and network-reachability complexity.
+
+### 7.3 Stateless application jobs over stateful product sessions
+
+Explicit jobs are better because they survive:
+
+- client restarts;
+- server restarts;
+- horizontal scaling;
+- transport-session changes;
+- the MCP `2026-07-28` stateless direction.
+
+### 7.4 Four bounded tools over one overloaded tool or many micro-tools
+
+One overloaded tool creates ambiguous unions, large outputs, and poor retries. Many micro-tools consume tool-selection context and increase the chance an agent chooses the wrong sequence.
+
+The four-tool surface separates:
+
+- submit;
+- read/focus;
+- recheck;
+- cancel.
+
+`design_review_get` carries view selection so evidence paging does not create a new tool per representation.
+
+### 7.5 Asynchronous over synchronous review
+
+Async is required because:
+
+- multi-route capture can exceed client tool timeouts;
+- cancellation and supersession are explicit;
+- retries can reuse the same job;
+- polling can be budget-free and rate-limited separately;
+- MCP Tasks support is not uniform.
+
+### 7.6 Focused views over full results
+
+The first response should contain:
+
+- grade;
+- confidence;
+- review coverage;
+- blocker and should-fix counts;
+- finding IDs, titles, severity, route, viewport, and element refs;
+- next recommended retrieval.
+
+Detailed evidence is fetched only for findings the agent will repair.
+
+### 7.7 Repair constraints over patch output
+
+Suggestions should state:
+
+- the observed problem;
+- the violated rule;
+- likely component or selector location;
+- token/class/component replacement;
+- expected visible result;
+- how recheck will determine success.
+
+They should not claim a specific source patch is correct when MCP Review has no repository filesystem access.
+
+### 7.8 Included credits plus metered overage
+
+Pure per-call pricing discourages rechecks and creates bill anxiety. Unlimited subscriptions invite retry storms and hide marginal cost.
+
+Recommended packaging:
+
+- Gate subscription includes a monthly MCP Review allowance;
+- review units are visible before and after each job;
+- team admins set repo and tenant hard limits;
+- overage is metered only after explicit enablement;
+- enterprise tiers add retention, regional/in-VPC engine routing, SSO, and policy controls.
+
+## 8. Domain Authorization
+
+Authentication answers who is calling. Domain verification answers which preview targets that tenant may review.
+
+Accepted ownership methods:
+
+1. Gate provenance: exact preview host or deployment identity learned from the tenant's GitHub installation and successful deployment event.
+2. DNS proof: an Apature challenge record under a customer-controlled domain.
+3. HTTP proof: an Apature challenge document under `/.well-known/` on the exact host.
+4. Provider binding: an exact Vercel, Netlify, Cloudflare, or Render project bound through provider metadata or installation evidence.
+
+Rules:
+
+- shared provider suffixes such as `vercel.app` can never be tenant-wide wildcard allowlists;
+- wildcard authorization requires proof at a registrable customer-owned domain;
+- redirects must remain within an authorized host set;
+- every DNS resolution and connection target is checked against prohibited networks;
+- ownership records expire and require periodic revalidation;
+- auth credentials for the MCP server are never forwarded to the preview.
+
+## 9. Trust and Safety
+
+Required product controls:
+
+- tenant-scoped authorization on every tool call and job read;
+- audience-bound tokens;
+- no token passthrough;
+- no repository roots or filesystem access;
+- no model sampling through the client;
+- page text, screenshot text, DOM, console, and network data marked untrusted;
+- static, reviewed tool descriptions and server instructions;
+- schema-constrained outputs with server-side validation;
+- patched stable MCP SDK with per-client transport isolation;
+- artifact retention and redaction policy;
+- prompt-injection canaries;
+- domain allowlists plus SSRF and DNS-rebinding defenses;
+- cost and concurrency budgets;
+- idempotency for all submitted work;
+- audit records for auth, target authorization, budget decisions, and result access.
+
+## 10. Success Metrics
+
+### Adoption
+
+- weekly active MCP repos;
+- active agent-client mix;
+- Gate customers enabling MCP Review;
+- MCP-to-Gate attach and retention.
+
+### Agent-loop quality
+
+- findings selected for focused retrieval;
+- fix attempts per finding;
+- recheck pass rate;
+- median time from finding to verified pass;
+- unchanged-target recheck rate;
+- inconclusive recheck rate.
+
+### Trust
+
+- false-positive rate by severity;
+- valid element-reference rate;
+- evidence retrieval rate;
+- findings rejected by collaborators;
+- capture-instability rate;
+- unauthorized target attempts;
+- prompt-injection canary success rate.
+
+### Context and cost
+
+- tokens in initial result;
+- tokens per successful fix;
+- full-result retrieval rate;
+- review units per successful fix;
+- polling calls per completed job;
+- duplicate job suppression rate;
+- retry-storm incidents, target zero.
+
+### Data quality
+
+- explicit human labels;
+- fix-attempt labels with revision evidence;
+- passed/failed/inconclusive recheck labels;
+- labels with complete capture, DNA, graph, model, and schema lineage;
+- inferred labels later confirmed or contradicted by Gate.
+
+## 11. Experiments
+
+Required experiments before GA:
+
+1. Four tools versus one overloaded tool: measure tool-selection accuracy and completion rate.
+2. Compact-first versus full-result: measure context tokens, fix success, and follow-up calls.
+3. Synchronous versus submit-and-poll: measure timeout and duplicate-job rate across clients.
+4. Focused graph view versus full screenshot/DOM context: measure tokens and fix success.
+5. Repair constraints versus patch-like hints: measure code-change success and hallucinated locator rate.
+6. OAuth versus scoped static token onboarding: measure completion and support burden by client.
+7. Included credits plus overage versus per-call pricing: measure recheck completion and spend predictability.
+8. Recheck limits and unchanged-target detection: measure cost saved without suppressing valid repairs.
+
+## 12. Phased Sequencing
+
+### Phase 0 - Contract and compatibility
+
+- freeze tool names, schemas, job states, error taxonomy, and cross-repo contracts;
+- freeze semantically correct MCP annotations and success/error result behavior;
+- build client compatibility fixtures;
+- verify Judgment Engine async-job requirements;
+- ratify the Judgment Engine view-rendering seam for focused UI Graph output;
+- define domain proof and budget policy;
+- do not expose production review.
+
+### Phase 1 - Internal alpha
+
+- Codex, Claude Code, Cursor, and VS Code;
+- OAuth plus scoped bearer compatibility;
+- verified remote previews;
+- compact review and polling;
+- no `design_direction`;
+- no paid overage.
+
+### Phase 2 - Gate customer beta
+
+- recheck loops;
+- focused UI Graph views;
+- feedback labeling;
+- usage dashboards and hard budgets;
+- GitHub Copilot compatibility path;
+- included Gate allowance.
+
+### Phase 3 - General availability
+
+- registry and client-directory publication;
+- support policy and SLOs;
+- metered overage;
+- enterprise auth and retention controls;
+- evidence retention and audit export.
+
+### Phase 4 - Optional protocol extensions
+
+- MCP Tasks adapter after client support is measured;
+- completion notifications where clients support them;
+- MCP Apps only if an embedded evidence viewer materially improves repair rate;
+- `design_direction` only after its eval gate passes.
+
+## 13. Open Questions
+
+- What exact review-unit allowance should ship with each Gate tier after measured COGS?
+- Which OAuth provider interoperates with target clients across pre-registration, Client ID Metadata Documents, and Dynamic Client Registration fallback?
+- Which preview providers can provide sufficiently strong project ownership metadata without DNS proof?
+- What evidence should permit dashboard-only onboarding after the Gate-customer beta and Judgment Engine workload-principal contract exist?
+- Which clients preserve tool-result images reliably enough for inline evidence rather than signed refs?
+- Should a recheck on a changed host be forbidden or treated as a new review?
+- What minimum UI-DNA confidence is required before emitting a system-conformance finding?
+- Which feedback events can be exposed to customers without leaking internal ranking logic?
+
+## 14. Repository Boundary
+
+This repo owns the agent-facing interaction contract. It does not own capture/model internals, canonical UI DNA, UI Graph construction, GitHub publishing, or code changes.

@@ -1,0 +1,847 @@
+{
+  "catalog_version": "1.0.0",
+  "protocol_baseline": "2025-11-25",
+  "tools": [
+    {
+      "name": "design_review",
+      "title": "Submit design review",
+      "description": "Submit an asynchronous, metered design review for a tenant-authorized HTTPS preview. This tool never edits code. Reuse client_request_id on retries, then poll design_review_get no faster than poll_after_ms.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "com.apature/metered": true,
+        "com.apature/product": "mcp-review"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "pattern": "^https://",
+            "description": "Tenant-authorized remote preview URL. Userinfo and fragments are rejected."
+          },
+          "routes": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512,
+              "pattern": "^/"
+            },
+            "default": [
+              "/"
+            ]
+          },
+          "viewports": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 3,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "enum": [
+                "mobile",
+                "tablet",
+                "desktop"
+              ]
+            },
+            "default": [
+              "mobile",
+              "desktop"
+            ]
+          },
+          "depth": {
+            "type": "string",
+            "enum": [
+              "triage",
+              "deep"
+            ],
+            "default": "deep"
+          },
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "Optional deploy ID, commit SHA, or revision marker expected at the target."
+          },
+          "response_mode": {
+            "type": "string",
+            "enum": [
+              "compact",
+              "full"
+            ],
+            "default": "compact"
+          },
+          "client_request_id": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "description": "Caller-generated idempotency key. Reuse it for retries of the same normalized request."
+          }
+        },
+        "required": [
+          "url",
+          "client_request_id"
+        ]
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0"
+          },
+          "job": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "job_id": {
+                "type": "string",
+                "minLength": 8
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "completed",
+                  "failed",
+                  "cancelled"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "const": "review"
+              },
+              "stage": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "completed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "poll_after_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reused": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "job_id",
+              "status",
+              "kind",
+              "created_at",
+              "poll_after_ms",
+              "expires_at",
+              "reused"
+            ]
+          },
+          "budget": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "policy_version": {
+                "type": "string"
+              },
+              "units_reserved": {
+                "type": "number",
+                "minimum": 0
+              },
+              "units_consumed": {
+                "type": "number",
+                "minimum": 0
+              },
+              "tenant_units_remaining": {
+                "type": "number",
+                "minimum": 0
+              },
+              "repo_units_remaining_hour": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "policy_version",
+              "units_reserved",
+              "tenant_units_remaining"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "job",
+          "budget"
+        ]
+      }
+    },
+    {
+      "name": "design_review_get",
+      "title": "Get design review",
+      "description": "Get status or a compact, paginated, focused, or evidence view for an existing review job. Poll no faster than the returned poll_after_ms. Result reads do not consume review units.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "com.apature/metered": false,
+        "com.apature/product": "mcp-review"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "view": {
+            "type": "string",
+            "enum": [
+              "status",
+              "summary",
+              "findings",
+              "focus",
+              "evidence"
+            ],
+            "default": "summary"
+          },
+          "finding_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          },
+          "evidence_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          },
+          "cursor": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024
+          },
+          "page_size": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 10
+          },
+          "evidence_mode": {
+            "type": "string",
+            "enum": [
+              "refs",
+              "inline_selected"
+            ],
+            "default": "refs"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "view": {
+                  "const": "focus"
+                }
+              },
+              "required": [
+                "view"
+              ]
+            },
+            "then": {
+              "required": [
+                "finding_ids"
+              ]
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "view": {
+                  "const": "evidence"
+                }
+              },
+              "required": [
+                "view"
+              ]
+            },
+            "then": {
+              "required": [
+                "evidence_ids"
+              ]
+            }
+          }
+        ]
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0"
+          },
+          "job": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "job_id",
+              "status",
+              "kind",
+              "created_at",
+              "poll_after_ms",
+              "expires_at",
+              "reused"
+            ],
+            "properties": {
+              "job_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "completed",
+                  "failed",
+                  "cancelled"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "review",
+                  "recheck"
+                ]
+              },
+              "stage": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "completed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "poll_after_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reused": {
+                "type": "boolean"
+              }
+            }
+          },
+          "review": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "review_id": {
+                "type": "string"
+              },
+              "grade": {
+                "type": "string",
+                "enum": [
+                  "ship",
+                  "ship_with_nits",
+                  "needs_work",
+                  "blocked"
+                ]
+              },
+              "confidence": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "overall": {
+                "type": "string",
+                "maxLength": 4000
+              },
+              "finding_index": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "finding_id": {
+                      "type": "string",
+                      "minLength": 8,
+                      "maxLength": 128
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "blocker",
+                        "should_fix",
+                        "nit"
+                      ]
+                    },
+                    "dimension": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 128
+                    },
+                    "title": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 500
+                    },
+                    "route": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 512
+                    },
+                    "viewport": {
+                      "type": "string",
+                      "enum": [
+                        "mobile",
+                        "tablet",
+                        "desktop"
+                      ]
+                    },
+                    "element_ref": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "required": [
+                    "finding_id",
+                    "severity",
+                    "dimension",
+                    "title",
+                    "route",
+                    "viewport",
+                    "confidence"
+                  ]
+                }
+              }
+            },
+            "required": [
+              "review_id",
+              "grade",
+              "confidence",
+              "overall"
+            ]
+          },
+          "findings": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "next_cursor": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "items"
+            ]
+          },
+          "focus": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "review_id": {
+                "type": "string"
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "graph_view": {
+                "type": "object"
+              }
+            },
+            "required": [
+              "review_id",
+              "findings"
+            ]
+          },
+          "evidence": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "items": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            },
+            "required": [
+              "items"
+            ]
+          },
+          "recheck": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "budget": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "schema_version",
+          "job"
+        ]
+      }
+    },
+    {
+      "name": "design_recheck",
+      "title": "Submit design recheck",
+      "description": "Submit a metered recheck for findings from a completed review after the customer's agent changes the UI. The tool never edits code. Unchanged targets and exhausted recheck loops are rejected without running judgment.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": true
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "com.apature/metered": true,
+        "com.apature/product": "mcp-review"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "review_id": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "finding_ids": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 128
+            }
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "maxLength": 2048,
+            "pattern": "^https://",
+            "description": "Optional URL on the same previously authorized host. A host change requires a new review."
+          },
+          "expected_revision": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "client_request_id": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9._:-]+$"
+          }
+        },
+        "required": [
+          "review_id",
+          "finding_ids",
+          "client_request_id"
+        ]
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0"
+          },
+          "job": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": [
+              "job_id",
+              "status",
+              "kind",
+              "created_at",
+              "poll_after_ms",
+              "expires_at",
+              "reused"
+            ],
+            "properties": {
+              "job_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "completed",
+                  "failed",
+                  "cancelled"
+                ]
+              },
+              "kind": {
+                "type": "string",
+                "const": "recheck"
+              },
+              "stage": {
+                "type": "string"
+              },
+              "created_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "completed_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "poll_after_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "expires_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "reused": {
+                "type": "boolean"
+              }
+            }
+          },
+          "recheck": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+              "recheck_id": {
+                "type": "string"
+              },
+              "review_id": {
+                "type": "string"
+              },
+              "before_fingerprint": {
+                "type": "string"
+              },
+              "after_fingerprint": {
+                "type": "string"
+              },
+              "capture_scope": {
+                "type": "string",
+                "enum": [
+                  "focused",
+                  "broad_fallback"
+                ]
+              },
+              "outcomes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "required": [
+                    "finding_id",
+                    "outcome",
+                    "confidence",
+                    "reason"
+                  ],
+                  "properties": {
+                    "finding_id": {
+                      "type": "string"
+                    },
+                    "outcome": {
+                      "type": "string",
+                      "enum": [
+                        "passed",
+                        "failed",
+                        "inconclusive"
+                      ]
+                    },
+                    "confidence": {
+                      "type": "number",
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "reason": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            },
+            "required": [
+              "recheck_id",
+              "review_id",
+              "before_fingerprint",
+              "after_fingerprint",
+              "capture_scope",
+              "outcomes"
+            ]
+          },
+          "budget": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": [
+          "schema_version",
+          "job",
+          "budget"
+        ]
+      }
+    },
+    {
+      "name": "design_review_cancel",
+      "title": "Cancel design review",
+      "description": "Request best-effort cancellation of a queued or running review job. Terminal jobs keep their existing state. Cancellation does not edit customer systems.",
+      "annotations": {
+        "readOnlyHint": false,
+        "destructiveHint": true,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "com.apature/metered": false,
+        "com.apature/product": "mcp-review"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "job_id"
+        ]
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "completed",
+              "failed",
+              "cancelled"
+            ]
+          },
+          "cancellation_requested_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "upstream_cancellation": {
+            "type": "string",
+            "enum": [
+              "not_needed",
+              "requested",
+              "not_supported",
+              "already_terminal"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "job_id",
+          "status",
+          "cancellation_requested_at",
+          "upstream_cancellation"
+        ]
+      }
+    }
+  ]
+}

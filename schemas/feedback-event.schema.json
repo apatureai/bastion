@@ -1,0 +1,470 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.apature.ai/mcp-review/feedback-event/1.0.0",
+  "title": "Apature MCP Review Feedback Event",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "event_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "event_type": {
+      "type": "string",
+      "enum": [
+        "review_submitted",
+        "review_completed",
+        "finding_presented",
+        "finding_retrieved",
+        "finding_focus_retrieved",
+        "fix_attempt_declared",
+        "recheck_submitted",
+        "recheck_passed",
+        "recheck_failed",
+        "recheck_inconclusive",
+        "target_unchanged",
+        "finding_rejected",
+        "finding_ignored",
+        "review_cancelled",
+        "gate_outcome_linked"
+      ]
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "tenant_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "repository_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "job_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "review_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "finding_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "recheck_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "gate_run_id": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 128
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": [
+            "agent",
+            "human",
+            "system"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "client": {
+          "type": "string",
+          "maxLength": 128
+        }
+      },
+      "required": [
+        "type",
+        "id"
+      ]
+    },
+    "label": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "explicit",
+            "deterministic",
+            "inferred"
+          ]
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "training_eligible": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string",
+          "maxLength": 2000
+        }
+      },
+      "required": [
+        "source",
+        "confidence",
+        "training_eligible"
+      ]
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fingerprint": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "before_fingerprint": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "after_fingerprint": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "changed": {
+          "type": "boolean"
+        },
+        "expected_revision": {
+          "type": "string",
+          "maxLength": 256
+        },
+        "observed_revision": {
+          "type": "string",
+          "maxLength": 256
+        }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "capture_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "context_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prompt_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "model_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ui_dna_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "ui_graph_version": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "result_schema_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "capture_version",
+        "context_version",
+        "prompt_version",
+        "model_version",
+        "ui_dna_version",
+        "ui_graph_version",
+        "result_schema_version"
+      ]
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "deduplication_key": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 512
+    }
+  },
+  "required": [
+    "schema_version",
+    "event_id",
+    "event_type",
+    "occurred_at",
+    "tenant_id",
+    "actor",
+    "lineage",
+    "deduplication_key"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "enum": [
+              "review_submitted",
+              "review_cancelled"
+            ]
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "job_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "review_completed"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "job_id",
+          "review_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "enum": [
+              "finding_presented",
+              "finding_retrieved",
+              "finding_focus_retrieved"
+            ]
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "review_id",
+          "finding_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "fix_attempt_declared"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "review_id",
+          "finding_id",
+          "label"
+        ],
+        "properties": {
+          "label": {
+            "type": "object",
+            "properties": {
+              "training_eligible": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "recheck_submitted"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "review_id",
+          "recheck_id"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "enum": [
+              "recheck_passed",
+              "recheck_failed",
+              "recheck_inconclusive"
+            ]
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "review_id",
+          "finding_id",
+          "recheck_id",
+          "label",
+          "target"
+        ],
+        "properties": {
+          "target": {
+            "type": "object",
+            "required": [
+              "before_fingerprint",
+              "after_fingerprint",
+              "changed"
+            ],
+            "properties": {
+              "changed": {
+                "const": true
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "target_unchanged"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "review_id",
+          "recheck_id",
+          "label",
+          "target"
+        ],
+        "properties": {
+          "target": {
+            "type": "object",
+            "required": [
+              "before_fingerprint",
+              "after_fingerprint",
+              "changed"
+            ],
+            "properties": {
+              "changed": {
+                "const": false
+              }
+            }
+          },
+          "label": {
+            "type": "object",
+            "properties": {
+              "training_eligible": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "enum": [
+              "finding_rejected",
+              "finding_ignored"
+            ]
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "review_id",
+          "finding_id",
+          "label"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event_type": {
+            "const": "gate_outcome_linked"
+          }
+        },
+        "required": [
+          "event_type"
+        ]
+      },
+      "then": {
+        "required": [
+          "review_id",
+          "label",
+          "gate_run_id"
+        ]
+      }
+    }
+  ]
+}
