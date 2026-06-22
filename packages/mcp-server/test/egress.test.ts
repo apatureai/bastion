@@ -60,9 +60,41 @@ describe("classifyAddress — IPv6 denylist", () => {
     });
   }
 
-  it("denies IPv4-mapped loopback and metadata (no bypass via ::ffff:)", () => {
+  it("denies IPv4-mapped loopback and metadata (dotted ::ffff: form)", () => {
     expect(isAddressAllowed("::ffff:127.0.0.1")).toBe(false);
     expect(isAddressAllowed("::ffff:169.254.169.254")).toBe(false);
+  });
+
+  it("denies the ALL-HEX IPv4-mapped form (regression: hex bypass)", () => {
+    // Same addresses as above, spelled with hex hextets instead of a dotted
+    // tail. These previously slipped past the dotted-tail regex and returned
+    // ALLOW — a real cloud-metadata / loopback / RFC-1918 SSRF bypass.
+    const mapped: Array<[string, string]> = [
+      ["::ffff:a9fe:a9fe", "metadata"], // 169.254.169.254
+      ["::ffff:7f00:1", "loopback"], // 127.0.0.1
+      ["::ffff:c0a8:1", "private"], // 192.168.0.1
+      ["::ffff:0a00:1", "private"], // 10.0.0.1
+    ];
+    for (const [addr, reason] of mapped) {
+      const verdict = classifyAddress(addr);
+      expect(verdict.allowed, `${addr} must be denied`).toBe(false);
+      if (!verdict.allowed) expect(verdict.reason).toBe(reason);
+    }
+  });
+
+  it("denies IPv4-compatible (::/96) internal addresses in hex form", () => {
+    expect(isAddressAllowed("::7f00:1")).toBe(false); // ::127.0.0.1 loopback
+    expect(isAddressAllowed("::a9fe:a9fe")).toBe(false); // ::169.254.169.254 metadata
+  });
+
+  it("denies 6to4 (2002::/16) wrapping internal addresses", () => {
+    expect(isAddressAllowed("2002:7f00:1::")).toBe(false); // wraps 127.0.0.1
+    expect(isAddressAllowed("2002:a9fe:a9fe::")).toBe(false); // wraps 169.254.169.254
+    expect(isAddressAllowed("2002:c0a8:1::")).toBe(false); // wraps 192.168.0.1
+  });
+
+  it("still allows a 6to4 address wrapping a public v4", () => {
+    expect(isAddressAllowed("2002:5db8:d822::")).toBe(true); // wraps 93.184.216.34
   });
 
   it("strips a zone id before classifying", () => {

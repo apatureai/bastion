@@ -75,8 +75,19 @@ function expandIpv6(input: string): number[] | null {
   const zone = addr.indexOf("%");
   if (zone !== -1) addr = addr.slice(0, zone);
 
-  // IPv4-mapped/embedded tail (e.g. ::ffff:127.0.0.1) handled by the caller;
-  // here we only parse the pure-hextet form.
+  // A trailing dotted-decimal IPv4 (e.g. ::ffff:127.0.0.1) is rewritten to its
+  // two equivalent hextets BEFORE parsing, so the expanded groups are uniform
+  // regardless of whether the embedded v4 was written in dotted or hex form.
+  // Both spellings then flow through the same embedded-v4 check in classifyIpv6.
+  const dottedTail = addr.match(/(\d{1,3}(?:\.\d{1,3}){3})$/);
+  if (dottedTail) {
+    const octets = parseIpv4(dottedTail[1]!);
+    if (!octets) return null;
+    const hi = ((octets[0] << 8) | octets[1]).toString(16);
+    const lo = ((octets[2] << 8) | octets[3]).toString(16);
+    addr = addr.slice(0, addr.length - dottedTail[1]!.length) + `${hi}:${lo}`;
+  }
+
   const halves = addr.split("::");
   if (halves.length > 2) return null;
 
@@ -103,18 +114,39 @@ function expandIpv6(input: string): number[] | null {
   return [...head, ...new Array<number>(fill).fill(0), ...tail];
 }
 
-/** Classify an IPv6 address (including IPv4-mapped forms). */
-function classifyIpv6(addr: string): EgressVerdict {
-  // IPv4-mapped or -embedded: classify the embedded IPv4 with v4 rules so
-  // ::ffff:169.254.169.254 and ::ffff:127.0.0.1 cannot bypass the v4 denylist.
-  const v4Match = addr.match(/(\d{1,3}(?:\.\d{1,3}){3})$/);
-  if (v4Match && addr.includes(":")) {
-    const v4 = classifyIpv4(v4Match[1]!);
-    if (!v4.allowed) return v4;
-  }
+/** Format the low 32 bits held in two hextets as a dotted IPv4 string. */
+function embeddedV4(hi: number, lo: number): string {
+  return `${(hi >> 8) & 0xff}.${hi & 0xff}.${(lo >> 8) & 0xff}.${lo & 0xff}`;
+}
 
+/** Classify an IPv6 address (including IPv4-mapped/-compatible and 6to4 forms). */
+function classifyIpv6(addr: string): EgressVerdict {
   const groups = expandIpv6(addr);
   if (!groups) return { allowed: false, reason: "unparseable" };
+
+  // Embedded-IPv4 ranges: reconstruct the embedded v4 from the relevant hextets
+  // and classify it with the v4 denylist, so the ALL-HEX spelling cannot bypass
+  // it (e.g. ::ffff:a9fe:a9fe == ::ffff:169.254.169.254 == cloud metadata).
+  const [g0, g1, g2, g3, g4, g5, g6, g7] = groups as [
+    number, number, number, number, number, number, number, number,
+  ];
+
+  // IPv4-mapped ::ffff:0:0/96 and IPv4-compatible ::/96 (last two hextets are v4).
+  const isMapped = g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0xffff;
+  const isCompat =
+    g0 === 0 && g1 === 0 && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0 && !(g6 === 0 && g7 <= 1);
+  if (isMapped || isCompat) {
+    const v4 = classifyIpv4(embeddedV4(g6, g7));
+    // The embedded v4 fully determines reachability here; even an "allowed"
+    // embedded address is a real public v4 target, so return its verdict.
+    return v4;
+  }
+
+  // 6to4 2002::/16: the embedded v4 is the middle two hextets (2002:V4HI:V4LO::/48).
+  if (g0 === 0x2002) {
+    const v4 = classifyIpv4(embeddedV4(g1, g2));
+    if (!v4.allowed) return v4;
+  }
 
   const isAllZero = groups.every((g) => g === 0);
   if (isAllZero) return { allowed: false, reason: "unspecified" }; // ::

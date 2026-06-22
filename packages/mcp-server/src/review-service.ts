@@ -13,7 +13,7 @@ import { MockEngineClient } from "./engine-client.js";
 import type { DesignReviewInput, NormalizedReviewRequest } from "./normalize.js";
 import { normalizeReviewRequest, requestFingerprint } from "./normalize.js";
 import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
-import { authorizeTarget } from "./target-auth.js";
+import { authorizeTarget, TargetAuthError } from "./target-auth.js";
 
 /** Raised when an idempotency key is reused with a different normalized request. */
 export class IdempotencyConflictError extends Error {
@@ -118,7 +118,17 @@ export class ReviewService {
     // ownership-verified allowlist and the egress denylist BEFORE creating a job
     // or charging a unit. A `TargetAuthError` here is surfaced as a typed,
     // non-retriable tool error and no billable work happens.
-    if (this.allowlist && this.resolver) {
+    //
+    // The allowlist and resolver are both-or-neither: configuring exactly one is
+    // a misconfiguration that must FAIL CLOSED rather than silently skip the
+    // guard, so a partial config can never let an unauthorized target through.
+    if (this.allowlist || this.resolver) {
+      if (!this.allowlist || !this.resolver) {
+        throw new TargetAuthError(
+          "domain_unverified",
+          "target authorization is misconfigured: both an allowlist and a resolver are required",
+        );
+      }
       await authorizeTarget(request.url, this.allowlist, this.resolver);
     }
 

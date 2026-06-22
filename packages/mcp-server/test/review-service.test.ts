@@ -128,4 +128,22 @@ describe("ReviewService SSRF guard (issue #4)", () => {
     const ok = await service.submitReview(base);
     expect(ok.budget.tenant_units_remaining).toBe(999);
   });
+
+  it("fails closed when only the allowlist is configured (no resolver)", async () => {
+    const service = new ReviewService({
+      engine: new MockEngineClient(),
+      allowlist: { tenantId: "t1", targets: [{ kind: "host", host: "preview.example.com" }] },
+      // resolver deliberately omitted — a partial config must not skip the guard.
+    });
+    await expect(service.submitReview(base)).rejects.toMatchObject({ reason: "domain_unverified" });
+  });
+
+  it("fails closed when only the resolver is configured (no allowlist)", async () => {
+    const service = new ReviewService({
+      engine: new MockEngineClient(),
+      resolver: { resolve: async () => ["93.184.216.34"] },
+      // allowlist deliberately omitted.
+    });
+    await expect(service.submitReview(base)).rejects.toMatchObject({ reason: "domain_unverified" });
+  });
 });
