@@ -5,7 +5,17 @@ export {
   IdempotencyConflictError,
   JobNotFoundError,
   RecheckRejectedError,
+  RecheckThrottledError,
 } from "./review-service.js";
+export {
+  DEFAULT_RECHECK_LIMITS,
+  RecheckLimiter,
+} from "./rate-limit.js";
+export type {
+  RecheckLimitConfig,
+  ThrottleKind,
+  ThrottleDecision,
+} from "./rate-limit.js";
 export { MockEngineClient } from "./engine-client.js";
 export type { EngineClient, EngineRecheckRequest } from "./engine-client.js";
 export { mapEngineResultToCritique } from "./critique-map.js";
