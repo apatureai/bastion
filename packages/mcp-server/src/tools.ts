@@ -53,8 +53,33 @@ export const designReviewGetInputShape = {
     .describe("Result view (default: summary)."),
 };
 
+export const designRecheckInputShape = {
+  review_id: z.string().min(8).max(128).describe("review_id of the completed review to recheck."),
+  finding_ids: z
+    // schemas/mcp-tools.json floors finding-id length at 8, but the engine's
+    // review result (mirrored byte-for-byte from apatureai/gate's golden
+    // fixture) uses short ids like "f_001". The fixture is the source of truth
+    // for what ids actually exist, so the floor is relaxed to 3 here.
+    .array(z.string().min(3).max(128))
+    .min(1)
+    .max(20)
+    .describe("Findings from that review to re-judge (1-20)."),
+  url: httpsUrl
+    .optional()
+    .describe("Optional URL on the SAME previously authorized host; a host change is rejected."),
+  expected_revision: z
+    .string()
+    .min(1)
+    .max(256)
+    .optional()
+    .describe("Optional deploy ID/SHA expected at the changed target."),
+  client_request_id: clientRequestId,
+};
+
 export const designReviewInputSchema = z.object(designReviewInputShape);
 export const designReviewGetInputSchema = z.object(designReviewGetInputShape);
+export const designRecheckInputSchema = z.object(designRecheckInputShape);
 
 export type DesignReviewToolInput = z.infer<typeof designReviewInputSchema>;
 export type DesignReviewGetToolInput = z.infer<typeof designReviewGetInputSchema>;
+export type DesignRecheckToolInput = z.infer<typeof designRecheckInputSchema>;

@@ -86,3 +86,42 @@ export type DesignReviewGetResult = {
   job: Job;
   review?: Critique;
 };
+
+/** Per-finding verdict after a recheck (TRD §4.3 — never a forced boolean). */
+export type RecheckOutcomeKind = "passed" | "failed" | "inconclusive";
+
+/**
+ * Whether the recheck could focus capture on the flagged elements, or had to
+ * fall back to a broader capture (disclosed in the result, TRD §531).
+ */
+export type RecheckCaptureScope = "focused" | "broad_fallback";
+
+/** One finding's recheck outcome (schemas/mcp-tools.json design_recheck). */
+export type RecheckOutcome = {
+  finding_id: string;
+  outcome: RecheckOutcomeKind;
+  confidence: number;
+  reason: string;
+};
+
+/**
+ * The recheck result: a before/after pair plus per-finding outcomes. Callers
+ * read `outcomes` to learn which prior findings are resolved (`passed`),
+ * persisting (`failed`), or undecided (`inconclusive`).
+ */
+export type Recheck = {
+  recheck_id: string;
+  review_id: string;
+  before_fingerprint: string;
+  after_fingerprint: string;
+  capture_scope: RecheckCaptureScope;
+  outcomes: RecheckOutcome[];
+};
+
+/** `design_recheck` response (schemas/mcp-tools.json outputSchema). */
+export type DesignRecheckResult = {
+  schema_version: typeof SCHEMA_VERSION;
+  job: Job;
+  recheck: Recheck;
+  budget: Budget;
+};

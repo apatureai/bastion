@@ -23,6 +23,16 @@ export type DesignReviewInput = {
   client_request_id: string;
 };
 
+/** Input to `design_recheck` (schemas/mcp-tools.json). */
+export type DesignRecheckInput = {
+  review_id: string;
+  finding_ids: string[];
+  /** Optional URL on the same previously authorized host; a host change is rejected. */
+  url?: string;
+  expected_revision?: string;
+  client_request_id: string;
+};
+
 /** A request reduced to its canonical, billable form. */
 export type NormalizedReviewRequest = {
   url: string;

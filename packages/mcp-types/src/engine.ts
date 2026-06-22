@@ -56,3 +56,26 @@ export type EngineReviewResult = {
     uiDnaVersion: string | null;
   };
 };
+
+/** Per-finding recheck verdict from the engine (never a forced boolean). */
+export type EngineRecheckOutcomeKind = "passed" | "failed" | "inconclusive";
+
+/** One finding's recheck verdict as the engine reports it. */
+export type EngineRecheckOutcome = {
+  findingId: string;
+  outcome: EngineRecheckOutcomeKind;
+  confidence: number;
+  reason: string;
+};
+
+/**
+ * The engine's recheck result: a re-judgment of selected prior findings after
+ * the target changed. `captureScope` discloses whether the engine could focus
+ * capture on the flagged elements or had to fall back to a broader capture.
+ */
+export type EngineRecheckResult = {
+  beforeFingerprint: string;
+  afterFingerprint: string;
+  captureScope: "focused" | "broad_fallback";
+  outcomes: EngineRecheckOutcome[];
+};

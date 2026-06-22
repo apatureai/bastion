@@ -6,12 +6,17 @@ import { NormalizationError } from "./normalize.js";
 import {
   IdempotencyConflictError,
   JobNotFoundError,
+  RecheckRejectedError,
   ReviewService,
 } from "./review-service.js";
-import type { ReviewServiceDeps } from "./review-service.js";
+import type { ReviewServiceDeps, RecheckRejectionReason } from "./review-service.js";
 import { TargetAuthError } from "./target-auth.js";
 import type { TargetAuthFailureReason } from "./target-auth.js";
-import { designReviewGetInputShape, designReviewInputShape } from "./tools.js";
+import {
+  designRecheckInputShape,
+  designReviewGetInputShape,
+  designReviewInputShape,
+} from "./tools.js";
 
 const SERVER_NAME = "apature-mcp-review";
 const SERVER_VERSION = "0.0.0";
@@ -83,9 +88,46 @@ function targetAuthErrorResult(reason: TargetAuthFailureReason, message: string)
 }
 
 /**
- * Build the MCP Review server with the v1 tool surface. `design_review` and
- * `design_review_get` are wired; `design_recheck` and `design_review_cancel`
- * follow in their own issues. Pass `deps` (mock engine, fixed clock/ids) to make
+ * Map a recheck rejection (issue #2) to a typed tool error. None of these run
+ * judgment or consume units; the caller is told whether to wait, change the
+ * target, or start a new review.
+ */
+function recheckRejectionResult(reason: RecheckRejectionReason, message: string): CallToolResult {
+  switch (reason) {
+    case "review_not_found":
+      return errorResult("JOB_NOT_FOUND", message, {
+        retriable: false,
+        nextAction: "start_new_review",
+      });
+    case "review_not_completed":
+      return errorResult("REVIEW_NOT_READY", message, { retriable: true, nextAction: "wait" });
+    case "finding_not_found":
+      return errorResult("FINDING_NOT_FOUND", message, {
+        retriable: false,
+        nextAction: "start_new_review",
+      });
+    case "host_changed":
+      return errorResult("URL_NOT_ALLOWED", message, {
+        retriable: false,
+        nextAction: "start_new_review",
+      });
+    case "target_unchanged":
+      return errorResult("TARGET_UNCHANGED", message, {
+        retriable: false,
+        nextAction: "change_target",
+      });
+    case "recheck_limit_reached":
+      return errorResult("RECHECK_LIMIT_REACHED", message, {
+        retriable: false,
+        nextAction: "start_new_review",
+      });
+  }
+}
+
+/**
+ * Build the MCP Review server with the v1 tool surface. `design_review`,
+ * `design_review_get`, and `design_recheck` are wired; `design_review_cancel`
+ * follows in its own issue. Pass `deps` (mock engine, fixed clock/ids) to make
  * the server deterministic under test — tests MUST never reach a real engine.
  *
  * The P0 SSRF guard (issue #4) is enforced whenever `deps.allowlist` and
@@ -174,6 +216,48 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
           });
         }
         return errorResult("INTERNAL_ERROR", "the review could not be retrieved", {
+          retriable: true,
+          nextAction: "wait",
+        });
+      }
+    },
+  );
+
+  server.registerTool(
+    "design_recheck",
+    {
+      title: "Submit design recheck",
+      description:
+        "Submit a metered recheck for findings from a completed review after the customer's agent " +
+        "changes the UI. This tool never edits code. Unchanged targets and exhausted recheck loops " +
+        "are rejected without running judgment. Reuse client_request_id on retries.",
+      inputSchema: designRecheckInputShape,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+      _meta: { "com.apature/metered": true, "com.apature/product": "mcp-review" },
+    },
+    async (input): Promise<CallToolResult> => {
+      try {
+        const result = await service.submitRecheck(input);
+        return jsonResult(result as unknown as Record<string, unknown>);
+      } catch (err) {
+        if (err instanceof TargetAuthError) {
+          return targetAuthErrorResult(err.reason, err.message);
+        }
+        if (err instanceof RecheckRejectedError) {
+          return recheckRejectionResult(err.reason, err.message);
+        }
+        if (err instanceof IdempotencyConflictError) {
+          return errorResult("IDEMPOTENCY_CONFLICT", err.message, {
+            retriable: false,
+            nextAction: "start_new_review",
+          });
+        }
+        return errorResult("INTERNAL_ERROR", "the recheck could not be submitted", {
           retriable: true,
           nextAction: "wait",
         });

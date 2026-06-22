@@ -1,12 +1,13 @@
 export { createMcpReviewServer } from "./server.js";
 export { ReviewService } from "./review-service.js";
-export type { ReviewServiceDeps } from "./review-service.js";
+export type { ReviewServiceDeps, RecheckRejectionReason } from "./review-service.js";
 export {
   IdempotencyConflictError,
   JobNotFoundError,
+  RecheckRejectedError,
 } from "./review-service.js";
 export { MockEngineClient } from "./engine-client.js";
-export type { EngineClient } from "./engine-client.js";
+export type { EngineClient, EngineRecheckRequest } from "./engine-client.js";
 export { mapEngineResultToCritique } from "./critique-map.js";
 export {
   NormalizationError,
@@ -16,6 +17,7 @@ export {
 } from "./normalize.js";
 export type {
   DesignReviewInput,
+  DesignRecheckInput,
   NormalizedReviewRequest,
   ReviewDepth,
   ResponseMode,
@@ -41,7 +43,13 @@ export type {
 export {
   designReviewInputShape,
   designReviewGetInputShape,
+  designRecheckInputShape,
   designReviewInputSchema,
   designReviewGetInputSchema,
+  designRecheckInputSchema,
 } from "./tools.js";
-export type { DesignReviewToolInput, DesignReviewGetToolInput } from "./tools.js";
+export type {
+  DesignReviewToolInput,
+  DesignReviewGetToolInput,
+  DesignRecheckToolInput,
+} from "./tools.js";

@@ -1,19 +1,21 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type {
   Budget,
   Critique,
+  DesignRecheckResult,
   DesignReviewGetResult,
   DesignReviewResult,
   Job,
+  Recheck,
 } from "@apature/mcp-types";
 import { SCHEMA_VERSION } from "@apature/mcp-types";
 import { mapEngineResultToCritique } from "./critique-map.js";
 import type { EngineClient } from "./engine-client.js";
 import { MockEngineClient } from "./engine-client.js";
-import type { DesignReviewInput, NormalizedReviewRequest } from "./normalize.js";
-import { normalizeReviewRequest, requestFingerprint } from "./normalize.js";
+import type { DesignRecheckInput, DesignReviewInput, NormalizedReviewRequest } from "./normalize.js";
+import { normalizePreviewUrl, normalizeReviewRequest, requestFingerprint } from "./normalize.js";
 import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
-import { authorizeTarget, TargetAuthError } from "./target-auth.js";
+import { authorizeTarget, canonicalizeTarget, TargetAuthError } from "./target-auth.js";
 
 /** Raised when an idempotency key is reused with a different normalized request. */
 export class IdempotencyConflictError extends Error {
@@ -30,6 +32,28 @@ export class JobNotFoundError extends Error {
     this.name = "JobNotFoundError";
   }
 }
+
+/** Why a recheck was rejected before any judgment ran (TRD §4.3). */
+export type RecheckRejectionReason =
+  | "review_not_found"
+  | "review_not_completed"
+  | "finding_not_found"
+  | "host_changed"
+  | "target_unchanged"
+  | "recheck_limit_reached";
+
+/** Raised when a recheck is rejected before enqueue; consumes zero units (§582). */
+export class RecheckRejectedError extends Error {
+  readonly reason: RecheckRejectionReason;
+  constructor(reason: RecheckRejectionReason, message: string) {
+    super(message);
+    this.name = "RecheckRejectedError";
+    this.reason = reason;
+  }
+}
+
+/** Per-finding recheck ceiling (TRD §4.3 — "each finding has a recheck ceiling"). */
+const RECHECK_CEILING_PER_FINDING = 3;
 
 /** Seams that make the service deterministic under test. */
 export type ReviewServiceDeps = {
@@ -58,6 +82,22 @@ type JobRecord = {
   request: NormalizedReviewRequest;
   fingerprint: string;
   critique: Critique | null;
+  /** review_id of the critique this job produced, if any. */
+  reviewId: string | null;
+};
+
+/** A completed review, indexed for recheck lookups. */
+type ReviewRecord = {
+  reviewId: string;
+  /** Full canonical URL the review targeted; a no-URL recheck reuses it exactly. */
+  url: string;
+  /** Canonical host the review targeted; a recheck on a different host is rejected. */
+  host: string;
+  /** Target fingerprint at review time — the "before" of a recheck. */
+  beforeFingerprint: string;
+  critique: Critique;
+  /** Per-finding recheck count, enforced against the ceiling. */
+  recheckCounts: Map<string, number>;
 };
 
 /**
@@ -77,6 +117,8 @@ export class ReviewService {
 
   private readonly jobsById = new Map<string, JobRecord>();
   private readonly jobIdByRequestId = new Map<string, string>();
+  private readonly reviewsById = new Map<string, ReviewRecord>();
+  private readonly recheckByJobId = new Map<string, Recheck>();
   private tenantUnitsRemaining = TENANT_STARTING_UNITS;
 
   constructor(deps: ReviewServiceDeps = {}) {
@@ -114,23 +156,8 @@ export class ReviewService {
       }
     }
 
-    // P0 SSRF guard (issue #4): authorize the target against the tenant's
-    // ownership-verified allowlist and the egress denylist BEFORE creating a job
-    // or charging a unit. A `TargetAuthError` here is surfaced as a typed,
-    // non-retriable tool error and no billable work happens.
-    //
-    // The allowlist and resolver are both-or-neither: configuring exactly one is
-    // a misconfiguration that must FAIL CLOSED rather than silently skip the
-    // guard, so a partial config can never let an unauthorized target through.
-    if (this.allowlist || this.resolver) {
-      if (!this.allowlist || !this.resolver) {
-        throw new TargetAuthError(
-          "domain_unverified",
-          "target authorization is misconfigured: both an allowlist and a resolver are required",
-        );
-      }
-      await authorizeTarget(request.url, this.allowlist, this.resolver);
-    }
+    // P0 SSRF guard (issue #4): authorize the target before any job or charge.
+    await this.authorizeTarget(request.url);
 
     const createdAt = this.now();
     const jobId = this.newId("job");
@@ -154,8 +181,16 @@ export class ReviewService {
       reused: false,
     };
 
-    this.jobsById.set(jobId, { job, request, fingerprint, critique });
+    this.jobsById.set(jobId, { job, request, fingerprint, critique, reviewId });
     this.jobIdByRequestId.set(request.client_request_id, jobId);
+    this.reviewsById.set(reviewId, {
+      reviewId,
+      url: request.url,
+      host: canonicalizeTarget(request.url).host,
+      beforeFingerprint: targetFingerprint(request.url, request.expected_revision ?? undefined),
+      critique,
+      recheckCounts: new Map(),
+    });
 
     return {
       schema_version: SCHEMA_VERSION,
@@ -180,6 +215,183 @@ export class ReviewService {
     };
   }
 
+  /**
+   * Submit a `design_recheck`: re-judge selected findings from a completed
+   * review after the customer's agent changed the target (TRD §4.3).
+   *
+   * Ordering is deliberate so no unit is ever double-spent or spent on a no-op:
+   *   1. idempotency short-circuit (an exact retry returns the original job);
+   *   2. validate review ownership, completion, and finding membership;
+   *   3. SSRF-authorize the (possibly new) URL — must stay on the prior host;
+   *   4. reject `TARGET_UNCHANGED` and any finding over its recheck ceiling —
+   *      all of which consume ZERO units (§582);
+   *   5. only then reserve units, run the engine, and record counts.
+   */
+  async submitRecheck(input: DesignRecheckInput): Promise<DesignRecheckResult> {
+    // (1) Idempotency: an exact retry returns the prior recheck job, no charge.
+    const existingJobId = this.jobIdByRequestId.get(input.client_request_id);
+    if (existingJobId) {
+      const existing = this.jobsById.get(existingJobId);
+      if (existing && existing.job.kind === "recheck") {
+        return this.replayRecheck(existing);
+      }
+      if (existing) {
+        throw new IdempotencyConflictError(
+          "client_request_id was already used for a different job kind",
+        );
+      }
+    }
+
+    // (2) Validate the prior review.
+    const review = this.reviewsById.get(input.review_id);
+    if (!review) {
+      throw new RecheckRejectedError("review_not_found", `no completed review ${input.review_id}`);
+    }
+    const knownFindingIds = new Set(review.critique.findings.map((f) => f.finding_id));
+    const requested = dedupe(input.finding_ids);
+    for (const id of requested) {
+      if (!knownFindingIds.has(id)) {
+        throw new RecheckRejectedError(
+          "finding_not_found",
+          `finding ${id} does not belong to review ${input.review_id}`,
+        );
+      }
+    }
+
+    // (3) Authorize the target. A recheck may pass a new URL, but only on the
+    // SAME previously authorized host; a host change requires a new review.
+    const url = input.url ? normalizePreviewUrl(input.url) : review.url;
+    if (canonicalizeTarget(url).host !== review.host) {
+      throw new RecheckRejectedError(
+        "host_changed",
+        "a recheck must target the same host as the original review",
+      );
+    }
+    await this.authorizeTarget(url);
+
+    // (4) Zero-unit rejections: unchanged target and exhausted recheck loops.
+    const afterFingerprint = targetFingerprint(url, input.expected_revision ?? undefined);
+    if (afterFingerprint === review.beforeFingerprint) {
+      throw new RecheckRejectedError(
+        "target_unchanged",
+        "the target fingerprint is unchanged since the review; nothing to recheck",
+      );
+    }
+    for (const id of requested) {
+      if ((review.recheckCounts.get(id) ?? 0) >= RECHECK_CEILING_PER_FINDING) {
+        throw new RecheckRejectedError(
+          "recheck_limit_reached",
+          `finding ${id} has reached its recheck ceiling of ${RECHECK_CEILING_PER_FINDING}`,
+        );
+      }
+    }
+
+    // (5) Reserve units and run the (mock) engine. focused units = ceil(n/3).
+    const units = Math.max(1, Math.ceil(requested.length / 3));
+    const createdAt = this.now();
+    const jobId = this.newId("job");
+    const recheckId = this.newId("rck");
+
+    const findingsById = new Map(review.critique.findings.map((f) => [f.finding_id, f]));
+    const engineResult = await this.engine.recheck({
+      reviewId: review.reviewId,
+      url,
+      beforeFingerprint: review.beforeFingerprint,
+      afterFingerprint,
+      findings: requested.map((id) => {
+        const f = findingsById.get(id);
+        return { findingId: id, route: f?.route ?? "/", element: f?.element_ref ?? null };
+      }),
+    });
+
+    this.tenantUnitsRemaining = Math.max(0, this.tenantUnitsRemaining - units);
+    for (const id of requested) {
+      review.recheckCounts.set(id, (review.recheckCounts.get(id) ?? 0) + 1);
+    }
+
+    const recheck: Recheck = {
+      recheck_id: recheckId,
+      review_id: review.reviewId,
+      before_fingerprint: engineResult.beforeFingerprint,
+      after_fingerprint: engineResult.afterFingerprint,
+      capture_scope: engineResult.captureScope,
+      outcomes: engineResult.outcomes.map((o) => ({
+        finding_id: o.findingId,
+        outcome: o.outcome,
+        confidence: o.confidence,
+        reason: o.reason,
+      })),
+    };
+
+    const completedAt = this.now();
+    const job: Job = {
+      job_id: jobId,
+      status: "completed",
+      kind: "recheck",
+      stage: "finalizing",
+      created_at: createdAt.toISOString(),
+      completed_at: completedAt.toISOString(),
+      poll_after_ms: POLL_AFTER_MS,
+      expires_at: new Date(createdAt.getTime() + JOB_TTL_MS).toISOString(),
+      reused: false,
+    };
+
+    this.jobsById.set(jobId, {
+      job,
+      request: {
+        url,
+        routes: [],
+        viewports: [],
+        depth: "deep",
+        expected_revision: input.expected_revision ?? null,
+        response_mode: "compact",
+        client_request_id: input.client_request_id,
+      },
+      fingerprint: afterFingerprint,
+      critique: null,
+      reviewId: review.reviewId,
+    });
+    this.jobIdByRequestId.set(input.client_request_id, jobId);
+    this.recheckByJobId.set(jobId, recheck);
+
+    return {
+      schema_version: SCHEMA_VERSION,
+      job,
+      recheck,
+      budget: this.budget(units),
+    };
+  }
+
+  /**
+   * Run the SSRF guard for a URL (issue #4). Both-or-neither: configuring
+   * exactly one of allowlist/resolver FAILS CLOSED rather than skipping the
+   * guard. No-ops when neither is set (lower-level unit tests).
+   */
+  private async authorizeTarget(url: string): Promise<void> {
+    if (!this.allowlist && !this.resolver) return;
+    if (!this.allowlist || !this.resolver) {
+      throw new TargetAuthError(
+        "domain_unverified",
+        "target authorization is misconfigured: both an allowlist and a resolver are required",
+      );
+    }
+    await authorizeTarget(url, this.allowlist, this.resolver);
+  }
+
+  /** Replay a prior recheck job for an idempotent retry (no new charge). */
+  private replayRecheck(record: JobRecord): DesignRecheckResult {
+    const recheck = this.recheckByJobId.get(record.job.job_id);
+    if (!recheck) {
+      throw new JobNotFoundError(`recheck result missing for job ${record.job.job_id}`);
+    }
+    return {
+      schema_version: SCHEMA_VERSION,
+      job: { ...record.job, reused: true },
+      recheck,
+      budget: this.budget(0),
+    };
+  }
+
   private budget(unitsReserved: number): Budget {
     return {
       policy_version: POLICY_VERSION,
@@ -188,4 +400,28 @@ export class ReviewService {
       tenant_units_remaining: this.tenantUnitsRemaining,
     };
   }
+}
+
+/**
+ * A stable fingerprint of what is being captured at a target. The real engine
+ * derives this from rendered content; here it is a deterministic hash of the
+ * canonical URL plus any expected revision, so a recheck against an unchanged
+ * target (same URL, same revision) compares equal and is rejected without
+ * running judgment (TRD §4.3 `TARGET_UNCHANGED`).
+ */
+function targetFingerprint(url: string, expectedRevision?: string): string {
+  return createHash("sha256").update(`${url}\n${expectedRevision ?? ""}`).digest("hex").slice(0, 32);
+}
+
+/** De-duplicate a list of strings while preserving order. */
+function dedupe(items: string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of items) {
+    if (!seen.has(item)) {
+      seen.add(item);
+      out.push(item);
+    }
+  }
+  return out;
 }

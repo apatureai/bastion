@@ -4,6 +4,9 @@ export type {
   EngineGrade,
   EngineFinding,
   EngineReviewResult,
+  EngineRecheckOutcomeKind,
+  EngineRecheckOutcome,
+  EngineRecheckResult,
 } from "./engine.js";
 export {
   SCHEMA_VERSION,
@@ -20,6 +23,11 @@ export type {
   Critique,
   DesignReviewResult,
   DesignReviewGetResult,
+  RecheckOutcomeKind,
+  RecheckCaptureScope,
+  RecheckOutcome,
+  Recheck,
+  DesignRecheckResult,
 } from "./critique.js";
 export { ERROR_CODES } from "./error.js";
 export type { ReviewErrorCode, NextAction, ReviewError } from "./error.js";

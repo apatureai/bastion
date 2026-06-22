@@ -36,15 +36,84 @@ describe("MCP Review server", () => {
 
     expect(byName.has("design_review")).toBe(true);
     expect(byName.has("design_review_get")).toBe(true);
+    expect(byName.has("design_recheck")).toBe(true);
 
     // Read-only customer boundary: there must be no edit/write/commit/push tool.
     for (const name of byName.keys()) {
       expect(name).not.toMatch(/edit|write|commit|push|patch|apply/i);
     }
 
-    // get is the only read-only-hinted tool; submit creates a metered job.
+    // get is the only read-only-hinted tool; submit + recheck create metered jobs.
     expect(byName.get("design_review_get")?.annotations?.readOnlyHint).toBe(true);
     expect(byName.get("design_review")?.annotations?.readOnlyHint).toBe(false);
+    expect(byName.get("design_recheck")?.annotations?.readOnlyHint).toBe(false);
+    expect(byName.get("design_recheck")?._meta?.["com.apature/metered"]).toBe(true);
+  });
+
+  it("runs design_recheck end to end and returns a before/after outcome set", async () => {
+    const { client } = await connectClient();
+
+    const submit = (await client.callTool({
+      name: "design_review",
+      arguments: { url: "https://preview.example.com/pricing", client_request_id: "req-rv-0001" },
+    })) as ToolResult;
+    const reviewId = (
+      (
+        (await client.callTool({
+          name: "design_review_get",
+          arguments: {
+            job_id: (submit.structuredContent as { job: { job_id: string } }).job.job_id,
+          },
+        })) as ToolResult
+      ).structuredContent as { review: { review_id: string; findings: { finding_id: string }[] } }
+    ).review;
+
+    const recheck = (await client.callTool({
+      name: "design_recheck",
+      arguments: {
+        review_id: reviewId.review_id,
+        finding_ids: reviewId.findings.map((f) => f.finding_id),
+        expected_revision: "deploy-2",
+        client_request_id: "req-rc-0001",
+      },
+    })) as ToolResult;
+
+    expect(recheck.isError).toBeFalsy();
+    const body = recheck.structuredContent as {
+      job: { kind: string };
+      recheck: { outcomes: unknown[]; before_fingerprint: string; after_fingerprint: string };
+    };
+    expect(body.job.kind).toBe("recheck");
+    expect(body.recheck.outcomes.length).toBe(reviewId.findings.length);
+    expect(body.recheck.before_fingerprint).not.toBe(body.recheck.after_fingerprint);
+  });
+
+  it("returns a typed TARGET_UNCHANGED error for an unchanged recheck", async () => {
+    const { client } = await connectClient();
+    const submit = (await client.callTool({
+      name: "design_review",
+      arguments: { url: "https://preview.example.com/pricing", client_request_id: "req-rv-0002" },
+    })) as ToolResult;
+    const review = (
+      (await client.callTool({
+        name: "design_review_get",
+        arguments: { job_id: (submit.structuredContent as { job: { job_id: string } }).job.job_id },
+      })) as ToolResult
+    ).structuredContent as { review: { review_id: string; findings: { finding_id: string }[] } };
+
+    const recheck = (await client.callTool({
+      name: "design_recheck",
+      arguments: {
+        review_id: review.review.review_id,
+        finding_ids: review.review.findings.map((f) => f.finding_id),
+        client_request_id: "req-rc-0002", // no URL/revision change -> unchanged
+      },
+    })) as ToolResult;
+
+    expect(recheck.isError).toBe(true);
+    expect((recheck.structuredContent as { error: { code: string } }).error.code).toBe(
+      "TARGET_UNCHANGED",
+    );
   });
 
   it("runs design_review then design_review_get end to end against the mock engine", async () => {
