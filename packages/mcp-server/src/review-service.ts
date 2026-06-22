@@ -16,6 +16,8 @@ import type { DesignRecheckInput, DesignReviewInput, NormalizedReviewRequest } f
 import { normalizePreviewUrl, normalizeReviewRequest, requestFingerprint } from "./normalize.js";
 import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
 import { authorizeTarget, canonicalizeTarget, TargetAuthError } from "./target-auth.js";
+import type { RecheckLimitConfig, ThrottleKind } from "./rate-limit.js";
+import { DEFAULT_RECHECK_LIMITS, RecheckLimiter } from "./rate-limit.js";
 
 /** Raised when an idempotency key is reused with a different normalized request. */
 export class IdempotencyConflictError extends Error {
@@ -52,8 +54,21 @@ export class RecheckRejectedError extends Error {
   }
 }
 
-/** Per-finding recheck ceiling (TRD §4.3 — "each finding has a recheck ceiling"). */
-const RECHECK_CEILING_PER_FINDING = 3;
+/**
+ * Raised when a recheck is throttled by a budget/rate limit/backoff (issue #5).
+ * Carries `retryAfterMs` so the client can wait the right amount. Throttling
+ * happens before unit reservation, so it consumes zero units (§9.3).
+ */
+export class RecheckThrottledError extends Error {
+  readonly kind: ThrottleKind;
+  readonly retryAfterMs: number;
+  constructor(kind: ThrottleKind, retryAfterMs: number, message: string) {
+    super(message);
+    this.name = "RecheckThrottledError";
+    this.kind = kind;
+    this.retryAfterMs = retryAfterMs;
+  }
+}
 
 /** Seams that make the service deterministic under test. */
 export type ReviewServiceDeps = {
@@ -69,6 +84,10 @@ export type ReviewServiceDeps = {
   allowlist?: TenantAllowlist;
   /** DNS resolver seam used only when `allowlist` is set. Never real net in tests. */
   resolver?: DnsResolver;
+  /** Override the recheck budget/backoff/rate-limit defaults (issue #5). */
+  recheckLimits?: Partial<RecheckLimitConfig>;
+  /** Identity used for the per-principal recheck burst limit. */
+  principalId?: string;
 };
 
 const POLL_AFTER_MS = 1500;
@@ -96,8 +115,6 @@ type ReviewRecord = {
   /** Target fingerprint at review time — the "before" of a recheck. */
   beforeFingerprint: string;
   critique: Critique;
-  /** Per-finding recheck count, enforced against the ceiling. */
-  recheckCounts: Map<string, number>;
 };
 
 /**
@@ -114,6 +131,8 @@ export class ReviewService {
   private readonly newId: (prefix: string) => string;
   private readonly allowlist: TenantAllowlist | null;
   private readonly resolver: DnsResolver | null;
+  private readonly limiter: RecheckLimiter;
+  private readonly principalId: string;
 
   private readonly jobsById = new Map<string, JobRecord>();
   private readonly jobIdByRequestId = new Map<string, string>();
@@ -127,6 +146,8 @@ export class ReviewService {
     this.newId = deps.newId ?? ((prefix) => `${prefix}_${randomUUID()}`);
     this.allowlist = deps.allowlist ?? null;
     this.resolver = deps.resolver ?? null;
+    this.principalId = deps.principalId ?? "principal";
+    this.limiter = new RecheckLimiter({ ...DEFAULT_RECHECK_LIMITS, ...deps.recheckLimits });
   }
 
   /**
@@ -189,7 +210,6 @@ export class ReviewService {
       host: canonicalizeTarget(request.url).host,
       beforeFingerprint: targetFingerprint(request.url, request.expected_revision ?? undefined),
       critique,
-      recheckCounts: new Map(),
     });
 
     return {
@@ -269,7 +289,7 @@ export class ReviewService {
     }
     await this.authorizeTarget(url);
 
-    // (4) Zero-unit rejections: unchanged target and exhausted recheck loops.
+    // (4) Zero-unit rejection: an unchanged target runs no judgment (§4.3).
     const afterFingerprint = targetFingerprint(url, input.expected_revision ?? undefined);
     if (afterFingerprint === review.beforeFingerprint) {
       throw new RecheckRejectedError(
@@ -277,17 +297,29 @@ export class ReviewService {
         "the target fingerprint is unchanged since the review; nothing to recheck",
       );
     }
-    for (const id of requested) {
-      if ((review.recheckCounts.get(id) ?? 0) >= RECHECK_CEILING_PER_FINDING) {
-        throw new RecheckRejectedError(
-          "recheck_limit_reached",
-          `finding ${id} has reached its recheck ceiling of ${RECHECK_CEILING_PER_FINDING}`,
-        );
-      }
+
+    // (5) Budget / rate limit / backoff (issue #5). This is checked BEFORE any
+    // unit is reserved, so a throttled recheck consumes zero units (§9.3). The
+    // per-finding windows replace the old fixed ceiling; the chain-unit window,
+    // principal burst, and exponential backoff guard against a storming loop.
+    const units = Math.max(1, Math.ceil(requested.length / 3));
+    const nowMs = this.now().getTime();
+    const decision = this.limiter.check({
+      principalId: this.principalId,
+      reviewId: review.reviewId,
+      findingIds: requested,
+      units,
+      now: nowMs,
+    });
+    if (!decision.allowed) {
+      throw new RecheckThrottledError(
+        decision.kind,
+        decision.retryAfterMs,
+        throttleMessage(decision.kind, decision.retryAfterMs),
+      );
     }
 
-    // (5) Reserve units and run the (mock) engine. focused units = ceil(n/3).
-    const units = Math.max(1, Math.ceil(requested.length / 3));
+    // (6) Reserve units and run the (mock) engine. focused units = ceil(n/3).
     const createdAt = this.now();
     const jobId = this.newId("job");
     const recheckId = this.newId("rck");
@@ -305,9 +337,15 @@ export class ReviewService {
     });
 
     this.tenantUnitsRemaining = Math.max(0, this.tenantUnitsRemaining - units);
-    for (const id of requested) {
-      review.recheckCounts.set(id, (review.recheckCounts.get(id) ?? 0) + 1);
-    }
+    // Record the spend against every rate-limit window only now that the recheck
+    // has actually run, so a throttled or rejected attempt never burns a slot.
+    this.limiter.commit({
+      principalId: this.principalId,
+      reviewId: review.reviewId,
+      findingIds: requested,
+      units,
+      now: nowMs,
+    });
 
     const recheck: Recheck = {
       recheck_id: recheckId,
@@ -411,6 +449,23 @@ export class ReviewService {
  */
 function targetFingerprint(url: string, expectedRevision?: string): string {
   return createHash("sha256").update(`${url}\n${expectedRevision ?? ""}`).digest("hex").slice(0, 32);
+}
+
+/** Human-readable message for a throttle decision (issue #5). */
+function throttleMessage(kind: ThrottleKind, retryAfterMs: number): string {
+  const secs = Math.ceil(retryAfterMs / 1000);
+  switch (kind) {
+    case "per_finding_30min":
+      return `a flagged finding has hit its recheck limit for the half-hour; retry in ~${secs}s`;
+    case "per_finding_day":
+      return `a flagged finding has hit its daily recheck limit; retry in ~${secs}s`;
+    case "chain_units_30min":
+      return `this review's recheck budget for the half-hour is exhausted; retry in ~${secs}s`;
+    case "principal_burst":
+      return `too many rechecks submitted; slow down and retry in ~${secs}s`;
+    case "backoff":
+      return `rechecks are backing off; wait ~${secs}s before the next attempt`;
+  }
 }
 
 /** De-duplicate a list of strings while preserving order. */

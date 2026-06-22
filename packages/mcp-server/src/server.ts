@@ -7,6 +7,7 @@ import {
   IdempotencyConflictError,
   JobNotFoundError,
   RecheckRejectedError,
+  RecheckThrottledError,
   ReviewService,
 } from "./review-service.js";
 import type { ReviewServiceDeps, RecheckRejectionReason } from "./review-service.js";
@@ -250,6 +251,17 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
         }
         if (err instanceof RecheckRejectedError) {
           return recheckRejectionResult(err.reason, err.message);
+        }
+        if (err instanceof RecheckThrottledError) {
+          // The review-chain unit window is a budget; everything else (per-
+          // finding windows, principal burst, backoff) is a rate limit. Both
+          // clear on their own, so the client should wait and retry.
+          const code = err.kind === "chain_units_30min" ? "BUDGET_EXHAUSTED" : "RATE_LIMITED";
+          return errorResult(code, err.message, {
+            retriable: true,
+            nextAction: "wait",
+            retryAfterMs: err.retryAfterMs,
+          });
         }
         if (err instanceof IdempotencyConflictError) {
           return errorResult("IDEMPOTENCY_CONFLICT", err.message, {

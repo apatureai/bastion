@@ -146,28 +146,40 @@ describe("ReviewService.submitRecheck (issue #2)", () => {
     ).rejects.toMatchObject({ reason: "host_changed" });
   });
 
-  it("enforces the per-finding recheck ceiling without charging once reached", async () => {
-    const service = guardedService();
+  it("enforces the per-finding recheck window (3 / 30 min) once reached", async () => {
+    // A mutable clock so each recheck clears the exponential backoff but stays
+    // inside the 30-minute per-finding window. (Backoff is covered separately
+    // in rate-limit.test.ts.)
+    let nowMs = Date.parse("2026-06-22T00:00:00.000Z");
+    let counter = 0;
+    const service = new ReviewService({
+      engine: new MockEngineClient(),
+      now: () => new Date(nowMs),
+      newId: (prefix) => `${prefix}_${String(++counter).padStart(8, "0")}`,
+      allowlist: { tenantId: "t1", targets: [{ kind: "host", host: "preview.example.com" }] },
+      resolver: { resolve: async () => ["93.184.216.34"] },
+    });
     const { reviewId } = await seedReview(service);
     const finding = "f_001"; // golden fixture finding id
 
-    // Three rechecks succeed (ceiling = 3), each with a distinct changed target.
+    // Three rechecks succeed, each 5 minutes apart (past backoff, within 30 min).
     for (let i = 1; i <= 3; i++) {
       await service.submitRecheck({
         review_id: reviewId,
         finding_ids: [finding],
         expected_revision: `deploy-${i}`,
-        client_request_id: `req-ceiling-${i}-aaaa`,
+        client_request_id: `req-window-${i}-aaaa`,
       });
+      nowMs += 5 * 60 * 1000;
     }
-    // The fourth is rejected at the ceiling, charging nothing.
+    // The fourth is throttled by the per-finding window, charging nothing.
     await expect(
       service.submitRecheck({
         review_id: reviewId,
         finding_ids: [finding],
         expected_revision: "deploy-4",
-        client_request_id: "req-ceiling-4-aaaa",
+        client_request_id: "req-window-4-aaaa",
       }),
-    ).rejects.toMatchObject({ reason: "recheck_limit_reached" });
+    ).rejects.toMatchObject({ kind: "per_finding_30min" });
   });
 });

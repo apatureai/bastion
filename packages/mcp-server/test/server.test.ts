@@ -116,6 +116,49 @@ describe("MCP Review server", () => {
     );
   });
 
+  it("rate-limits a storming recheck loop with RATE_LIMITED + retry_after_ms (#5)", async () => {
+    const { client } = await connectClient();
+    const submit = (await client.callTool({
+      name: "design_review",
+      arguments: { url: "https://preview.example.com/pricing", client_request_id: "req-rv-0003" },
+    })) as ToolResult;
+    const review = (
+      (await client.callTool({
+        name: "design_review_get",
+        arguments: { job_id: (submit.structuredContent as { job: { job_id: string } }).job.job_id },
+      })) as ToolResult
+    ).structuredContent as { review: { review_id: string; findings: { finding_id: string }[] } };
+    const ids = review.review.findings.map((f) => f.finding_id);
+
+    const first = (await client.callTool({
+      name: "design_recheck",
+      arguments: {
+        review_id: review.review.review_id,
+        finding_ids: ids,
+        expected_revision: "deploy-2",
+        client_request_id: "req-rc-0003a",
+      },
+    })) as ToolResult;
+    expect(first.isError).toBeFalsy();
+
+    // A second recheck on the same review at the same clock is throttled by the
+    // exponential backoff; the server returns RATE_LIMITED with a wait.
+    const second = (await client.callTool({
+      name: "design_recheck",
+      arguments: {
+        review_id: review.review.review_id,
+        finding_ids: ids,
+        expected_revision: "deploy-3",
+        client_request_id: "req-rc-0003b",
+      },
+    })) as ToolResult;
+    expect(second.isError).toBe(true);
+    const error = (second.structuredContent as { error: { code: string; retry_after_ms: number } })
+      .error;
+    expect(error.code).toBe("RATE_LIMITED");
+    expect(error.retry_after_ms).toBeGreaterThan(0);
+  });
+
   it("runs design_review then design_review_get end to end against the mock engine", async () => {
     const { client } = await connectClient();
 
