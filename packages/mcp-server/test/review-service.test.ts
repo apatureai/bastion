@@ -98,3 +98,34 @@ describe("ReviewService.getReview (§6.4 Critique)", () => {
     expect(() => service.getReview("job_99999999")).toThrow(JobNotFoundError);
   });
 });
+
+describe("ReviewService SSRF guard (issue #4)", () => {
+  /** A service with the target-authorization guard wired in. */
+  function guardedService() {
+    let counter = 0;
+    return new ReviewService({
+      engine: new MockEngineClient(),
+      now: () => new Date("2026-06-22T00:00:00.000Z"),
+      newId: (prefix) => `${prefix}_${String(++counter).padStart(8, "0")}`,
+      allowlist: { tenantId: "t1", targets: [{ kind: "host", host: "preview.example.com" }] },
+      resolver: { resolve: async () => ["93.184.216.34"] },
+    });
+  }
+
+  it("allows a verified, publicly-resolving target", async () => {
+    const out = await guardedService().submitReview(base);
+    expect(out.job.status).toBe("completed");
+    expect(out.budget.units_reserved).toBe(1);
+  });
+
+  it("rejects an unverified host and charges nothing", async () => {
+    const service = guardedService();
+    await expect(
+      service.submitReview({ url: "https://attacker.com/", client_request_id: "req-attacker1" }),
+    ).rejects.toMatchObject({ reason: "domain_unverified" });
+
+    // No job was created, so the next verified submit is still the first charge.
+    const ok = await service.submitReview(base);
+    expect(ok.budget.tenant_units_remaining).toBe(999);
+  });
+});

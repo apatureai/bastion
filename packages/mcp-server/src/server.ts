@@ -9,6 +9,8 @@ import {
   ReviewService,
 } from "./review-service.js";
 import type { ReviewServiceDeps } from "./review-service.js";
+import { TargetAuthError } from "./target-auth.js";
+import type { TargetAuthFailureReason } from "./target-auth.js";
 import { designReviewGetInputShape, designReviewInputShape } from "./tools.js";
 
 const SERVER_NAME = "apature-mcp-review";
@@ -45,13 +47,58 @@ function errorResult(
 }
 
 /**
+ * Map a target-authorization failure (issue #4) to a typed tool error. All of
+ * these are non-retriable: the caller must change or verify the target, never
+ * retry the same URL. Egress/rebind failures collapse to `DNS_TARGET_PROHIBITED`
+ * so the response never reveals which internal address was resolved.
+ */
+function targetAuthErrorResult(reason: TargetAuthFailureReason, message: string): CallToolResult {
+  if (typeof reason === "object") {
+    return errorResult("DNS_TARGET_PROHIBITED", message, {
+      retriable: false,
+      nextAction: "change_target",
+    });
+  }
+  switch (reason) {
+    case "domain_unverified":
+      return errorResult("DOMAIN_UNVERIFIED", message, {
+        retriable: false,
+        nextAction: "verify_domain",
+      });
+    case "dns_rebind":
+    case "no_dns_records":
+      return errorResult("DNS_TARGET_PROHIBITED", message, {
+        retriable: false,
+        nextAction: "change_target",
+      });
+    case "ip_literal":
+    case "not_https":
+    case "userinfo_present":
+    case "unparseable":
+      return errorResult("URL_NOT_ALLOWED", message, {
+        retriable: false,
+        nextAction: "change_target",
+      });
+  }
+}
+
+/**
  * Build the MCP Review server with the v1 tool surface. `design_review` and
  * `design_review_get` are wired; `design_recheck` and `design_review_cancel`
  * follow in their own issues. Pass `deps` (mock engine, fixed clock/ids) to make
  * the server deterministic under test — tests MUST never reach a real engine.
+ *
+ * The P0 SSRF guard (issue #4) is enforced whenever `deps.allowlist` and
+ * `deps.resolver` are supplied. If they are omitted the server FAILS CLOSED: an
+ * empty allowlist rejects every target as `DOMAIN_UNVERIFIED`, so a
+ * misconfigured deployment can never capture an arbitrary URL.
  */
 export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
-  const service = new ReviewService(deps);
+  const service = new ReviewService({
+    ...deps,
+    allowlist: deps.allowlist ?? { tenantId: "unconfigured", targets: [] },
+    resolver: deps.resolver ?? { resolve: async () => [] },
+  });
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
 
   server.registerTool(
@@ -76,6 +123,9 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
         const result = await service.submitReview(input);
         return jsonResult(result as unknown as Record<string, unknown>);
       } catch (err) {
+        if (err instanceof TargetAuthError) {
+          return targetAuthErrorResult(err.reason, err.message);
+        }
         if (err instanceof NormalizationError) {
           return errorResult("INVALID_ARGUMENT", err.message, {
             retriable: false,

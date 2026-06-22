@@ -21,6 +21,24 @@ export type {
   ResponseMode,
 } from "./normalize.js";
 export {
+  classifyAddress,
+  isAddressAllowed,
+} from "./egress.js";
+export type { EgressVerdict, ProhibitedReason } from "./egress.js";
+export {
+  authorizeTarget,
+  canonicalizeTarget,
+  isHostVerified,
+  TargetAuthError,
+} from "./target-auth.js";
+export type {
+  CanonicalTarget,
+  DnsResolver,
+  TargetAuthFailureReason,
+  TenantAllowlist,
+  VerifiedTarget,
+} from "./target-auth.js";
+export {
   designReviewInputShape,
   designReviewGetInputShape,
   designReviewInputSchema,

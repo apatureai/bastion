@@ -12,6 +12,8 @@ import type { EngineClient } from "./engine-client.js";
 import { MockEngineClient } from "./engine-client.js";
 import type { DesignReviewInput, NormalizedReviewRequest } from "./normalize.js";
 import { normalizeReviewRequest, requestFingerprint } from "./normalize.js";
+import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
+import { authorizeTarget } from "./target-auth.js";
 
 /** Raised when an idempotency key is reused with a different normalized request. */
 export class IdempotencyConflictError extends Error {
@@ -34,6 +36,15 @@ export type ReviewServiceDeps = {
   engine?: EngineClient;
   now?: () => Date;
   newId?: (prefix: string) => string;
+  /**
+   * The tenant's ownership-verified target allowlist (issue #4). When provided,
+   * every submit is authorized against it before any job is created or charged.
+   * Omitting it (lower-level unit tests) skips target authorization; the server
+   * factory ALWAYS supplies one so the P0 SSRF guard is never bypassed in prod.
+   */
+  allowlist?: TenantAllowlist;
+  /** DNS resolver seam used only when `allowlist` is set. Never real net in tests. */
+  resolver?: DnsResolver;
 };
 
 const POLL_AFTER_MS = 1500;
@@ -61,6 +72,8 @@ export class ReviewService {
   private readonly engine: EngineClient;
   private readonly now: () => Date;
   private readonly newId: (prefix: string) => string;
+  private readonly allowlist: TenantAllowlist | null;
+  private readonly resolver: DnsResolver | null;
 
   private readonly jobsById = new Map<string, JobRecord>();
   private readonly jobIdByRequestId = new Map<string, string>();
@@ -70,6 +83,8 @@ export class ReviewService {
     this.engine = deps.engine ?? new MockEngineClient();
     this.now = deps.now ?? (() => new Date());
     this.newId = deps.newId ?? ((prefix) => `${prefix}_${randomUUID()}`);
+    this.allowlist = deps.allowlist ?? null;
+    this.resolver = deps.resolver ?? null;
   }
 
   /**
@@ -97,6 +112,14 @@ export class ReviewService {
           budget: this.budget(0),
         };
       }
+    }
+
+    // P0 SSRF guard (issue #4): authorize the target against the tenant's
+    // ownership-verified allowlist and the egress denylist BEFORE creating a job
+    // or charging a unit. A `TargetAuthError` here is surfaced as a typed,
+    // non-retriable tool error and no billable work happens.
+    if (this.allowlist && this.resolver) {
+      await authorizeTarget(request.url, this.allowlist, this.resolver);
     }
 
     const createdAt = this.now();
