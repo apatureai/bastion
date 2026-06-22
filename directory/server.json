@@ -1,0 +1,36 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
+  "name": "ai.apature/mcp-review",
+  "description": "In-loop, read-only design review for coding agents: inspect a verified preview, return grounded findings with element refs and fixes, and recheck the agent's fix before CI.",
+  "version": "1.0.0",
+  "websiteUrl": "https://apature.ai",
+  "repository": {
+    "url": "https://github.com/apatureai/mcp-review",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://mcp.apature.ai/mcp",
+      "headers": [
+        {
+          "name": "Authorization",
+          "description": "Bearer <token> or an OAuth-issued access token. See docs/install.md.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ],
+  "_meta": {
+    "ai.apature/protocol_baseline": "2025-11-25",
+    "ai.apature/catalog_version": "1.0.0",
+    "ai.apature/read_only_boundary": "Customer-facing: the server judges, explains, and verifies. It never edits code, commits, pushes, or opens pull requests. Submit and recheck create metered jobs; only design_review_get is read-only.",
+    "ai.apature/tools": [
+      "design_review",
+      "design_review_get",
+      "design_recheck",
+      "design_review_cancel"
+    ]
+  }
+}

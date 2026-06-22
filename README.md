@@ -37,6 +37,11 @@ Capture and multimodal judgment routinely exceed interactive MCP client timeouts
 
 MCP Tasks can become an optional adapter after client support is proven. Application job IDs remain canonical.
 
+## Install
+
+- [docs/install.md](docs/install.md): connect Claude Code, Cursor, VS Code, GitHub Copilot, or any Streamable HTTP MCP client.
+- [directory/server.json](directory/server.json): machine-readable listing submitted to the agent tool directories.
+
 ## Documentation
 
 - [RESEARCH.md](RESEARCH.md): primary-source research, alternatives, client compatibility, and market implications.
