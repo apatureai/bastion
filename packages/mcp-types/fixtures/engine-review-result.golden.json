@@ -1,0 +1,58 @@
+{
+  "grade": "needs_work",
+  "overall": "The new pricing page reads clearly on desktop, but the mobile layout breaks the design system: the primary CTA loses its brand color and the card grid overflows the viewport. Two nits on spacing.",
+  "findings": [
+    {
+      "id": "f_001",
+      "severity": "major",
+      "title": "Primary CTA uses an off-brand color on mobile",
+      "description": "On the mobile viewport the primary 'Start free trial' button renders with the default blue instead of the brand accent token, breaking visual hierarchy and brand consistency.",
+      "route": "/pricing",
+      "viewport": "mobile",
+      "element": "button[data-testid='cta-primary']",
+      "screenshotId": "shot_001",
+      "suggestion": "Apply the `--color-accent` token (or the `btn-primary` class) so the CTA matches the brand accent used elsewhere."
+    },
+    {
+      "id": "f_002",
+      "severity": "minor",
+      "title": "Pricing card grid overflows the mobile viewport",
+      "description": "The three-column pricing grid does not collapse below 640px, causing horizontal scrolling on the mobile viewport.",
+      "route": "/pricing",
+      "viewport": "mobile",
+      "element": ".pricing-grid",
+      "screenshotId": "shot_002",
+      "suggestion": "Switch the grid to a single column under the `sm` breakpoint."
+    },
+    {
+      "id": "f_003",
+      "severity": "nit",
+      "title": "Inconsistent vertical rhythm between feature rows",
+      "description": "Feature rows alternate between 24px and 32px vertical spacing on desktop.",
+      "route": "/pricing",
+      "viewport": "desktop",
+      "element": ".feature-row",
+      "screenshotId": null,
+      "suggestion": "Use a single spacing token for consistent vertical rhythm."
+    }
+  ],
+  "notReviewed": [
+    "route /checkout (no preview deployment matched the expected revision)",
+    "viewport tablet (not requested)"
+  ],
+  "artifacts": {
+    "annotatedScreenshots": [
+      { "findingId": "f_001", "url": "https://artifacts.judgment-engine.internal/shot_001.png" },
+      { "findingId": "f_002", "url": "https://artifacts.judgment-engine.internal/shot_002.png" }
+    ],
+    "engineDebugUrl": "https://judgment-engine.internal/debug/run_abc123"
+  },
+  "screenshotRetentionSeconds": 2592000,
+  "metadata": {
+    "engineVersion": "2026.06.0",
+    "model": "qwen3-vl",
+    "promptVersion": "gate-design-review@7",
+    "captureVersion": "playwright-capture@3",
+    "uiDnaVersion": "ui-dna@2026.06.12"
+  }
+}

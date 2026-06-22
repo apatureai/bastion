@@ -1,0 +1,26 @@
+{
+  "name": "@apature/mcp-review-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Apature MCP Review - in-loop, read-only design review for coding agents over MCP",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -b",
+    "typecheck": "tsc -b",
+    "clean": "tsc -b --clean",
+    "test": "vitest run",
+    "lint": "eslint . --max-warnings=0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.17.0",
+    "@types/node": "^22.10.2",
+    "eslint": "^9.17.0",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.18.2",
+    "vitest": "3.2.6"
+  }
+}

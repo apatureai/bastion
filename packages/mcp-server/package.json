@@ -1,0 +1,26 @@
+{
+  "name": "@apature/mcp-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Apature MCP Review server: agent-facing MCP tools (design_review, design_review_get) over the judgment-engine review surface.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@apature/mcp-types": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^3.25.76"
+  }
+}

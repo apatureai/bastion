@@ -1,0 +1,7 @@
+{
+  "files": [],
+  "references": [
+    { "path": "packages/mcp-types" },
+    { "path": "packages/mcp-server" }
+  ]
+}
