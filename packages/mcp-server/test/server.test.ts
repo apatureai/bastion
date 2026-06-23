@@ -116,6 +116,36 @@ describe("MCP Review server", () => {
     );
   });
 
+  it("returns a non-retriable URL_NOT_ALLOWED for a bad recheck url (#11)", async () => {
+    const { client } = await connectClient();
+    const submit = (await client.callTool({
+      name: "design_review",
+      arguments: { url: "https://preview.example.com/pricing", client_request_id: "req-rv-0004" },
+    })) as ToolResult;
+    const review = (
+      (await client.callTool({
+        name: "design_review_get",
+        arguments: { job_id: (submit.structuredContent as { job: { job_id: string } }).job.job_id },
+      })) as ToolResult
+    ).structuredContent as { review: { review_id: string; findings: { finding_id: string }[] } };
+
+    const recheck = (await client.callTool({
+      name: "design_recheck",
+      arguments: {
+        review_id: review.review.review_id,
+        finding_ids: review.review.findings.map((f) => f.finding_id),
+        url: "https://user:pass@preview.example.com/pricing", // userinfo -> rejected
+        client_request_id: "req-rc-0004",
+      },
+    })) as ToolResult;
+
+    expect(recheck.isError).toBe(true);
+    const error = (recheck.structuredContent as { error: { code: string; retriable: boolean } })
+      .error;
+    expect(error.code).toBe("URL_NOT_ALLOWED");
+    expect(error.retriable).toBe(false);
+  });
+
   it("rate-limits a storming recheck loop with RATE_LIMITED + retry_after_ms (#5)", async () => {
     const { client } = await connectClient();
     const submit = (await client.callTool({

@@ -249,6 +249,14 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
         if (err instanceof TargetAuthError) {
           return targetAuthErrorResult(err.reason, err.message);
         }
+        if (err instanceof NormalizationError) {
+          // A userinfo/non-https recheck url is a precise, non-retriable
+          // URL_NOT_ALLOWED — not a generic INTERNAL_ERROR (issue #11).
+          return errorResult("URL_NOT_ALLOWED", err.message, {
+            retriable: false,
+            nextAction: "change_target",
+          });
+        }
         if (err instanceof RecheckRejectedError) {
           return recheckRejectionResult(err.reason, err.message);
         }

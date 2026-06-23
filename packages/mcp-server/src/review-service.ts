@@ -138,6 +138,8 @@ export class ReviewService {
   private readonly jobIdByRequestId = new Map<string, string>();
   private readonly reviewsById = new Map<string, ReviewRecord>();
   private readonly recheckByJobId = new Map<string, Recheck>();
+  /** job_id -> recheck-request body fingerprint, for idempotency parity (issue #10). */
+  private readonly recheckFingerprintByJobId = new Map<string, string>();
   private tenantUnitsRemaining = TENANT_STARTING_UNITS;
 
   constructor(deps: ReviewServiceDeps = {}) {
@@ -248,11 +250,25 @@ export class ReviewService {
    *   5. only then reserve units, run the engine, and record counts.
    */
   async submitRecheck(input: DesignRecheckInput): Promise<DesignRecheckResult> {
+    // Normalize the URL up front: this rejects a userinfo/non-https recheck url
+    // with NormalizationError (mapped to URL_NOT_ALLOWED) before any work or
+    // charge (issue #11), and feeds the idempotency fingerprint below.
+    const requestedUrl = input.url ? normalizePreviewUrl(input.url) : null;
+    const fingerprint = recheckRequestFingerprint(input, requestedUrl);
+
     // (1) Idempotency: an exact retry returns the prior recheck job, no charge.
+    // A reused client_request_id whose normalized body differs is a conflict —
+    // it must NOT silently replay the original result (issue #10). This is a
+    // pre-reservation check, so a conflict still bills nothing.
     const existingJobId = this.jobIdByRequestId.get(input.client_request_id);
     if (existingJobId) {
       const existing = this.jobsById.get(existingJobId);
       if (existing && existing.job.kind === "recheck") {
+        if (this.recheckFingerprintByJobId.get(existing.job.job_id) !== fingerprint) {
+          throw new IdempotencyConflictError(
+            "client_request_id was reused with different recheck arguments",
+          );
+        }
         return this.replayRecheck(existing);
       }
       if (existing) {
@@ -280,7 +296,7 @@ export class ReviewService {
 
     // (3) Authorize the target. A recheck may pass a new URL, but only on the
     // SAME previously authorized host; a host change requires a new review.
-    const url = input.url ? normalizePreviewUrl(input.url) : review.url;
+    const url = requestedUrl ?? review.url;
     if (canonicalizeTarget(url).host !== review.host) {
       throw new RecheckRejectedError(
         "host_changed",
@@ -391,6 +407,7 @@ export class ReviewService {
     });
     this.jobIdByRequestId.set(input.client_request_id, jobId);
     this.recheckByJobId.set(jobId, recheck);
+    this.recheckFingerprintByJobId.set(jobId, fingerprint);
 
     return {
       schema_version: SCHEMA_VERSION,
@@ -449,6 +466,23 @@ export class ReviewService {
  */
 function targetFingerprint(url: string, expectedRevision?: string): string {
   return createHash("sha256").update(`${url}\n${expectedRevision ?? ""}`).digest("hex").slice(0, 32);
+}
+
+/**
+ * Stable fingerprint of a recheck request body (issue #10): the review, the
+ * set of findings (order-independent), and the normalized URL. Two retries with
+ * the same fingerprint are the "same request"; a reused client_request_id with
+ * a different fingerprint is an IDEMPOTENCY_CONFLICT. The idempotency key and
+ * expected_revision are intentionally excluded — the URL already carries the
+ * target, and the revision only affects the after-fingerprint, not request
+ * identity.
+ */
+function recheckRequestFingerprint(input: DesignRecheckInput, normalizedUrl: string | null): string {
+  return JSON.stringify({
+    review_id: input.review_id,
+    finding_ids: dedupe(input.finding_ids).slice().sort(),
+    url: normalizedUrl ?? "",
+  });
 }
 
 /** Human-readable message for a throttle decision (issue #5). */
