@@ -35,6 +35,20 @@ describe("normalizePreviewUrl (TRD §4.1)", () => {
     );
   });
 
+  it("tags URL-policy violations with kind 'url' so both tools map them to URL_NOT_ALLOWED (#14)", () => {
+    // The handler maps NormalizationError.kind, not the message, so the kind is
+    // the contract that keeps design_review and design_recheck aligned.
+    for (const bad of ["http://preview.example.com", "https://user:pass@preview.example.com", "/pricing"]) {
+      try {
+        normalizePreviewUrl(bad);
+        throw new Error(`expected ${bad} to be rejected`);
+      } catch (err) {
+        expect(err).toBeInstanceOf(NormalizationError);
+        expect((err as NormalizationError).kind).toBe("url");
+      }
+    }
+  });
+
   it("rejects a non-absolute URL", () => {
     expect(() => normalizePreviewUrl("/pricing")).toThrow(NormalizationError);
   });
@@ -66,6 +80,24 @@ describe("normalizeReviewRequest (TRD §4.1)", () => {
     expect(() => normalizeReviewRequest({ ...base, routes: ["pricing"] })).toThrow(
       NormalizationError,
     );
+  });
+
+  it("tags non-URL request violations with kind 'argument' -> INVALID_ARGUMENT (#14)", () => {
+    // Route/viewport violations are NOT about the URL, so they must stay
+    // INVALID_ARGUMENT rather than be reported as URL_NOT_ALLOWED.
+    const cases = [
+      { ...base, routes: ["pricing"] },
+      { ...base, routes: ["/a", "/b", "/c", "/d", "/e", "/f"] },
+    ];
+    for (const input of cases) {
+      try {
+        normalizeReviewRequest(input);
+        throw new Error("expected a NormalizationError");
+      } catch (err) {
+        expect(err).toBeInstanceOf(NormalizationError);
+        expect((err as NormalizationError).kind).toBe("argument");
+      }
+    }
   });
 
   it("rejects more than 5 routes", () => {

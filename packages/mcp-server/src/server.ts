@@ -170,7 +170,12 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
           return targetAuthErrorResult(err.reason, err.message);
         }
         if (err instanceof NormalizationError) {
-          return errorResult("INVALID_ARGUMENT", err.message, {
+          // Align the URL-violation taxonomy with design_recheck (issue #14): a
+          // disallowed URL is URL_NOT_ALLOWED on BOTH tools; only a non-URL
+          // argument violation (bad route prefix, too many routes/viewports) —
+          // which design_recheck cannot produce — is INVALID_ARGUMENT.
+          const code = err.kind === "url" ? "URL_NOT_ALLOWED" : "INVALID_ARGUMENT";
+          return errorResult(code, err.message, {
             retriable: false,
             nextAction: "change_target",
           });
@@ -252,6 +257,9 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
         if (err instanceof NormalizationError) {
           // A userinfo/non-https recheck url is a precise, non-retriable
           // URL_NOT_ALLOWED — not a generic INTERNAL_ERROR (issue #11).
+          // design_recheck only normalizes a URL, so every NormalizationError
+          // here is necessarily err.kind === "url" (see issue #14); this stays
+          // URL_NOT_ALLOWED and now matches the design_review URL path exactly.
           return errorResult("URL_NOT_ALLOWED", err.message, {
             retriable: false,
             nextAction: "change_target",

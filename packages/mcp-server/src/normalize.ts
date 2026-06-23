@@ -44,10 +44,26 @@ export type NormalizedReviewRequest = {
   client_request_id: string;
 };
 
+/**
+ * What class of policy violation a `NormalizationError` represents, so callers
+ * can map it to a precise MCP error code consistently across tools (issue #14):
+ *  - "url"      — the preview/recheck URL itself is disallowed (not absolute,
+ *                 non-https, or carries credentials) -> URL_NOT_ALLOWED.
+ *  - "argument" — a non-URL request field is invalid (bad route prefix, too many
+ *                 routes/viewports) -> INVALID_ARGUMENT.
+ * `design_recheck` only normalizes a URL, so it can only ever produce "url";
+ * `design_review` normalizes both, so it must branch on this to avoid reporting
+ * a bad URL as INVALID_ARGUMENT on one path but URL_NOT_ALLOWED on the other.
+ */
+export type NormalizationErrorKind = "url" | "argument";
+
 export class NormalizationError extends Error {
-  constructor(message: string) {
+  readonly kind: NormalizationErrorKind;
+
+  constructor(message: string, kind: NormalizationErrorKind) {
     super(message);
     this.name = "NormalizationError";
+    this.kind = kind;
   }
 }
 
@@ -64,14 +80,14 @@ export function normalizePreviewUrl(raw: string): string {
   try {
     parsed = new URL(raw);
   } catch {
-    throw new NormalizationError(`url is not a valid absolute URL: ${raw}`);
+    throw new NormalizationError(`url is not a valid absolute URL: ${raw}`, "url");
   }
 
   if (parsed.protocol !== "https:") {
-    throw new NormalizationError("only https preview URLs are supported in v1");
+    throw new NormalizationError("only https preview URLs are supported in v1", "url");
   }
   if (parsed.username !== "" || parsed.password !== "") {
-    throw new NormalizationError("credentials in the URL are not allowed");
+    throw new NormalizationError("credentials in the URL are not allowed", "url");
   }
 
   // Fragments are never sent to the server, but strip them so the idempotency
@@ -87,11 +103,14 @@ export function normalizeReviewRequest(input: DesignReviewInput): NormalizedRevi
   const routes = input.routes && input.routes.length > 0 ? dedupePreserveOrder(input.routes) : [...DEFAULT_ROUTES];
   for (const route of routes) {
     if (!route.startsWith("/")) {
-      throw new NormalizationError(`route must be a root-relative path starting with "/": ${route}`);
+      throw new NormalizationError(
+        `route must be a root-relative path starting with "/": ${route}`,
+        "argument",
+      );
     }
   }
   if (routes.length > 5) {
-    throw new NormalizationError("at most 5 routes may be reviewed in one request");
+    throw new NormalizationError("at most 5 routes may be reviewed in one request", "argument");
   }
 
   const viewports =
@@ -99,7 +118,7 @@ export function normalizeReviewRequest(input: DesignReviewInput): NormalizedRevi
       ? (dedupePreserveOrder(input.viewports) as Viewport[])
       : [...DEFAULT_VIEWPORTS];
   if (viewports.length > 3) {
-    throw new NormalizationError("at most 3 viewports may be reviewed in one request");
+    throw new NormalizationError("at most 3 viewports may be reviewed in one request", "argument");
   }
 
   return {
