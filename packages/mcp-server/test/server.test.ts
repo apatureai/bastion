@@ -146,6 +146,26 @@ describe("MCP Review server", () => {
     expect(error.retriable).toBe(false);
   });
 
+  it("design_review reports a disallowed URL as URL_NOT_ALLOWED, matching design_recheck (#14)", async () => {
+    const { client } = await connectClient();
+    // Userinfo passes the input-schema https check but is rejected by URL
+    // normalization. This must surface as URL_NOT_ALLOWED on design_review, the
+    // same code design_recheck already returns for the identical case — not the
+    // older, less precise INVALID_ARGUMENT.
+    const out = (await client.callTool({
+      name: "design_review",
+      arguments: {
+        url: "https://user:pass@preview.example.com/pricing",
+        client_request_id: "req-url-0001",
+      },
+    })) as ToolResult;
+
+    expect(out.isError).toBe(true);
+    const error = (out.structuredContent as { error: { code: string; retriable: boolean } }).error;
+    expect(error.code).toBe("URL_NOT_ALLOWED");
+    expect(error.retriable).toBe(false);
+  });
+
   it("rate-limits a storming recheck loop with RATE_LIMITED + retry_after_ms (#5)", async () => {
     const { client } = await connectClient();
     const submit = (await client.callTool({

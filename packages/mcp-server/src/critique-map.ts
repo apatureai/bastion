@@ -44,8 +44,12 @@ function mapFinding(finding: EngineFinding): CritiqueFinding {
     element_ref: finding.element,
     suggestion: finding.suggestion,
     evidence_id: finding.screenshotId,
-    // Per-finding confidence is not yet carried on the engine boundary; default
-    // to a calibrated mid-high value rather than fabricate precision.
+    // DELIBERATE PLACEHOLDER (tracked in issue #13). The engine boundary
+    // (`EngineFinding`) does not yet carry a per-finding confidence, and MCP
+    // Review owns no capture or inference, so any number computed here would be
+    // fabricated. We surface a stable calibrated default rather than invent
+    // precision; the real fix is upstream (engine emits confidence -> pass it
+    // through). Do NOT replace this with a locally-computed score.
     confidence: 0.8,
   };
 }
@@ -54,8 +58,10 @@ export function mapEngineResultToCritique(reviewId: string, result: EngineReview
   return {
     review_id: reviewId,
     grade: result.grade,
-    // Overall confidence is not yet on the engine boundary; surface a stable
-    // calibrated default until the engine emits one.
+    // DELIBERATE PLACEHOLDER (tracked in issue #13). Same rationale as the
+    // per-finding confidence above: the engine boundary does not yet emit an
+    // overall confidence, so we surface a stable calibrated default instead of
+    // fabricating one. Replace only once the engine carries a real signal.
     confidence: 0.8,
     overall: result.overall,
     findings: result.findings.map(mapFinding),
