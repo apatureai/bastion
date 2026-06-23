@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { MockEngineClient, RecheckRejectedError, ReviewService } from "../src/index.js";
+import {
+  IdempotencyConflictError,
+  MockEngineClient,
+  NormalizationError,
+  RecheckRejectedError,
+  ReviewService,
+} from "../src/index.js";
 
 /** A guarded service (SSRF allowlist + stub resolver) with deterministic ids. */
 function guardedService() {
@@ -181,5 +187,82 @@ describe("ReviewService.submitRecheck (issue #2)", () => {
         client_request_id: "req-window-4-aaaa",
       }),
     ).rejects.toMatchObject({ kind: "per_finding_30min" });
+  });
+
+  it("a reused client_request_id with different finding_ids conflicts and bills nothing (#10)", async () => {
+    // Mutable clock so the post-conflict recheck clears the exponential backoff.
+    let nowMs = Date.parse("2026-06-22T00:00:00.000Z");
+    let counter = 0;
+    const service = new ReviewService({
+      engine: new MockEngineClient(),
+      now: () => new Date(nowMs),
+      newId: (prefix) => `${prefix}_${String(++counter).padStart(8, "0")}`,
+      allowlist: { tenantId: "t1", targets: [{ kind: "host", host: "preview.example.com" }] },
+      resolver: { resolve: async () => ["93.184.216.34"] },
+    });
+    const { reviewId, findingIds } = await seedReview(service); // charged 1 review unit
+    const first = await service.submitRecheck({
+      review_id: reviewId,
+      finding_ids: findingIds,
+      expected_revision: "deploy-2",
+      client_request_id: "req-dup00001",
+    });
+    const remainingAfterFirst = first.budget.tenant_units_remaining;
+
+    // Same key, DIFFERENT body (subset of findings) -> conflict, not a replay.
+    const firstFinding = findingIds[0];
+    if (!firstFinding) throw new Error("expected at least one finding");
+    await expect(
+      service.submitRecheck({
+        review_id: reviewId,
+        finding_ids: [firstFinding],
+        expected_revision: "deploy-2",
+        client_request_id: "req-dup00001",
+      }),
+    ).rejects.toBeInstanceOf(IdempotencyConflictError);
+
+    // The conflict bills nothing: a fresh verified recheck (5 min later, past
+    // backoff) still sees the same remaining balance as right after the first.
+    nowMs += 5 * 60 * 1000;
+    const next = await service.submitRecheck({
+      review_id: reviewId,
+      finding_ids: findingIds,
+      expected_revision: "deploy-3",
+      client_request_id: "req-dup00002",
+    });
+    expect(next.budget.tenant_units_remaining).toBe(remainingAfterFirst - next.budget.units_reserved);
+  });
+
+  it("an exact retry (same body) still replays the original recheck, no charge (#10)", async () => {
+    const service = guardedService();
+    const { reviewId, findingIds } = await seedReview(service);
+    const first = await service.submitRecheck({
+      review_id: reviewId,
+      finding_ids: findingIds,
+      expected_revision: "deploy-2",
+      client_request_id: "req-same00001",
+    });
+    const retry = await service.submitRecheck({
+      review_id: reviewId,
+      finding_ids: findingIds,
+      expected_revision: "deploy-2",
+      client_request_id: "req-same00001",
+    });
+    expect(retry.job.job_id).toBe(first.job.job_id);
+    expect(retry.job.reused).toBe(true);
+    expect(retry.budget.units_reserved).toBe(0);
+  });
+
+  it("a userinfo recheck url is rejected as a NormalizationError before any charge (#11)", async () => {
+    const service = guardedService();
+    const { reviewId, findingIds } = await seedReview(service);
+    await expect(
+      service.submitRecheck({
+        review_id: reviewId,
+        finding_ids: findingIds,
+        url: "https://user:pass@preview.example.com/pricing",
+        client_request_id: "req-badurl0001",
+      }),
+    ).rejects.toBeInstanceOf(NormalizationError);
   });
 });
