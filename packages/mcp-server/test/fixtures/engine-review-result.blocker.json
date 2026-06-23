@@ -1,0 +1,68 @@
+{
+  "grade": "blocked",
+  "overall": "The checkout flow is unusable on mobile: the submit button is off-screen below the fold and cannot be reached, which blocks purchase. Lower-severity polish issues are also present.",
+  "findings": [
+    {
+      "id": "f_b01",
+      "severity": "blocker",
+      "title": "Checkout submit button is unreachable on mobile",
+      "description": "On the mobile viewport the 'Place order' button renders below a fixed footer and cannot be scrolled into view, so the purchase cannot be completed.",
+      "route": "/checkout",
+      "viewport": "mobile",
+      "element": "button[data-testid='place-order']",
+      "screenshotId": "shot_b01",
+      "suggestion": "Remove the fixed footer overlap or reserve bottom padding equal to the footer height so the CTA is reachable."
+    },
+    {
+      "id": "f_b02",
+      "severity": "major",
+      "title": "Order summary contrast fails WCAG AA",
+      "description": "The order summary subtotal text uses a grey on white that falls below the 4.5:1 contrast ratio on desktop.",
+      "route": "/checkout",
+      "viewport": "desktop",
+      "element": ".order-summary__subtotal",
+      "screenshotId": "shot_b02",
+      "suggestion": "Use the `--color-text-strong` token for the subtotal."
+    },
+    {
+      "id": "f_b03",
+      "severity": "minor",
+      "title": "Promo-code field lacks a visible label",
+      "description": "The promo-code input relies on placeholder text only, which disappears on focus.",
+      "route": "/checkout",
+      "viewport": "desktop",
+      "element": "input[name='promo']",
+      "screenshotId": null,
+      "suggestion": "Add a persistent visible label above the field."
+    },
+    {
+      "id": "f_b04",
+      "severity": "nit",
+      "title": "Inconsistent button corner radius",
+      "description": "Secondary buttons use 4px radius while primaries use 8px on desktop.",
+      "route": "/checkout",
+      "viewport": "desktop",
+      "element": ".btn-secondary",
+      "screenshotId": null,
+      "suggestion": "Use a single radius token across buttons."
+    }
+  ],
+  "notReviewed": [
+    "route /receipt (no preview deployment matched the expected revision)"
+  ],
+  "artifacts": {
+    "annotatedScreenshots": [
+      { "findingId": "f_b01", "url": "https://artifacts.judgment-engine.internal/shot_b01.png" },
+      { "findingId": "f_b02", "url": "https://artifacts.judgment-engine.internal/shot_b02.png" }
+    ],
+    "engineDebugUrl": "https://judgment-engine.internal/debug/run_blocker01"
+  },
+  "screenshotRetentionSeconds": 2592000,
+  "metadata": {
+    "engineVersion": "2026.06.0",
+    "model": "qwen3-vl",
+    "promptVersion": "gate-design-review@7",
+    "captureVersion": "playwright-capture@3",
+    "uiDnaVersion": "ui-dna@2026.06.12"
+  }
+}
