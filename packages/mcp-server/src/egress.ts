@@ -58,6 +58,7 @@ function classifyIpv4(addr: string): EgressVerdict {
   if (a === 169 && b === 254) return { allowed: false, reason: "link_local" }; // 169.254/16
   if (a === 100 && b! >= 64 && b! <= 127) return { allowed: false, reason: "reserved" }; // 100.64/10 CGNAT
   if (a === 192 && b === 0 && octets[2] === 0) return { allowed: false, reason: "reserved" }; // 192.0.0/24
+  if (a === 192 && b === 88 && octets[2] === 99) return { allowed: false, reason: "reserved" }; // 192.88.99/24 6to4 relay anycast (RFC 3068, deprecated RFC 7526)
   if (a === 192 && b === 0 && octets[2] === 2) return { allowed: false, reason: "reserved" }; // TEST-NET-1
   if (a === 198 && b === 51 && octets[2] === 100) return { allowed: false, reason: "reserved" }; // TEST-NET-2
   if (a === 203 && b === 0 && octets[2] === 113) return { allowed: false, reason: "reserved" }; // TEST-NET-3

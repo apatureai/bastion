@@ -13,6 +13,7 @@ describe("classifyAddress — IPv4 denylist (TRD §7.5, T1)", () => {
     ["169.254.169.254", "metadata"],
     ["0.0.0.0", "unspecified"],
     ["100.64.0.1", "reserved"],
+    ["192.88.99.1", "reserved"], // 6to4 relay anycast (RFC 3068, deprecated RFC 7526)
     ["224.0.0.1", "multicast"],
     ["255.255.255.255", "reserved"],
     ["240.0.0.1", "reserved"],
@@ -29,6 +30,11 @@ describe("classifyAddress — IPv4 denylist (TRD §7.5, T1)", () => {
   it("172.15 and 172.32 are public (boundary of 172.16/12)", () => {
     expect(isAddressAllowed("172.15.0.1")).toBe(true);
     expect(isAddressAllowed("172.32.0.1")).toBe(true);
+  });
+
+  it("192.88.98 and 192.88.100 are public (boundary of 192.88.99/24)", () => {
+    expect(isAddressAllowed("192.88.98.1")).toBe(true);
+    expect(isAddressAllowed("192.88.100.1")).toBe(true);
   });
 
   it("allows ordinary public addresses", () => {
@@ -116,6 +122,15 @@ describe("classifyAddress — IPv6 denylist", () => {
 
   it("still allows a NAT64 address wrapping a public v4", () => {
     expect(isAddressAllowed("64:ff9b::5db8:d822")).toBe(true); // wraps 93.184.216.34
+  });
+
+  it("denies the 6to4 relay anycast prefix wrapped in embedded-v4 forms", () => {
+    // 192.88.99.1 == c058:6301 in hextets. It must stay denied through every
+    // embedded-v4 spelling, since all of these route through the v4 denylist.
+    expect(isAddressAllowed("::ffff:192.88.99.1")).toBe(false); // IPv4-mapped, dotted
+    expect(isAddressAllowed("::ffff:c058:6301")).toBe(false); // IPv4-mapped, all-hex
+    expect(isAddressAllowed("64:ff9b::c058:6301")).toBe(false); // NAT64 well-known prefix
+    expect(isAddressAllowed("2002:c058:6301::")).toBe(false); // 6to4 wrapping the relay v4
   });
 
   it("strips a zone id before classifying", () => {
