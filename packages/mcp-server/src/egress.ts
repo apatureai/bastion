@@ -148,6 +148,14 @@ function classifyIpv6(addr: string): EgressVerdict {
     if (!v4.allowed) return v4;
   }
 
+  // NAT64 well-known prefix 64:ff9b::/96 (RFC 6052): the embedded v4 is the last
+  // two hextets. A DNS64/NAT64 resolver synthesizes these for v4-only hosts, so
+  // 64:ff9b::a9fe:a9fe is really 169.254.169.254 — the same embedded-v4 bypass
+  // class as ::ffff:/6to4 above, and it must be classified by the v4 denylist.
+  if (g0 === 0x0064 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
+    return classifyIpv4(embeddedV4(g6, g7));
+  }
+
   const isAllZero = groups.every((g) => g === 0);
   if (isAllZero) return { allowed: false, reason: "unspecified" }; // ::
   if (groups.slice(0, 7).every((g) => g === 0) && groups[7] === 1) {

@@ -97,6 +97,27 @@ describe("classifyAddress — IPv6 denylist", () => {
     expect(isAddressAllowed("2002:5db8:d822::")).toBe(true); // wraps 93.184.216.34
   });
 
+  it("denies NAT64 (64:ff9b::/96) wrapping internal addresses", () => {
+    // A DNS64/NAT64 resolver synthesizes these for v4-only hosts; the embedded
+    // v4 lives in the last two hextets (RFC 6052). Same embedded-v4 SSRF class
+    // as the ::ffff:/6to4 forms above — must be classified by the v4 denylist.
+    const denied: Array<[string, string]> = [
+      ["64:ff9b::a9fe:a9fe", "metadata"], // 169.254.169.254
+      ["64:ff9b::7f00:1", "loopback"], // 127.0.0.1
+      ["64:ff9b::c0a8:1", "private"], // 192.168.0.1
+      ["64:ff9b::0a00:1", "private"], // 10.0.0.1
+    ];
+    for (const [addr, reason] of denied) {
+      const verdict = classifyAddress(addr);
+      expect(verdict.allowed, `${addr} must be denied`).toBe(false);
+      if (!verdict.allowed) expect(verdict.reason).toBe(reason);
+    }
+  });
+
+  it("still allows a NAT64 address wrapping a public v4", () => {
+    expect(isAddressAllowed("64:ff9b::5db8:d822")).toBe(true); // wraps 93.184.216.34
+  });
+
   it("strips a zone id before classifying", () => {
     expect(isAddressAllowed("fe80::1%eth0")).toBe(false);
   });
