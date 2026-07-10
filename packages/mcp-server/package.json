@@ -21,6 +21,6 @@
   "dependencies": {
     "@apature/mcp-types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^3.25.76"
+    "zod": "^4.4.3"
   }
 }
