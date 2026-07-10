@@ -33,12 +33,26 @@ export type EngineFinding = {
   screenshotId: string | null;
   /** Suggested remediation, or null. */
   suggestion: string | null;
+  /**
+   * Engine-produced confidence 0..1, capped upstream by the capture
+   * confidence-ceiling (judgment-engine#150, additive on schema v1). Optional
+   * only because results produced before the engine emitted it exist; when
+   * absent, consumers surface the documented legacy default — they never
+   * compute one locally.
+   */
+  confidence?: number;
 };
 
 /** The engine's review result, consumed but not owned by MCP Review. */
 export type EngineReviewResult = {
   grade: EngineGrade;
   overall: string;
+  /**
+   * Engine-owned result-level confidence 0..1 (judgment-engine#150): the min
+   * over finding confidences, 1 for a clean result. Same optionality rationale
+   * as `EngineFinding.confidence`.
+   */
+  confidence?: number;
   findings: EngineFinding[];
   /** Routes/viewports/previews the engine skipped. */
   notReviewed: string[];

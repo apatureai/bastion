@@ -46,3 +46,34 @@ describe("mapEngineResultToCritique severity mapping", () => {
     expect(critique.not_reviewed.length).toBeGreaterThan(0);
   });
 });
+
+describe("confidence pass-through (mcp-review#13 / judgment-engine#150)", () => {
+  it("passes engine per-finding and result-level confidence through untouched", () => {
+    const engineResult = loadBlockerEngineResult();
+    const withConfidence: EngineReviewResult = {
+      ...engineResult,
+      confidence: 0.63,
+      findings: engineResult.findings.map((f, i) => ({ ...f, confidence: 0.63 + i * 0.1 })),
+    };
+    const critique = mapEngineResultToCritique("review_conf_0001", withConfidence);
+    expect(critique.confidence).toBe(0.63);
+    expect(critique.findings.map((f) => f.confidence)).toEqual(
+      withConfidence.findings.map((f) => f.confidence),
+    );
+  });
+
+  it("falls back to the documented legacy default ONLY when a pre-#150 result omits the field", () => {
+    const engineResult = loadBlockerEngineResult();
+    const legacy: EngineReviewResult = {
+      ...engineResult,
+      findings: engineResult.findings.map((f) => {
+        const { confidence: _dropped, ...rest } = f;
+        return rest;
+      }),
+    };
+    delete legacy.confidence;
+    const critique = mapEngineResultToCritique("review_conf_0002", legacy);
+    expect(critique.confidence).toBe(0.8);
+    for (const f of critique.findings) expect(f.confidence).toBe(0.8);
+  });
+});

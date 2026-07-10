@@ -29,6 +29,15 @@ function mapSeverity(severity: EngineSeverity): CritiqueSeverity {
   }
 }
 
+/**
+ * Surfaced ONLY for results produced before the engine emitted confidence on
+ * the wire (judgment-engine#150 closed mcp-review#13's upstream half). MCP
+ * Review owns no capture or inference, so it never computes a confidence
+ * locally — current results pass the engine's ceiling-capped signal through,
+ * and pre-#150 stored results get this stable documented default.
+ */
+const LEGACY_RESULT_CONFIDENCE = 0.8;
+
 function mapFinding(finding: EngineFinding): CritiqueFinding {
   return {
     finding_id: finding.id,
@@ -44,13 +53,7 @@ function mapFinding(finding: EngineFinding): CritiqueFinding {
     element_ref: finding.element,
     suggestion: finding.suggestion,
     evidence_id: finding.screenshotId,
-    // DELIBERATE PLACEHOLDER (tracked in issue #13). The engine boundary
-    // (`EngineFinding`) does not yet carry a per-finding confidence, and MCP
-    // Review owns no capture or inference, so any number computed here would be
-    // fabricated. We surface a stable calibrated default rather than invent
-    // precision; the real fix is upstream (engine emits confidence -> pass it
-    // through). Do NOT replace this with a locally-computed score.
-    confidence: 0.8,
+    confidence: finding.confidence ?? LEGACY_RESULT_CONFIDENCE,
   };
 }
 
@@ -58,11 +61,7 @@ export function mapEngineResultToCritique(reviewId: string, result: EngineReview
   return {
     review_id: reviewId,
     grade: result.grade,
-    // DELIBERATE PLACEHOLDER (tracked in issue #13). Same rationale as the
-    // per-finding confidence above: the engine boundary does not yet emit an
-    // overall confidence, so we surface a stable calibrated default instead of
-    // fabricating one. Replace only once the engine carries a real signal.
-    confidence: 0.8,
+    confidence: result.confidence ?? LEGACY_RESULT_CONFIDENCE,
     overall: result.overall,
     findings: result.findings.map(mapFinding),
     not_reviewed: result.notReviewed,

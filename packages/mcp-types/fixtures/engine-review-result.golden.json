@@ -1,6 +1,7 @@
 {
   "grade": "needs_work",
   "overall": "The new pricing page reads clearly on desktop, but the mobile layout breaks the design system: the primary CTA loses its brand color and the card grid overflows the viewport. Two nits on spacing.",
+  "confidence": 0.7,
   "findings": [
     {
       "id": "f_001",
@@ -11,7 +12,8 @@
       "viewport": "mobile",
       "element": "button[data-testid='cta-primary']",
       "screenshotId": "shot_001",
-      "suggestion": "Apply the `--color-accent` token (or the `btn-primary` class) so the CTA matches the brand accent used elsewhere."
+      "suggestion": "Apply the `--color-accent` token (or the `btn-primary` class) so the CTA matches the brand accent used elsewhere.",
+      "confidence": 0.92
     },
     {
       "id": "f_002",
@@ -22,7 +24,8 @@
       "viewport": "mobile",
       "element": ".pricing-grid",
       "screenshotId": "shot_002",
-      "suggestion": "Switch the grid to a single column under the `sm` breakpoint."
+      "suggestion": "Switch the grid to a single column under the `sm` breakpoint.",
+      "confidence": 0.85
     },
     {
       "id": "f_003",
@@ -33,7 +36,8 @@
       "viewport": "desktop",
       "element": ".feature-row",
       "screenshotId": null,
-      "suggestion": "Use a single spacing token for consistent vertical rhythm."
+      "suggestion": "Use a single spacing token for consistent vertical rhythm.",
+      "confidence": 0.7
     }
   ],
   "notReviewed": [
@@ -42,8 +46,14 @@
   ],
   "artifacts": {
     "annotatedScreenshots": [
-      { "findingId": "f_001", "url": "https://artifacts.judgment-engine.internal/shot_001.png" },
-      { "findingId": "f_002", "url": "https://artifacts.judgment-engine.internal/shot_002.png" }
+      {
+        "findingId": "f_001",
+        "url": "https://artifacts.judgment-engine.internal/shot_001.png"
+      },
+      {
+        "findingId": "f_002",
+        "url": "https://artifacts.judgment-engine.internal/shot_002.png"
+      }
     ],
     "engineDebugUrl": "https://judgment-engine.internal/debug/run_abc123"
   },
