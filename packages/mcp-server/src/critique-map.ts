@@ -29,15 +29,6 @@ function mapSeverity(severity: EngineSeverity): CritiqueSeverity {
   }
 }
 
-/**
- * Surfaced ONLY for results produced before the engine emitted confidence on
- * the wire (judgment-engine#150 closed mcp-review#13's upstream half). MCP
- * Review owns no capture or inference, so it never computes a confidence
- * locally — current results pass the engine's ceiling-capped signal through,
- * and pre-#150 stored results get this stable documented default.
- */
-const LEGACY_RESULT_CONFIDENCE = 0.8;
-
 function mapFinding(finding: EngineFinding): CritiqueFinding {
   return {
     finding_id: finding.id,
@@ -53,7 +44,7 @@ function mapFinding(finding: EngineFinding): CritiqueFinding {
     element_ref: finding.element,
     suggestion: finding.suggestion,
     evidence_id: finding.screenshotId,
-    confidence: finding.confidence ?? LEGACY_RESULT_CONFIDENCE,
+    confidence: finding.confidence ?? null,
   };
 }
 
@@ -61,7 +52,7 @@ export function mapEngineResultToCritique(reviewId: string, result: EngineReview
   return {
     review_id: reviewId,
     grade: result.grade,
-    confidence: result.confidence ?? LEGACY_RESULT_CONFIDENCE,
+    confidence: result.confidence ?? null,
     overall: result.overall,
     findings: result.findings.map(mapFinding),
     not_reviewed: result.notReviewed,

@@ -704,7 +704,7 @@ Errors must not expose:
 Must include:
 
 - review ID and job status;
-- grade and overall confidence;
+- grade and engine-produced overall confidence, or explicit `null` when unavailable;
 - reviewed/not-reviewed coverage;
 - finding counts by severity;
 - finding index;
@@ -723,7 +723,7 @@ Must include:
 - element ref;
 - observation;
 - violated standard with provenance;
-- confidence;
+- engine-produced confidence, or explicit `null` when unavailable;
 - repair hint;
 - evidence refs;
 - recheck criteria;

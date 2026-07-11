@@ -37,8 +37,8 @@ export type EngineFinding = {
    * Engine-produced confidence 0..1, capped upstream by the capture
    * confidence-ceiling (judgment-engine#150, additive on schema v1). Optional
    * only because results produced before the engine emitted it exist; when
-   * absent, consumers surface the documented legacy default — they never
-   * compute one locally.
+   * absent, consumers surface confidence as unavailable — they never compute
+   * or synthesize a numeric value locally.
    */
   confidence?: number;
 };

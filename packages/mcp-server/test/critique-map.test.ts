@@ -48,21 +48,24 @@ describe("mapEngineResultToCritique severity mapping", () => {
 });
 
 describe("confidence pass-through (mcp-review#13 / judgment-engine#150)", () => {
-  it("passes engine per-finding and result-level confidence through untouched", () => {
+  it("passes calibrated boundary values 0 and 1 through untouched", () => {
     const engineResult = loadBlockerEngineResult();
     const withConfidence: EngineReviewResult = {
       ...engineResult,
-      confidence: 0.63,
-      findings: engineResult.findings.map((f, i) => ({ ...f, confidence: 0.63 + i * 0.1 })),
+      confidence: 0,
+      findings: engineResult.findings.map((f, i, all) => ({
+        ...f,
+        confidence: i / (all.length - 1),
+      })),
     };
     const critique = mapEngineResultToCritique("review_conf_0001", withConfidence);
-    expect(critique.confidence).toBe(0.63);
+    expect(critique.confidence).toBe(0);
     expect(critique.findings.map((f) => f.confidence)).toEqual(
       withConfidence.findings.map((f) => f.confidence),
     );
   });
 
-  it("falls back to the documented legacy default ONLY when a pre-#150 result omits the field", () => {
+  it("represents omitted legacy confidence as unavailable without synthesizing a number", () => {
     const engineResult = loadBlockerEngineResult();
     const legacy: EngineReviewResult = {
       ...engineResult,
@@ -73,7 +76,20 @@ describe("confidence pass-through (mcp-review#13 / judgment-engine#150)", () => 
     };
     delete legacy.confidence;
     const critique = mapEngineResultToCritique("review_conf_0002", legacy);
+    expect(critique.confidence).toBeNull();
+    for (const f of critique.findings) expect(f.confidence).toBeNull();
+    expect(JSON.stringify(critique)).not.toContain('"confidence":0.8');
+  });
+
+  it("emits 0.8 only when the engine actually supplied 0.8", () => {
+    const engineResult = loadBlockerEngineResult();
+    const supplied: EngineReviewResult = {
+      ...engineResult,
+      confidence: 0.8,
+      findings: engineResult.findings.map((finding) => ({ ...finding, confidence: 0.8 })),
+    };
+    const critique = mapEngineResultToCritique("review_conf_0003", supplied);
     expect(critique.confidence).toBe(0.8);
-    for (const f of critique.findings) expect(f.confidence).toBe(0.8);
+    expect(critique.findings.every((finding) => finding.confidence === 0.8)).toBe(true);
   });
 });

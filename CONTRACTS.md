@@ -16,6 +16,7 @@ Status: proposed cross-repo contract
 - text content is a concise rendering of `structuredContent`; structured content is canonical.
 - tool `outputSchema` describes successful `structuredContent`.
 - expected tool failures omit `structuredContent` and return `isError: true` with text JSON conforming to the review-error schema.
+- confidence is engine-owned: current calibrated results carry `0..1`; stored pre-confidence results carry `null`. MCP Review never synthesizes a number, and `null` is never eligible for blocking or gating.
 
 ## 2. MCP Tool Catalog
 

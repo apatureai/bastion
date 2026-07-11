@@ -404,9 +404,13 @@
                 ]
               },
               "confidence": {
-                "type": "number",
+                "type": [
+                  "number",
+                  "null"
+                ],
                 "minimum": 0,
-                "maximum": 1
+                "maximum": 1,
+                "description": "Engine-produced aggregate confidence, or null when unavailable for an uncalibrated legacy result."
               },
               "overall": {
                 "type": "string",
@@ -460,9 +464,13 @@
                       "maxLength": 256
                     },
                     "confidence": {
-                      "type": "number",
+                      "type": [
+                        "number",
+                        "null"
+                      ],
                       "minimum": 0,
-                      "maximum": 1
+                      "maximum": 1,
+                      "description": "Engine-produced finding confidence, or null when unavailable."
                     }
                   },
                   "required": [

@@ -59,14 +59,16 @@ export type CritiqueFinding = {
   suggestion: string | null;
   /** Evidence ref for the annotated screenshot, or null. */
   evidence_id: string | null;
-  confidence: number;
+  /** Engine-produced confidence, or null for an uncalibrated legacy result. */
+  confidence: number | null;
 };
 
 /** The §6.4 Critique object: overall verdict plus structured findings. */
 export type Critique = {
   review_id: string;
   grade: CritiqueGrade;
-  confidence: number;
+  /** Engine-produced aggregate confidence, or null when unavailable. */
+  confidence: number | null;
   overall: string;
   findings: CritiqueFinding[];
   /** Routes/viewports the engine could not review. */
