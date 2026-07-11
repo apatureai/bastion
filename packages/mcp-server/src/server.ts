@@ -15,6 +15,7 @@ import { TargetAuthError } from "./target-auth.js";
 import type { TargetAuthFailureReason } from "./target-auth.js";
 import {
   designRecheckInputShape,
+  designReviewCancelInputShape,
   designReviewGetInputShape,
   designReviewInputShape,
 } from "./tools.js";
@@ -126,9 +127,11 @@ function recheckRejectionResult(reason: RecheckRejectionReason, message: string)
 }
 
 /**
- * Build the MCP Review server with the v1 tool surface. `design_review`,
- * `design_review_get`, and `design_recheck` are wired; `design_review_cancel`
- * follows in its own issue. Pass `deps` (mock engine, fixed clock/ids) to make
+ * Build the MCP Review server with the v1 tool surface. All four catalog tools
+ * — `design_review`, `design_review_get`, `design_recheck`, and
+ * `design_review_cancel` — are wired, so the registered surface matches
+ * schemas/mcp-tools.json exactly (no advertised-but-missing tool). Pass `deps`
+ * (mock engine, fixed clock/ids) to make
  * the server deterministic under test — tests MUST never reach a real engine.
  *
  * The P0 SSRF guard (issue #4) is enforced whenever `deps.allowlist` and
@@ -286,6 +289,44 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
           });
         }
         return errorResult("INTERNAL_ERROR", "the recheck could not be submitted", {
+          retriable: true,
+          nextAction: "wait",
+        });
+      }
+    },
+  );
+
+  server.registerTool(
+    "design_review_cancel",
+    {
+      title: "Cancel design review",
+      description:
+        "Request best-effort cancellation of a queued or running review job. Terminal jobs keep their " +
+        "existing state. Cancellation does not edit customer systems and consumes no review units.",
+      inputSchema: designReviewCancelInputShape,
+      annotations: {
+        // Mutates Apature service job state (not customer systems), and an
+        // exact retry returns the same terminal state — idempotent.
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: { "com.apature/metered": false, "com.apature/product": "mcp-review" },
+    },
+    async (input): Promise<CallToolResult> => {
+      try {
+        const result = await service.cancelReview(input.job_id, input.reason);
+        return jsonResult(result as unknown as Record<string, unknown>);
+      } catch (err) {
+        if (err instanceof JobNotFoundError) {
+          // Non-enumerating: unknown and wrong-tenant ids look identical.
+          return errorResult("JOB_NOT_FOUND", "no such cancellable job", {
+            retriable: false,
+            nextAction: "start_new_review",
+          });
+        }
+        return errorResult("INTERNAL_ERROR", "the review could not be cancelled", {
           retriable: true,
           nextAction: "wait",
         });

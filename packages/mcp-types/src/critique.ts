@@ -127,3 +127,34 @@ export type DesignRecheckResult = {
   recheck: Recheck;
   budget: Budget;
 };
+
+/**
+ * What cancellation asked of the upstream engine (schemas/mcp-tools.json
+ * design_review_cancel outputSchema):
+ *  - `not_needed`        — the job was still queued; MCP Review made it terminal
+ *                          `cancelled` itself, no engine work was ever started.
+ *  - `requested`         — the job was running; MCP Review asked the engine to
+ *                          cancel and the job stays `running` until a terminal
+ *                          engine acknowledgement proves no late result can
+ *                          publish.
+ *  - `already_terminal`  — the job was already `completed`/`failed`/`cancelled`;
+ *                          cancel is a no-op that returns the existing state.
+ *  - `not_supported`     — the engine could not accept a cancel for this job.
+ */
+export type UpstreamCancellation = "not_needed" | "requested" | "not_supported" | "already_terminal";
+
+/**
+ * `design_review_cancel` response (schemas/mcp-tools.json outputSchema).
+ * Best-effort cancellation of a queued or running review job; terminal jobs
+ * keep their state. `status` is the job's externally-visible state AFTER the
+ * cancel is applied — a running job whose engine cancel is in flight stays
+ * `running` (never a synthetic `cancelling`), disclosing progress only through
+ * `upstream_cancellation`. Cancellation consumes no review units.
+ */
+export type DesignReviewCancelResult = {
+  schema_version: typeof SCHEMA_VERSION;
+  job_id: string;
+  status: JobStatus;
+  cancellation_requested_at: string;
+  upstream_cancellation: UpstreamCancellation;
+};

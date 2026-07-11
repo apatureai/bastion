@@ -3,13 +3,17 @@ import type {
   Budget,
   Critique,
   DesignRecheckResult,
+  DesignReviewCancelResult,
   DesignReviewGetResult,
   DesignReviewResult,
   Job,
+  JobStatus,
   Recheck,
+  UpstreamCancellation,
 } from "@apature/mcp-types";
 import { SCHEMA_VERSION } from "@apature/mcp-types";
 import { mapEngineResultToCritique } from "./critique-map.js";
+import { isTerminalStatus, mapEngineStatusToMcp } from "./engine-cancel.js";
 import type { EngineClient } from "./engine-client.js";
 import { MockEngineClient } from "./engine-client.js";
 import type { DesignRecheckInput, DesignReviewInput, NormalizedReviewRequest } from "./normalize.js";
@@ -103,6 +107,11 @@ type JobRecord = {
   critique: Critique | null;
   /** review_id of the critique this job produced, if any. */
   reviewId: string | null;
+  /**
+   * First-cancel timestamp (#32). Set once so a duplicate cancel is idempotent
+   * and reports the SAME cancellation_requested_at rather than a moving clock.
+   */
+  cancellationRequestedAt?: string;
 };
 
 /** A completed review, indexed for recheck lookups. */
@@ -414,6 +423,83 @@ export class ReviewService {
       job,
       recheck,
       budget: this.budget(units),
+    };
+  }
+
+  /**
+   * Request best-effort cancellation of a queued or running review/recheck job
+   * (#32). Cancellation consumes no review units and preserves already-consumed
+   * ledger truth. Semantics by current status:
+   *   - unknown id            → `JobNotFoundError` (non-enumerating; the server
+   *                             maps it to a generic JOB_NOT_FOUND).
+   *   - already terminal       → idempotent no-op: return the existing status
+   *                             with `upstream_cancellation: already_terminal`.
+   *   - `queued`               → nothing started upstream, so MCP Review makes
+   *                             it terminal `cancelled` itself (`not_needed`).
+   *   - `running`              → ask the engine to cancel and map its post-cancel
+   *                             poll (`engine-cancel.ts`): the job stays
+   *                             externally `running` while cancellation is in
+   *                             flight (`requested`) and only becomes terminal
+   *                             `cancelled` once the engine confirms no late
+   *                             result can publish. A missing/refusing engine
+   *                             cancel surface reports `not_supported`.
+   *
+   * `cancellation_requested_at` is set once (first cancel) so a duplicate cancel
+   * is idempotent. Note: durable running-job state, principal injection, and the
+   * two-tenant / cancel-vs-complete race fixtures land with the async
+   * application store in #28; against the current synchronous engine only the
+   * terminal-idempotent and unknown paths are reachable end to end, while the
+   * full queued/running state table is proven by `engine-cancel` unit tests.
+   */
+  async cancelReview(jobId: string, _reason?: string): Promise<DesignReviewCancelResult> {
+    const record = this.jobsById.get(jobId);
+    if (!record) {
+      throw new JobNotFoundError(`no job with id ${jobId}`);
+    }
+    if (record.cancellationRequestedAt === undefined) {
+      record.cancellationRequestedAt = this.now().toISOString();
+    }
+    const requestedAt = record.cancellationRequestedAt;
+    const status = record.job.status;
+
+    if (isTerminalStatus(status)) {
+      return this.cancelResult(jobId, status, requestedAt, "already_terminal");
+    }
+
+    if (status === "queued") {
+      record.job = { ...record.job, status: "cancelled", completed_at: this.now().toISOString() };
+      return this.cancelResult(jobId, "cancelled", requestedAt, "not_needed");
+    }
+
+    // status === "running": cooperative engine cancellation.
+    if (!this.engine.cancel) {
+      return this.cancelResult(jobId, status, requestedAt, "not_supported");
+    }
+    const ack = await this.engine.cancel(jobId);
+    if (!ack.accepted) {
+      return this.cancelResult(jobId, status, requestedAt, "not_supported");
+    }
+    const mapped = mapEngineStatusToMcp(ack.poll);
+    record.job = {
+      ...record.job,
+      status: mapped.status,
+      ...(mapped.terminal ? { completed_at: this.now().toISOString() } : {}),
+    };
+    return this.cancelResult(jobId, mapped.status, requestedAt, "requested");
+  }
+
+  private cancelResult(
+    jobId: string,
+    status: JobStatus,
+    requestedAt: string,
+    upstream: UpstreamCancellation,
+  ): DesignReviewCancelResult {
+    return {
+      schema_version: SCHEMA_VERSION,
+      job_id: jobId,
+      status,
+      cancellation_requested_at: requestedAt,
+      upstream_cancellation: upstream,
     };
   }
 

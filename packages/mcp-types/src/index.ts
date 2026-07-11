@@ -28,6 +28,8 @@ export type {
   RecheckOutcome,
   Recheck,
   DesignRecheckResult,
+  UpstreamCancellation,
+  DesignReviewCancelResult,
 } from "./critique.js";
 export { ERROR_CODES } from "./error.js";
 export type { ReviewErrorCode, NextAction, ReviewError } from "./error.js";

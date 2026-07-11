@@ -37,6 +37,9 @@ describe("MCP Review server", () => {
     expect(byName.has("design_review")).toBe(true);
     expect(byName.has("design_review_get")).toBe(true);
     expect(byName.has("design_recheck")).toBe(true);
+    // The full four-tool catalog surface is now registered (#32): no
+    // advertised-but-missing tool.
+    expect(byName.has("design_review_cancel")).toBe(true);
 
     // Read-only customer boundary: there must be no edit/write/commit/push tool.
     for (const name of byName.keys()) {
@@ -48,6 +51,44 @@ describe("MCP Review server", () => {
     expect(byName.get("design_review")?.annotations?.readOnlyHint).toBe(false);
     expect(byName.get("design_recheck")?.annotations?.readOnlyHint).toBe(false);
     expect(byName.get("design_recheck")?._meta?.["com.apature/metered"]).toBe(true);
+    // Cancel mutates Apature service state (not customer systems), is idempotent,
+    // and is never metered.
+    const cancel = byName.get("design_review_cancel");
+    expect(cancel?.annotations?.readOnlyHint).toBe(false);
+    expect(cancel?.annotations?.idempotentHint).toBe(true);
+    expect(cancel?._meta?.["com.apature/metered"]).toBe(false);
+  });
+
+  it("cancels a completed review as an idempotent already_terminal no-op (#32)", async () => {
+    const { client } = await connectClient();
+    const submit = (await client.callTool({
+      name: "design_review",
+      arguments: { url: "https://preview.example.com/", client_request_id: "cancel-e2e-0001" },
+    })) as ToolResult;
+    const jobId = (submit.structuredContent?.job as { job_id: string }).job_id;
+
+    const cancel = (await client.callTool({
+      name: "design_review_cancel",
+      arguments: { job_id: jobId, reason: "no longer needed" },
+    })) as ToolResult;
+    expect(cancel.isError).toBeFalsy();
+    expect(cancel.structuredContent).toMatchObject({
+      schema_version: "1.0.0",
+      job_id: jobId,
+      status: "completed",
+      upstream_cancellation: "already_terminal",
+    });
+  });
+
+  it("cancel of an unknown job is a non-enumerating JOB_NOT_FOUND (#32)", async () => {
+    const { client } = await connectClient();
+    const res = (await client.callTool({
+      name: "design_review_cancel",
+      arguments: { job_id: "job_nonexistent_00000001" },
+    })) as ToolResult;
+    expect(res.isError).toBe(true);
+    // The message must not disclose whether the id exists for another tenant.
+    expect(JSON.stringify(res.structuredContent)).not.toContain("job_nonexistent");
   });
 
   it("runs design_recheck end to end and returns a before/after outcome set", async () => {

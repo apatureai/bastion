@@ -1,6 +1,19 @@
 import type { EngineRecheckResult, EngineReviewResult } from "@apature/mcp-types";
 import { loadGoldenEngineResult } from "@apature/mcp-types";
+import type { EnginePollStatus } from "./engine-cancel.js";
 import type { NormalizedReviewRequest } from "./normalize.js";
+
+/**
+ * The engine's acknowledgement of a cancel request (#32/#66). `accepted` is
+ * false when the engine cannot cancel this job (unknown to the engine, or a
+ * transport failure); the service maps that to `upstream_cancellation:
+ * not_supported`. `poll` is the engine's post-cancel job status — usually
+ * `cancelling` (non-terminal) or a terminal `failed`+`error:"canceled"`.
+ */
+export interface EngineCancelAck {
+  accepted: boolean;
+  poll: EnginePollStatus;
+}
 
 /**
  * A normalized recheck request as the engine receives it. The flagged findings
@@ -34,6 +47,15 @@ export interface EngineClient {
    * per-finding pass/fail/inconclusive verdict plus the before/after pair.
    */
   recheck(request: EngineRecheckRequest): Promise<EngineRecheckResult>;
+
+  /**
+   * Request cooperative cancellation of a running engine job (#66). Optional:
+   * a client without a cancel surface reports `not_supported`. The real engine
+   * aborts work and suppresses late writes; MCP Review maps the returned poll
+   * status through `engine-cancel.ts` and never marks a job terminally
+   * `cancelled` until the engine proves no late result can publish.
+   */
+  cancel?(jobId: string): Promise<EngineCancelAck>;
 }
 
 /**
@@ -77,6 +99,16 @@ export class MockEngineClient implements EngineClient {
             };
       }),
     };
+  }
+
+  /**
+   * Deterministic cancel stand-in: the engine accepts and enters the
+   * non-terminal `cancelling` state, so a test exercising the running-job
+   * cancel path gets a stable "cancel requested, not yet terminal" ack. The
+   * real engine's DELETE /jobs/:id is what production wires here.
+   */
+  async cancel(_jobId: string): Promise<EngineCancelAck> {
+    return { accepted: true, poll: { state: "cancelling" } };
   }
 }
 

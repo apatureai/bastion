@@ -76,10 +76,21 @@ export const designRecheckInputShape = {
   client_request_id: clientRequestId,
 };
 
+export const designReviewCancelInputShape = {
+  job_id: z.string().min(8).max(128).describe("Job id of the review/recheck to cancel."),
+  reason: z
+    .string()
+    .max(500)
+    .optional()
+    .describe("Optional free-text reason for the cancellation, recorded for audit."),
+};
+
 export const designReviewInputSchema = z.object(designReviewInputShape);
 export const designReviewGetInputSchema = z.object(designReviewGetInputShape);
 export const designRecheckInputSchema = z.object(designRecheckInputShape);
+export const designReviewCancelInputSchema = z.object(designReviewCancelInputShape);
 
 export type DesignReviewToolInput = z.infer<typeof designReviewInputSchema>;
 export type DesignReviewGetToolInput = z.infer<typeof designReviewGetInputSchema>;
 export type DesignRecheckToolInput = z.infer<typeof designRecheckInputSchema>;
+export type DesignReviewCancelToolInput = z.infer<typeof designReviewCancelInputSchema>;
