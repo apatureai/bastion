@@ -17,7 +17,28 @@ export type {
   ThrottleDecision,
 } from "./rate-limit.js";
 export { MockEngineClient } from "./engine-client.js";
-export type { EngineClient, EngineRecheckRequest } from "./engine-client.js";
+export type { EngineClient, EngineRecheckRequest, EngineCancelAck } from "./engine-client.js";
+export {
+  ENGINE_CANCEL_MAPPING_VERSION,
+  ENGINE_CANCELED_ERROR,
+  isTerminalStatus,
+  mapEngineStatusToMcp,
+} from "./engine-cancel.js";
+export type { EnginePollStatus, MappedEngineStatus } from "./engine-cancel.js";
+export {
+  authenticate,
+  bearerToken,
+  protectedResourceMetadata,
+  tenantOf,
+  wwwAuthenticate,
+  REVIEWS_CANCEL_SCOPE,
+  TokenInvalidError,
+} from "./auth.js";
+export type { Principal, TokenVerifier } from "./auth.js";
+export { createProductionHttpServer } from "./http-server.js";
+export type { AllowlistResolver, ProductionHttpConfig } from "./http-server.js";
+export { createJwtVerifier } from "./jwt-verifier.js";
+export type { JwtVerifierConfig } from "./jwt-verifier.js";
 export { mapEngineResultToCritique } from "./critique-map.js";
 export {
   NormalizationError,

@@ -16,11 +16,16 @@
     "dist"
   ],
   "scripts": {
-    "test": "vitest run"
+    "test": "vitest run",
+    "start": "node dist/main.js"
   },
   "dependencies": {
     "@apature/mcp-types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "jose": "^6.2.3"
+  },
+  "bin": {
+    "mcp-review-server": "./dist/main.js"
   }
 }
