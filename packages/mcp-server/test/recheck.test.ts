@@ -27,7 +27,7 @@ const reviewInput = {
 /** Submit a review and return its review_id and finding ids. */
 async function seedReview(service: ReviewService) {
   const submitted = await service.submitReview(reviewInput);
-  const got = service.getReview(submitted.job.job_id);
+  const got = await service.getReview(submitted.job.job_id);
   const review = got.review;
   if (!review) throw new Error("expected a completed review");
   return { reviewId: review.review_id, findingIds: review.findings.map((f) => f.finding_id) };

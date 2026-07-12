@@ -217,6 +217,8 @@ stateDiagram-v2
 
 Product state is explicit and stored in shared durable storage. An MCP transport session may disappear without affecting the job.
 
+**Runtime binding added July 11, 2026 (#36).** `ReviewApplicationStore` is the transport-neutral persistence port. The production adapter uses tenant-scoped Postgres transactions and RLS; an in-memory adapter exists only for deterministic tests. Every isolated protocol server receives the same application store and an explicitly injected engine adapter. The shipped entrypoint has no mock-engine or empty-target fallback, and readiness is the conjunction of store, Judgment Engine, target-authorization store, and sandboxed DNS health.
+
 ## 7. Authentication and Target Authorization
 
 ```mermaid

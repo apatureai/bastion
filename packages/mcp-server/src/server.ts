@@ -6,6 +6,7 @@ import { NormalizationError } from "./normalize.js";
 import {
   IdempotencyConflictError,
   JobNotFoundError,
+  JobExpiredError,
   RecheckRejectedError,
   RecheckThrottledError,
   ReviewService,
@@ -215,11 +216,17 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
     },
     async (input): Promise<CallToolResult> => {
       try {
-        const result = service.getReview(input.job_id);
+        const result = await service.getReview(input.job_id);
         return jsonResult(result as unknown as Record<string, unknown>);
       } catch (err) {
         if (err instanceof JobNotFoundError) {
           return errorResult("JOB_NOT_FOUND", err.message, {
+            retriable: false,
+            nextAction: "start_new_review",
+          });
+        }
+        if (err instanceof JobExpiredError) {
+          return errorResult("JOB_EXPIRED", err.message, {
             retriable: false,
             nextAction: "start_new_review",
           });
@@ -322,6 +329,12 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
         if (err instanceof JobNotFoundError) {
           // Non-enumerating: unknown and wrong-tenant ids look identical.
           return errorResult("JOB_NOT_FOUND", "no such cancellable job", {
+            retriable: false,
+            nextAction: "start_new_review",
+          });
+        }
+        if (err instanceof JobExpiredError) {
+          return errorResult("JOB_EXPIRED", err.message, {
             retriable: false,
             nextAction: "start_new_review",
           });

@@ -5,6 +5,8 @@ import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createProductionHttpServer,
+  InMemoryReviewApplicationStore,
+  MockEngineClient,
   type AllowlistResolver,
   type TokenVerifier,
 } from "../src/index.js";
@@ -27,6 +29,7 @@ const allowlistResolver: AllowlistResolver = {
   async resolve(tenantId) {
     return { tenantId, targets: [{ kind: "host", host: "preview.example.com" }] };
   },
+  async ready() { return true; },
 };
 
 const RESOURCE = "http://127.0.0.1";
@@ -36,7 +39,7 @@ afterEach(async () => {
   for (const s of running.splice(0)) await s.close();
 });
 
-async function start() {
+async function start(options: { engineReady?: boolean; dnsReady?: boolean } = {}) {
   // The SDK validates the Host header (incl. port) against allowedHosts — the
   // DNS-rebinding defense. The bound port is only known after listen, so pass a
   // mutable array and register 127.0.0.1:<port> once it is known (in production
@@ -46,6 +49,10 @@ async function start() {
     verifier: fakeVerifier,
     allowlistResolver,
     dnsResolver: { resolve: async () => ["93.184.216.34"] },
+    applicationStore: new InMemoryReviewApplicationStore(),
+    engine: new MockEngineClient(),
+    engineReady: async () => options.engineReady ?? true,
+    dnsReady: async () => options.dnsReady ?? true,
     resourceUrl: RESOURCE,
     authorizationServers: ["https://auth.apature.ai"],
     allowedHosts,
@@ -107,10 +114,9 @@ describe("production HTTP MCP server (#28)", () => {
     expect(result.structuredContent?.job?.status).toBe("completed");
   });
 
-  it("gives each client its OWN session; a second client cannot see the first's job (CVE-2026-25536)", async () => {
+  it("isolates transports while a same-tenant reconnect recovers the durable product job", async () => {
     const { base } = await start();
     const a = await connect(base, "tok::acme::agent-a");
-    const b = await connect(base, "tok::beta::agent-b");
     const submitted = (await a.client.callTool({
       name: "design_review",
       arguments: { url: "https://preview.example.com/", client_request_id: "iso-a-0001" },
@@ -118,7 +124,17 @@ describe("production HTTP MCP server (#28)", () => {
     const jobId = submitted.structuredContent?.job?.job_id;
     expect(jobId).toBeTruthy();
 
-    // Tenant B's own session has no record of tenant A's job.
+    await a.transport.close();
+    const replacement = await connect(base, "tok::acme::agent-a");
+    const recovered = (await replacement.client.callTool({
+      name: "design_review_get",
+      arguments: { job_id: jobId },
+    })) as { isError?: boolean; structuredContent?: { job?: { job_id?: string } } };
+    expect(recovered.isError).not.toBe(true);
+    expect(recovered.structuredContent?.job?.job_id).toBe(jobId);
+
+    // A different tenant still sees the same non-enumerating not-found result.
+    const b = await connect(base, "tok::beta::agent-b");
     const got = (await b.client.callTool({
       name: "design_review_get",
       arguments: { job_id: jobId },
@@ -132,5 +148,16 @@ describe("production HTTP MCP server (#28)", () => {
     await connect(base, "tok::acme::agent-z");
     const ready = (await (await fetch(`${base}/readyz`)).json()) as { sessions: number };
     expect(ready.sessions).toBeGreaterThanOrEqual(1);
+  });
+
+  it("fails readiness while a required production dependency is unavailable", async () => {
+    const { base } = await start({ engineReady: false });
+    const response = await fetch(`${base}/readyz`);
+    expect(response.status).toBe(503);
+    await expect(response.json()).resolves.toMatchObject({
+      status: "not_ready",
+      checks: { store: true, engine: false, targets: true, dns: true },
+    });
+    expect((await fetch(`${base}/livez`)).status).toBe(200);
   });
 });

@@ -4,6 +4,7 @@ export type { ReviewServiceDeps, RecheckRejectionReason } from "./review-service
 export {
   IdempotencyConflictError,
   JobNotFoundError,
+  JobExpiredError,
   RecheckRejectedError,
   RecheckThrottledError,
 } from "./review-service.js";
@@ -18,6 +19,18 @@ export type {
 } from "./rate-limit.js";
 export { MockEngineClient } from "./engine-client.js";
 export type { EngineClient, EngineRecheckRequest, EngineCancelAck } from "./engine-client.js";
+export {
+  InMemoryReviewApplicationStore,
+} from "./application-store.js";
+export { PostgresReviewApplicationStore } from "./postgres-store.js";
+export type { SqlConnection, SqlConnectionFactory, SqlResult } from "./postgres-store.js";
+export type {
+  ApplicationJobRecord,
+  ReserveJobResult,
+  ReviewApplicationStore,
+} from "./application-store.js";
+export { JudgmentEngineHttpClient, EngineDependencyError } from "./engine-http-client.js";
+export type { EngineHttpClientOptions, EngineJobPoll } from "./engine-http-client.js";
 export {
   ENGINE_CANCEL_MAPPING_VERSION,
   ENGINE_CANCELED_ERROR,

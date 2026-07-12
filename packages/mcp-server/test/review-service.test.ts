@@ -57,7 +57,7 @@ describe("ReviewService.getReview (§6.4 Critique)", () => {
   it("returns the Critique with element_ref and suggestions on findings", async () => {
     const service = makeService();
     const submitted = await service.submitReview(base);
-    const got = service.getReview(submitted.job.job_id);
+    const got = await service.getReview(submitted.job.job_id);
 
     const review = got.review;
     expect(review).toBeDefined();
@@ -87,15 +87,15 @@ describe("ReviewService.getReview (§6.4 Critique)", () => {
     const submitted = await service.submitReview(base);
     const remainingAfterSubmit = submitted.budget.tenant_units_remaining;
 
-    service.getReview(submitted.job.job_id);
+    await service.getReview(submitted.job.job_id);
     // Re-submit identical request: still reused, remaining unchanged -> get was free.
     const resubmit = await service.submitReview(base);
     expect(resubmit.budget.tenant_units_remaining).toBe(remainingAfterSubmit);
   });
 
-  it("throws JobNotFoundError for an unknown job", () => {
+  it("throws JobNotFoundError for an unknown job", async () => {
     const service = makeService();
-    expect(() => service.getReview("job_99999999")).toThrow(JobNotFoundError);
+    await expect(service.getReview("job_99999999")).rejects.toThrow(JobNotFoundError);
   });
 });
 

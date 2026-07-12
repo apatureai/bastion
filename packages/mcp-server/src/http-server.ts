@@ -12,16 +12,26 @@ import {
 } from "./auth.js";
 import { createMcpReviewServer } from "./server.js";
 import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
+import type { ReviewApplicationStore } from "./application-store.js";
+import type { EngineClient } from "./engine-client.js";
 
 /** Resolve a tenant's ownership-verified target allowlist (issue #4). Injected. */
 export interface AllowlistResolver {
   resolve(tenantId: string): Promise<TenantAllowlist>;
+  ready?(): Promise<boolean>;
 }
 
 export interface ProductionHttpConfig {
   verifier: TokenVerifier;
   allowlistResolver: AllowlistResolver;
   dnsResolver: DnsResolver;
+  applicationStore: ReviewApplicationStore;
+  /** Production engine adapter. Required so the protocol root can never default to MockEngineClient. */
+  engine: EngineClient;
+  /** Health of the real Judgment Engine dependency. */
+  engineReady: () => Promise<boolean>;
+  /** Optional DNS adapter probe; absence is not assumed healthy. */
+  dnsReady: () => Promise<boolean>;
   /** This server's canonical resource identifier (RFC 8707/9728), e.g. https://mcp.apature.ai. */
   resourceUrl: string;
   /** Issuer URLs a client obtains a token from (PRM `authorization_servers`). */
@@ -111,6 +121,9 @@ export function createProductionHttpServer(config: ProductionHttpConfig): {
       allowlist,
       resolver: config.dnsResolver,
       principalId: principal.clientId,
+      tenantId: principal.tenantId,
+      store: config.applicationStore,
+      engine: config.engine,
       ...(config.now ? { now: config.now } : {}),
       ...(config.newId ? { newId: config.newId } : {}),
     });
@@ -150,7 +163,16 @@ export function createProductionHttpServer(config: ProductionHttpConfig): {
       return;
     }
     if (req.method === "GET" && url.pathname === "/readyz") {
-      sendJson(res, 200, { status: "ok", sessions: sessions.size });
+      const checks = {
+        store: await config.applicationStore.ready().catch(() => false),
+        engine: await config.engineReady().catch(() => false),
+        targets: config.allowlistResolver.ready
+          ? await config.allowlistResolver.ready().catch(() => false)
+          : false,
+        dns: await config.dnsReady().catch(() => false),
+      };
+      const ready = Object.values(checks).every(Boolean);
+      sendJson(res, ready ? 200 : 503, { status: ready ? "ok" : "not_ready", checks, sessions: sessions.size });
       return;
     }
     if (url.pathname !== mcpPath) {

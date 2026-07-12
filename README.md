@@ -44,6 +44,8 @@ MCP Tasks can become an optional adapter after client support is proven. Applica
 
 ## Documentation
 
+- [Production application plane](docs/application-plane.md) — durable jobs, required adapters, readiness, migrations, retention, backup/restore, and rollback.
+
 - [RESEARCH.md](RESEARCH.md): primary-source research, alternatives, client compatibility, and market implications.
 - [PRD.md](PRD.md): product requirements, users, metrics, pricing posture, and sequencing.
 - [TRD.md](TRD.md): tool behavior, lifecycle, auth, domain verification, budgets, errors, feedback, and acceptance criteria.

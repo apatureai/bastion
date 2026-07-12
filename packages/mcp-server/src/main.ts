@@ -1,7 +1,9 @@
 import { createRemoteJWKSet } from "jose";
 import { createProductionHttpServer, type AllowlistResolver } from "./http-server.js";
 import { createJwtVerifier } from "./jwt-verifier.js";
-import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
+import type { DnsResolver } from "./target-auth.js";
+import type { ReviewApplicationStore } from "./application-store.js";
+import type { EngineClient } from "./engine-client.js";
 
 /**
  * Deployable remote MCP Review entrypoint (#28). Reads configuration from the
@@ -26,6 +28,10 @@ import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
 export interface MainDeps {
   allowlistResolver: AllowlistResolver;
   dnsResolver: DnsResolver;
+  applicationStore: ReviewApplicationStore;
+  engine: EngineClient;
+  engineReady: () => Promise<boolean>;
+  dnsReady: () => Promise<boolean>;
   env?: NodeJS.ProcessEnv;
   logger?: Pick<Console, "info" | "error">;
 }
@@ -64,6 +70,10 @@ export async function startFromEnv(deps: MainDeps): Promise<{ close(): Promise<v
     verifier,
     allowlistResolver: deps.allowlistResolver,
     dnsResolver: deps.dnsResolver,
+    applicationStore: deps.applicationStore,
+    engine: deps.engine,
+    engineReady: deps.engineReady,
+    dnsReady: deps.dnsReady,
     resourceUrl,
     authorizationServers,
     mcpPath,
@@ -84,21 +94,11 @@ export async function startFromEnv(deps: MainDeps): Promise<{ close(): Promise<v
   return { close, port };
 }
 
-/** Placeholder infra clients; a real deployment replaces these with the tenant
- * target store and the sandboxed DNS resolver. Kept here so the image boots and
- * fails closed (empty allowlist ⇒ every target is DOMAIN_UNVERIFIED) rather than
- * silently trusting arbitrary hosts. */
-const failClosedAllowlist: AllowlistResolver = {
-  async resolve(tenantId): Promise<TenantAllowlist> {
-    return { tenantId, targets: [] };
-  },
-};
-const failClosedResolver: DnsResolver = { resolve: async () => [] };
-
 // Boot when run as the container entrypoint.
 if (import.meta.url === `file://${process.argv[1]}`) {
-  startFromEnv({ allowlistResolver: failClosedAllowlist, dnsResolver: failClosedResolver }).catch((err: unknown) => {
-    console.error("mcp-review failed to start", err);
-    process.exit(1);
-  });
+  console.error(
+    "mcp-review requires an injected durable application store, Judgment Engine client, " +
+      "ownership-verified target store, and sandboxed DNS resolver; refusing placeholder startup",
+  );
+  process.exit(1);
 }

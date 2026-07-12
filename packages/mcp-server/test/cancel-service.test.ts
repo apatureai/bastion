@@ -48,7 +48,7 @@ describe("ReviewService.cancelReview (#32)", () => {
     expect(second).toEqual(first);
 
     // The job itself is untouched: get still serves the completed critique.
-    expect(svc.getReview(submitted.job.job_id).job.status).toBe("completed");
+    expect((await svc.getReview(submitted.job.job_id)).job.status).toBe("completed");
   });
 
   it("consumes no review units: a cancel does not move the tenant balance", async () => {

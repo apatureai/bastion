@@ -16,12 +16,17 @@ import { mapEngineResultToCritique } from "./critique-map.js";
 import { isTerminalStatus, mapEngineStatusToMcp } from "./engine-cancel.js";
 import type { EngineClient } from "./engine-client.js";
 import { MockEngineClient } from "./engine-client.js";
-import type { DesignRecheckInput, DesignReviewInput, NormalizedReviewRequest } from "./normalize.js";
+import type { DesignRecheckInput, DesignReviewInput } from "./normalize.js";
 import { normalizePreviewUrl, normalizeReviewRequest, requestFingerprint } from "./normalize.js";
 import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
 import { authorizeTarget, canonicalizeTarget, TargetAuthError } from "./target-auth.js";
 import type { RecheckLimitConfig, ThrottleKind } from "./rate-limit.js";
 import { DEFAULT_RECHECK_LIMITS, RecheckLimiter } from "./rate-limit.js";
+import {
+  InMemoryReviewApplicationStore,
+  type ApplicationJobRecord,
+  type ReviewApplicationStore,
+} from "./application-store.js";
 
 /** Raised when an idempotency key is reused with a different normalized request. */
 export class IdempotencyConflictError extends Error {
@@ -36,6 +41,13 @@ export class JobNotFoundError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "JobNotFoundError";
+  }
+}
+
+export class JobExpiredError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "JobExpiredError";
   }
 }
 
@@ -92,6 +104,10 @@ export type ReviewServiceDeps = {
   recheckLimits?: Partial<RecheckLimitConfig>;
   /** Identity used for the per-principal recheck burst limit. */
   principalId?: string;
+  /** Durable, tenant-scoped application state shared by every transport session and replica. */
+  store?: ReviewApplicationStore;
+  /** Credential-derived tenant. It is part of every store key and never accepted from tool input. */
+  tenantId?: string;
 };
 
 const POLL_AFTER_MS = 1500;
@@ -100,19 +116,7 @@ const POLICY_VERSION = "budget-policy@1";
 const UNITS_PER_REVIEW = 1;
 const TENANT_STARTING_UNITS = 1000;
 
-type JobRecord = {
-  job: Job;
-  request: NormalizedReviewRequest;
-  fingerprint: string;
-  critique: Critique | null;
-  /** review_id of the critique this job produced, if any. */
-  reviewId: string | null;
-  /**
-   * First-cancel timestamp (#32). Set once so a duplicate cancel is idempotent
-   * and reports the SAME cancellation_requested_at rather than a moving clock.
-   */
-  cancellationRequestedAt?: string;
-};
+type JobRecord = ApplicationJobRecord;
 
 /** A completed review, indexed for recheck lookups. */
 type ReviewRecord = {
@@ -142,9 +146,9 @@ export class ReviewService {
   private readonly resolver: DnsResolver | null;
   private readonly limiter: RecheckLimiter;
   private readonly principalId: string;
+  private readonly tenantId: string;
+  private readonly store: ReviewApplicationStore;
 
-  private readonly jobsById = new Map<string, JobRecord>();
-  private readonly jobIdByRequestId = new Map<string, string>();
   private readonly reviewsById = new Map<string, ReviewRecord>();
   private readonly recheckByJobId = new Map<string, Recheck>();
   /** job_id -> recheck-request body fingerprint, for idempotency parity (issue #10). */
@@ -158,6 +162,8 @@ export class ReviewService {
     this.allowlist = deps.allowlist ?? null;
     this.resolver = deps.resolver ?? null;
     this.principalId = deps.principalId ?? "principal";
+    this.tenantId = deps.tenantId ?? "test-tenant";
+    this.store = deps.store ?? new InMemoryReviewApplicationStore();
     this.limiter = new RecheckLimiter({ ...DEFAULT_RECHECK_LIMITS, ...deps.recheckLimits });
   }
 
@@ -171,23 +177,6 @@ export class ReviewService {
     const request = normalizeReviewRequest(input);
     const fingerprint = requestFingerprint(request);
 
-    const existingJobId = this.jobIdByRequestId.get(request.client_request_id);
-    if (existingJobId) {
-      const existing = this.jobsById.get(existingJobId);
-      if (existing) {
-        if (existing.fingerprint !== fingerprint) {
-          throw new IdempotencyConflictError(
-            "client_request_id was reused with different normalized arguments",
-          );
-        }
-        return {
-          schema_version: SCHEMA_VERSION,
-          job: { ...existing.job, reused: true },
-          budget: this.budget(0),
-        };
-      }
-    }
-
     // P0 SSRF guard (issue #4): authorize the target before any job or charge.
     await this.authorizeTarget(request.url);
 
@@ -195,6 +184,55 @@ export class ReviewService {
     const jobId = this.newId("job");
     const reviewId = this.newId("rev");
 
+    const queued: Job = {
+      job_id: jobId,
+      status: "queued",
+      kind: "review",
+      stage: "waiting_for_capacity",
+      created_at: createdAt.toISOString(),
+      poll_after_ms: POLL_AFTER_MS,
+      expires_at: new Date(createdAt.getTime() + JOB_TTL_MS).toISOString(),
+      reused: false,
+    };
+    const reservedBudget = this.budget(UNITS_PER_REVIEW);
+    const reserved: JobRecord = {
+      tenantId: this.tenantId,
+      principalId: this.principalId,
+      job: queued,
+      clientRequestId: request.client_request_id,
+      normalizedRequestHash: fingerprint,
+      request,
+      engineJobId: null,
+      critique: null,
+      reviewId,
+      resultPointer: null,
+      viewLineage: {},
+      budget: reservedBudget,
+      recheck: null,
+      recheckRequestHash: null,
+      cancellationRequestedAt: null,
+      cancellationDecision: null,
+      expiresAt: queued.expires_at,
+      revision: 0,
+    };
+    const reservation = await this.store.reserve(reserved);
+    if (reservation.kind === "conflict") {
+      throw new IdempotencyConflictError(
+        "client_request_id was reused with different normalized arguments",
+      );
+    }
+    if (reservation.kind === "reused") {
+      return {
+        schema_version: SCHEMA_VERSION,
+        job: { ...reservation.record.job, reused: true },
+        budget: { ...reservation.record.budget, units_reserved: 0, units_consumed: 0 },
+      };
+    }
+
+    await this.store.update(this.tenantId, jobId, (record) => ({
+      ...record,
+      job: { ...record.job, status: "running", stage: "judging" },
+    }));
     const result = await this.engine.review(request);
     const critique = mapEngineResultToCritique(reviewId, result);
 
@@ -213,19 +251,37 @@ export class ReviewService {
       reused: false,
     };
 
-    this.jobsById.set(jobId, { job, request, fingerprint, critique, reviewId });
-    this.jobIdByRequestId.set(request.client_request_id, jobId);
-    this.reviewsById.set(reviewId, {
-      reviewId,
-      url: request.url,
-      host: canonicalizeTarget(request.url).host,
-      beforeFingerprint: targetFingerprint(request.url, request.expected_revision ?? undefined),
-      critique,
+    const settled = await this.store.update(this.tenantId, jobId, (record) => {
+      // Cancellation and completion share this store transaction as their
+      // linearization point. A cancel that already won suppresses the late result.
+      if (record.job.status === "cancelled" || record.cancellationDecision === "cancel_won") return record;
+      return {
+        ...record,
+        job,
+        critique,
+        reviewId,
+        budget: this.budget(UNITS_PER_REVIEW),
+        cancellationDecision: record.cancellationRequestedAt ? "completion_won" : null,
+        viewLineage: {
+          captureVersion: result.metadata.captureVersion,
+          uiDnaVersion: result.metadata.uiDnaVersion,
+          resultSchemaVersion: "1.0.0",
+        },
+      };
     });
+    if (settled?.job.status === "completed" && settled.critique) {
+      this.reviewsById.set(reviewId, {
+        reviewId,
+        url: request.url,
+        host: canonicalizeTarget(request.url).host,
+        beforeFingerprint: targetFingerprint(request.url, request.expected_revision ?? undefined),
+        critique,
+      });
+    }
 
     return {
       schema_version: SCHEMA_VERSION,
-      job,
+      job: settled?.job ?? job,
       budget: this.budget(UNITS_PER_REVIEW),
     };
   }
@@ -234,10 +290,13 @@ export class ReviewService {
    * Retrieve a job's status and (when complete) its Critique. Result reads never
    * consume review units (TRD §4.2). Raises `JobNotFoundError` for unknown ids.
    */
-  getReview(jobId: string): DesignReviewGetResult {
-    const record = this.jobsById.get(jobId);
-    if (!record) {
+  async getReview(jobId: string): Promise<DesignReviewGetResult> {
+    const record = await this.store.get(this.tenantId, jobId);
+    if (!record || record.principalId !== this.principalId) {
       throw new JobNotFoundError(`no job with id ${jobId}`);
+    }
+    if (Date.parse(record.expiresAt) <= this.now().getTime()) {
+      throw new JobExpiredError(`job ${jobId} has expired`);
     }
     return {
       schema_version: SCHEMA_VERSION,
@@ -269,11 +328,10 @@ export class ReviewService {
     // A reused client_request_id whose normalized body differs is a conflict —
     // it must NOT silently replay the original result (issue #10). This is a
     // pre-reservation check, so a conflict still bills nothing.
-    const existingJobId = this.jobIdByRequestId.get(input.client_request_id);
-    if (existingJobId) {
-      const existing = this.jobsById.get(existingJobId);
+    const existing = await this.findByClientRequestId(input.client_request_id);
+    if (existing) {
       if (existing && existing.job.kind === "recheck") {
-        if (this.recheckFingerprintByJobId.get(existing.job.job_id) !== fingerprint) {
+        if (existing.recheckRequestHash !== fingerprint) {
           throw new IdempotencyConflictError(
             "client_request_id was reused with different recheck arguments",
           );
@@ -399,8 +457,12 @@ export class ReviewService {
       reused: false,
     };
 
-    this.jobsById.set(jobId, {
+    const recheckRecord: JobRecord = {
+      tenantId: this.tenantId,
+      principalId: this.principalId,
       job,
+      clientRequestId: input.client_request_id,
+      normalizedRequestHash: fingerprint,
       request: {
         url,
         routes: [],
@@ -410,11 +472,23 @@ export class ReviewService {
         response_mode: "compact",
         client_request_id: input.client_request_id,
       },
-      fingerprint: afterFingerprint,
+      engineJobId: null,
       critique: null,
       reviewId: review.reviewId,
-    });
-    this.jobIdByRequestId.set(input.client_request_id, jobId);
+      resultPointer: null,
+      viewLineage: {},
+      budget: this.budget(units),
+      recheck,
+      recheckRequestHash: fingerprint,
+      cancellationRequestedAt: null,
+      cancellationDecision: null,
+      expiresAt: job.expires_at,
+      revision: 0,
+    };
+    const recheckReservation = await this.store.reserve(recheckRecord);
+    if (recheckReservation.kind !== "created") {
+      throw new IdempotencyConflictError("client_request_id raced with another request");
+    }
     this.recheckByJobId.set(jobId, recheck);
     this.recheckFingerprintByJobId.set(jobId, fingerprint);
 
@@ -452,14 +526,21 @@ export class ReviewService {
    * full queued/running state table is proven by `engine-cancel` unit tests.
    */
   async cancelReview(jobId: string, _reason?: string): Promise<DesignReviewCancelResult> {
-    const record = this.jobsById.get(jobId);
-    if (!record) {
+    let record = await this.store.get(this.tenantId, jobId);
+    if (!record || record.principalId !== this.principalId) {
       throw new JobNotFoundError(`no job with id ${jobId}`);
     }
-    if (record.cancellationRequestedAt === undefined) {
-      record.cancellationRequestedAt = this.now().toISOString();
+    if (Date.parse(record.expiresAt) <= this.now().getTime()) {
+      throw new JobExpiredError(`job ${jobId} has expired`);
     }
-    const requestedAt = record.cancellationRequestedAt;
+    if (record.cancellationRequestedAt === null) {
+      record = await this.store.update(this.tenantId, jobId, (current) => ({
+        ...current,
+        cancellationRequestedAt: current.cancellationRequestedAt ?? this.now().toISOString(),
+      }));
+      if (!record) throw new JobNotFoundError(`no job with id ${jobId}`);
+    }
+    const requestedAt = record.cancellationRequestedAt!;
     const status = record.job.status;
 
     if (isTerminalStatus(status)) {
@@ -467,7 +548,11 @@ export class ReviewService {
     }
 
     if (status === "queued") {
-      record.job = { ...record.job, status: "cancelled", completed_at: this.now().toISOString() };
+      await this.store.update(this.tenantId, jobId, (current) => ({
+        ...current,
+        job: { ...current.job, status: "cancelled", completed_at: this.now().toISOString() },
+        cancellationDecision: "cancelled_before_start",
+      }));
       return this.cancelResult(jobId, "cancelled", requestedAt, "not_needed");
     }
 
@@ -480,11 +565,15 @@ export class ReviewService {
       return this.cancelResult(jobId, status, requestedAt, "not_supported");
     }
     const mapped = mapEngineStatusToMcp(ack.poll);
-    record.job = {
-      ...record.job,
-      status: mapped.status,
-      ...(mapped.terminal ? { completed_at: this.now().toISOString() } : {}),
-    };
+    await this.store.update(this.tenantId, jobId, (current) => ({
+      ...current,
+      job: {
+        ...current.job,
+        status: mapped.status,
+        ...(mapped.terminal ? { completed_at: this.now().toISOString() } : {}),
+      },
+      cancellationDecision: mapped.terminal ? "cancel_won" : "cancel_requested",
+    }));
     return this.cancelResult(jobId, mapped.status, requestedAt, "requested");
   }
 
@@ -521,7 +610,7 @@ export class ReviewService {
 
   /** Replay a prior recheck job for an idempotent retry (no new charge). */
   private replayRecheck(record: JobRecord): DesignRecheckResult {
-    const recheck = this.recheckByJobId.get(record.job.job_id);
+    const recheck = record.recheck ?? this.recheckByJobId.get(record.job.job_id);
     if (!recheck) {
       throw new JobNotFoundError(`recheck result missing for job ${record.job.job_id}`);
     }
@@ -540,6 +629,10 @@ export class ReviewService {
       units_consumed: unitsReserved,
       tenant_units_remaining: this.tenantUnitsRemaining,
     };
+  }
+
+  private async findByClientRequestId(clientRequestId: string): Promise<JobRecord | null> {
+    return this.store.findByRequest(this.tenantId, clientRequestId);
   }
 }
 
