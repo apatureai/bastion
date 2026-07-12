@@ -7,6 +7,8 @@
  * concrete repair suggestions.
  */
 
+import type { EngineDimension } from "./engine.js";
+
 export const SCHEMA_VERSION = "1.0.0" as const;
 
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
@@ -48,7 +50,13 @@ export type CritiqueGrade = "ship" | "ship_with_nits" | "needs_work" | "blocked"
 export type CritiqueFinding = {
   finding_id: string;
   severity: CritiqueSeverity;
-  dimension: string;
+  /**
+   * The engine's rubric dimension (judgment-engine#159), passed through verbatim
+   * so the agent can group findings by reason category. `null` when the engine
+   * result predates the field — an explicit "unavailable", never a value
+   * synthesized from severity.
+   */
+  dimension: EngineDimension | null;
   title: string;
   description: string;
   route: string;

@@ -19,10 +19,28 @@ export type EngineViewport = "mobile" | "tablet" | "desktop";
 export type EngineGrade = "ship" | "ship_with_nits" | "needs_work" | "blocked";
 
 /** A single design-review finding produced by the engine. */
+/** The engine's eight-value design rubric on the wire (judgment-engine#159). */
+export type EngineDimension =
+  | "visual_hierarchy"
+  | "spacing"
+  | "color_contrast"
+  | "typography"
+  | "consistency"
+  | "responsiveness"
+  | "accessibility"
+  | "brand";
+
 export type EngineFinding = {
   /** Stable id within a run; keys annotated screenshots and feedback. */
   id: string;
   severity: EngineSeverity;
+  /**
+   * Rubric dimension the engine selected (judgment-engine#159). Additive on
+   * schema v1: newly produced results always carry it; optional only because
+   * results produced before the field existed exist. When absent, consumers
+   * surface the dimension as unavailable — never synthesizing one from severity.
+   */
+  dimension?: EngineDimension;
   title: string;
   description: string;
   route: string;

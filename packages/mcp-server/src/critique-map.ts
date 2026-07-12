@@ -33,10 +33,10 @@ function mapFinding(finding: EngineFinding): CritiqueFinding {
   return {
     finding_id: finding.id,
     severity: mapSeverity(finding.severity),
-    // The engine's severity carries the original dimension of judgment; until a
-    // dedicated dimension field lands upstream we surface the engine severity as
-    // the dimension so the agent can group findings.
-    dimension: finding.severity,
+    // The engine's rubric dimension (judgment-engine#159), passed through
+    // verbatim. Legacy results without it surface `null` — an explicit
+    // "unavailable", never a dimension synthesized from severity.
+    dimension: finding.dimension ?? null,
     title: finding.title,
     description: finding.description,
     route: finding.route,

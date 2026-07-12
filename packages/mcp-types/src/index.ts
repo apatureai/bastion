@@ -2,6 +2,7 @@ export type {
   EngineSeverity,
   EngineViewport,
   EngineGrade,
+  EngineDimension,
   EngineFinding,
   EngineReviewResult,
   EngineRecheckOutcomeKind,

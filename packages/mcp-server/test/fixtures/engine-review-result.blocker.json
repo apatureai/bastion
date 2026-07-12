@@ -4,6 +4,7 @@
   "findings": [
     {
       "id": "f_b01",
+      "dimension": "accessibility",
       "severity": "blocker",
       "title": "Checkout submit button is unreachable on mobile",
       "description": "On the mobile viewport the 'Place order' button renders below a fixed footer and cannot be scrolled into view, so the purchase cannot be completed.",
@@ -15,6 +16,7 @@
     },
     {
       "id": "f_b02",
+      "dimension": "spacing",
       "severity": "major",
       "title": "Order summary contrast fails WCAG AA",
       "description": "The order summary subtotal text uses a grey on white that falls below the 4.5:1 contrast ratio on desktop.",
@@ -26,6 +28,7 @@
     },
     {
       "id": "f_b03",
+      "dimension": "typography",
       "severity": "minor",
       "title": "Promo-code field lacks a visible label",
       "description": "The promo-code input relies on placeholder text only, which disappears on focus.",
@@ -52,8 +55,14 @@
   ],
   "artifacts": {
     "annotatedScreenshots": [
-      { "findingId": "f_b01", "url": "https://artifacts.judgment-engine.internal/shot_b01.png" },
-      { "findingId": "f_b02", "url": "https://artifacts.judgment-engine.internal/shot_b02.png" }
+      {
+        "findingId": "f_b01",
+        "url": "https://artifacts.judgment-engine.internal/shot_b01.png"
+      },
+      {
+        "findingId": "f_b02",
+        "url": "https://artifacts.judgment-engine.internal/shot_b02.png"
+      }
     ],
     "engineDebugUrl": "https://judgment-engine.internal/debug/run_blocker01"
   },

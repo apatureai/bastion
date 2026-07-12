@@ -25,11 +25,24 @@ describe("mapEngineResultToCritique severity mapping", () => {
     const blocker = critique.findings.find((f) => f.finding_id === "f_b01");
     expect(blocker).toBeDefined();
     expect(blocker?.severity).toBe("blocker");
-    // The engine dimension is surfaced verbatim until a dedicated field lands.
-    expect(blocker?.dimension).toBe("blocker");
+    // #159 counterexample: the real rubric dimension crosses to MCP verbatim,
+    // independent of severity (a blocker whose dimension is `accessibility`).
+    expect(blocker?.dimension).toBe("accessibility");
     // Mapping is structure-only: element_ref + suggestion pass through intact.
     expect(blocker?.element_ref).toBe("button[data-testid='place-order']");
     expect(blocker?.suggestion).toContain("footer");
+  });
+
+  it("passes each engine dimension through verbatim, never derived from severity (#159)", () => {
+    const byId = new Map(critique.findings.map((f) => [f.finding_id, f.dimension]));
+    expect(byId.get("f_b01")).toBe("accessibility"); // blocker, but dimension is accessibility
+    expect(byId.get("f_b02")).toBe("spacing");
+    expect(byId.get("f_b03")).toBe("typography");
+  });
+
+  it("surfaces a legacy finding without a dimension as an explicit null, never a fake one (#159)", () => {
+    const legacy = critique.findings.find((f) => f.finding_id === "f_b04");
+    expect(legacy?.dimension).toBeNull(); // absent upstream -> unavailable, not "nit"
   });
 
   it("collapses all four engine severities to the three agent levels", () => {
