@@ -62,4 +62,29 @@ describe("JudgmentEngineHttpClient (#36)", () => {
     });
     await expect(client.get("tenant-a", "eng_3")).rejects.toBeInstanceOf(EngineDependencyError);
   });
+
+  it("accepts Judgment Engine's current schema 1 header by default", async () => {
+    const client = new JudgmentEngineHttpClient({
+      baseUrl: "https://engine.example",
+      hmacSecret: "secret",
+      fetch: async () => new Response(JSON.stringify({ jobId: "eng_4", state: "running" }), {
+        status: 200,
+        headers: { "x-schema-version": "1" },
+      }),
+    });
+    await expect(client.get("tenant-a", "eng_4")).resolves.toMatchObject({ state: "running" });
+  });
+
+  it("retains an explicit schema override for controlled rollouts", async () => {
+    const client = new JudgmentEngineHttpClient({
+      baseUrl: "https://engine.example",
+      hmacSecret: "secret",
+      schemaVersion: "1.0.0",
+      fetch: async () => new Response(JSON.stringify({ jobId: "eng_5", state: "running" }), {
+        status: 200,
+        headers: { "x-schema-version": "1.0.0" },
+      }),
+    });
+    await expect(client.get("tenant-a", "eng_5")).resolves.toMatchObject({ state: "running" });
+  });
 });

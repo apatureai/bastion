@@ -44,7 +44,9 @@ export class JudgmentEngineHttpClient {
 
   constructor(private readonly options: EngineHttpClientOptions) {
     this.fetchImpl = options.fetch ?? fetch;
-    this.expectedSchema = options.schemaVersion ?? "1.0.0";
+    // Judgment Engine's current wire contract is schema "1". MCP Review's own
+    // public result envelope is independently versioned as "1.0.0".
+    this.expectedSchema = options.schemaVersion ?? "1";
     this.timeoutMs = options.timeoutMs ?? 5_000;
     this.maxRetries = options.maxRetries ?? 2;
     this.now = options.now ?? Date.now;
