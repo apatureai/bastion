@@ -14,8 +14,9 @@ import type {
 import { SCHEMA_VERSION } from "@apature/mcp-types";
 import { mapEngineResultToCritique } from "./critique-map.js";
 import { isTerminalStatus, mapEngineStatusToMcp } from "./engine-cancel.js";
-import type { EngineClient } from "./engine-client.js";
+import type { EngineClient, EngineJobClient, EngineJobPoll } from "./engine-client.js";
 import { MockEngineClient } from "./engine-client.js";
+import { REVIEWS_CANCEL_SCOPE } from "./auth.js";
 import type { DesignRecheckInput, DesignReviewInput } from "./normalize.js";
 import { normalizePreviewUrl, normalizeReviewRequest, requestFingerprint } from "./normalize.js";
 import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
@@ -48,6 +49,14 @@ export class JobExpiredError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "JobExpiredError";
+  }
+}
+
+/** Raised when a credential lacks the operation-specific cancel scope. */
+export class InsufficientScopeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InsufficientScopeError";
   }
 }
 
@@ -88,7 +97,10 @@ export class RecheckThrottledError extends Error {
 
 /** Seams that make the service deterministic under test. */
 export type ReviewServiceDeps = {
+  /** Fixture/local synchronous adapter. Production supplies `engineJobs`. */
   engine?: EngineClient;
+  /** Durable Judgment Engine submit/poll/cancel adapter used by production. */
+  engineJobs?: EngineJobClient;
   now?: () => Date;
   newId?: (prefix: string) => string;
   /**
@@ -108,6 +120,8 @@ export type ReviewServiceDeps = {
   store?: ReviewApplicationStore;
   /** Credential-derived tenant. It is part of every store key and never accepted from tool input. */
   tenantId?: string;
+  /** Credential-derived OAuth scopes. Omit only in lower-level trusted tests. */
+  scopes?: readonly string[];
 };
 
 const POLL_AFTER_MS = 1500;
@@ -140,6 +154,7 @@ type ReviewRecord = {
  */
 export class ReviewService {
   private readonly engine: EngineClient;
+  private readonly engineJobs: EngineJobClient | null;
   private readonly now: () => Date;
   private readonly newId: (prefix: string) => string;
   private readonly allowlist: TenantAllowlist | null;
@@ -148,6 +163,7 @@ export class ReviewService {
   private readonly principalId: string;
   private readonly tenantId: string;
   private readonly store: ReviewApplicationStore;
+  private readonly scopes: ReadonlySet<string> | null;
 
   private readonly reviewsById = new Map<string, ReviewRecord>();
   private readonly recheckByJobId = new Map<string, Recheck>();
@@ -157,6 +173,7 @@ export class ReviewService {
 
   constructor(deps: ReviewServiceDeps = {}) {
     this.engine = deps.engine ?? new MockEngineClient();
+    this.engineJobs = deps.engineJobs ?? null;
     this.now = deps.now ?? (() => new Date());
     this.newId = deps.newId ?? ((prefix) => `${prefix}_${randomUUID()}`);
     this.allowlist = deps.allowlist ?? null;
@@ -164,6 +181,7 @@ export class ReviewService {
     this.principalId = deps.principalId ?? "principal";
     this.tenantId = deps.tenantId ?? "test-tenant";
     this.store = deps.store ?? new InMemoryReviewApplicationStore();
+    this.scopes = deps.scopes ? new Set(deps.scopes) : null;
     this.limiter = new RecheckLimiter({ ...DEFAULT_RECHECK_LIMITS, ...deps.recheckLimits });
   }
 
@@ -194,7 +212,7 @@ export class ReviewService {
       expires_at: new Date(createdAt.getTime() + JOB_TTL_MS).toISOString(),
       reused: false,
     };
-    const reservedBudget = this.budget(UNITS_PER_REVIEW);
+    const reservedBudget = { ...this.budget(UNITS_PER_REVIEW), units_consumed: 0 };
     const reserved: JobRecord = {
       tenantId: this.tenantId,
       principalId: this.principalId,
@@ -211,6 +229,7 @@ export class ReviewService {
       recheck: null,
       recheckRequestHash: null,
       cancellationRequestedAt: null,
+      cancellationReason: null,
       cancellationDecision: null,
       expiresAt: queued.expires_at,
       revision: 0,
@@ -227,6 +246,10 @@ export class ReviewService {
         job: { ...reservation.record.job, reused: true },
         budget: { ...reservation.record.budget, units_reserved: 0, units_consumed: 0 },
       };
+    }
+
+    if (this.engineJobs) {
+      return this.submitDurableReview(reservation.record);
     }
 
     await this.store.update(this.tenantId, jobId, (record) => ({
@@ -291,12 +314,15 @@ export class ReviewService {
    * consume review units (TRD §4.2). Raises `JobNotFoundError` for unknown ids.
    */
   async getReview(jobId: string): Promise<DesignReviewGetResult> {
-    const record = await this.store.get(this.tenantId, jobId);
+    let record = await this.store.get(this.tenantId, jobId);
     if (!record || record.principalId !== this.principalId) {
       throw new JobNotFoundError(`no job with id ${jobId}`);
     }
     if (Date.parse(record.expiresAt) <= this.now().getTime()) {
       throw new JobExpiredError(`job ${jobId} has expired`);
+    }
+    if (this.engineJobs && !isTerminalStatus(record.job.status) && record.engineJobId) {
+      record = await this.refreshDurableReview(record);
     }
     return {
       schema_version: SCHEMA_VERSION,
@@ -481,6 +507,7 @@ export class ReviewService {
       recheck,
       recheckRequestHash: fingerprint,
       cancellationRequestedAt: null,
+      cancellationReason: null,
       cancellationDecision: null,
       expiresAt: job.expires_at,
       revision: 0,
@@ -498,6 +525,192 @@ export class ReviewService {
       recheck,
       budget: this.budget(units),
     };
+  }
+
+  /** Submit to the real async engine while keeping the MCP product job durable. */
+  private async submitDurableReview(reserved: JobRecord): Promise<DesignReviewResult> {
+    const jobId = reserved.job.job_id;
+    const started = await this.store.update(this.tenantId, jobId, (current) => {
+      if (current.job.status !== "queued") return current;
+      return {
+        ...current,
+        job: { ...current.job, status: "running", stage: "submitting_to_engine" },
+      };
+    });
+    if (!started) throw new JobNotFoundError(`no job with id ${jobId}`);
+    if (started.job.status === "cancelled") {
+      return { schema_version: SCHEMA_VERSION, job: started.job, budget: started.budget };
+    }
+
+    let engineJobId: string;
+    try {
+      engineJobId = await this.engineJobs!.submit(
+        this.tenantId,
+        reserved.clientRequestId,
+        reserved.request,
+        `mcp-${jobId}`,
+      );
+    } catch (error) {
+      await this.store.update(this.tenantId, jobId, (current) => {
+        if (isTerminalStatus(current.job.status)) return current;
+        return {
+          ...current,
+          job: {
+            ...current.job,
+            status: "failed",
+            stage: "engine_submit_failed",
+            completed_at: this.now().toISOString(),
+          },
+          cancellationDecision: current.cancellationRequestedAt ? "submission_failed_after_cancel" : null,
+        };
+      });
+      throw error;
+    }
+
+    let linked = await this.store.update(this.tenantId, jobId, (current) => ({
+      ...current,
+      engineJobId,
+      job: isTerminalStatus(current.job.status)
+        ? current.job
+        : { ...current.job, status: "running", stage: "waiting_for_engine" },
+    }));
+    if (!linked) throw new JobNotFoundError(`no job with id ${jobId}`);
+
+    // A cancel may have raced while the upstream submission was in flight.
+    // Forward it using the persisted ENGINE id, never the MCP product id.
+    if (linked.cancellationRequestedAt && !isTerminalStatus(linked.job.status)) {
+      await this.cancelDurableReview(linked, linked.cancellationRequestedAt);
+      linked = (await this.store.get(this.tenantId, jobId)) ?? linked;
+    }
+
+    return { schema_version: SCHEMA_VERSION, job: linked.job, budget: linked.budget };
+  }
+
+  /** Poll and durably project one upstream transition into the MCP job. */
+  private async refreshDurableReview(record: JobRecord): Promise<JobRecord> {
+    const poll = await this.engineJobs!.get(
+      this.tenantId,
+      record.engineJobId!,
+      `mcp-${record.job.job_id}`,
+    );
+    const mapped = mapEngineJobPoll(poll);
+    const reviewId = record.reviewId ?? this.newId("rev");
+    const critique = poll.state === "completed" ? mapEngineResultToCritique(reviewId, poll.result) : null;
+    const completedAt = mapped.terminal ? this.now().toISOString() : undefined;
+
+    let completedHere = false;
+    const settled = await this.store.update(this.tenantId, record.job.job_id, (current) => {
+      // A terminal transition is the linearization point. Whichever side won
+      // first is immutable, so a late engine result cannot revive cancellation.
+      if (isTerminalStatus(current.job.status)) return current;
+      completedHere = mapped.status === "completed";
+      return {
+        ...current,
+        job: {
+          ...current.job,
+          status: mapped.status,
+          stage: mapped.stage,
+          ...(completedAt ? { completed_at: completedAt } : {}),
+        },
+        ...(critique ? { critique, reviewId } : {}),
+        budget:
+          mapped.status === "completed"
+            ? { ...current.budget, units_consumed: current.budget.units_reserved }
+            : current.budget,
+        cancellationDecision:
+          mapped.status === "cancelled"
+            ? "cancel_won"
+            : mapped.status === "completed" && current.cancellationRequestedAt
+              ? "completion_won"
+              : current.cancellationDecision,
+        ...(poll.state === "completed"
+          ? {
+              viewLineage: {
+                captureVersion: poll.result.metadata.captureVersion,
+                uiDnaVersion: poll.result.metadata.uiDnaVersion,
+                resultSchemaVersion: poll.schemaVersion,
+              },
+            }
+          : {}),
+      };
+    });
+    if (!settled) throw new JobNotFoundError(`no job with id ${record.job.job_id}`);
+
+    if (completedHere) {
+      this.tenantUnitsRemaining = Math.max(
+        0,
+        this.tenantUnitsRemaining - settled.budget.units_reserved,
+      );
+    }
+
+    if (settled.job.status === "completed" && settled.critique && settled.reviewId) {
+      this.reviewsById.set(settled.reviewId, {
+        reviewId: settled.reviewId,
+        url: settled.request.url,
+        host: canonicalizeTarget(settled.request.url).host,
+        beforeFingerprint: targetFingerprint(
+          settled.request.url,
+          settled.request.expected_revision ?? undefined,
+        ),
+        critique: settled.critique,
+      });
+    }
+    return settled;
+  }
+
+  /** Forward cancellation to the persisted upstream job and project its ack. */
+  private async cancelDurableReview(
+    record: JobRecord,
+    requestedAt: string,
+  ): Promise<DesignReviewCancelResult> {
+    const engineJobId = record.engineJobId;
+    if (!engineJobId) {
+      return this.cancelResult(record.job.job_id, "running", requestedAt, "requested");
+    }
+    const accepted = await this.engineJobs!.cancel(
+      this.tenantId,
+      engineJobId,
+      `mcp-${record.job.job_id}`,
+    );
+    if (!accepted) {
+      await this.store.update(this.tenantId, record.job.job_id, (current) => ({
+        ...current,
+        cancellationDecision: "engine_cancel_rejected",
+      }));
+      return this.cancelResult(record.job.job_id, record.job.status, requestedAt, "not_supported");
+    }
+
+    let poll: EngineJobPoll;
+    try {
+      poll = await this.engineJobs!.get(this.tenantId, engineJobId, `mcp-${record.job.job_id}`);
+    } catch {
+      await this.store.update(this.tenantId, record.job.job_id, (current) => ({
+        ...current,
+        cancellationDecision: "cancel_requested",
+      }));
+      return this.cancelResult(record.job.job_id, "running", requestedAt, "requested");
+    }
+    if (poll.state === "completed") {
+      const completed = await this.refreshDurableReview(record);
+      return this.cancelResult(record.job.job_id, completed.job.status, requestedAt, "requested");
+    }
+    const mapped = mapEngineJobPoll(poll);
+    const externallyVisible = mapped.terminal ? mapped.status : "running";
+    const settled = await this.store.update(this.tenantId, record.job.job_id, (current) => {
+      if (isTerminalStatus(current.job.status)) return current;
+      return {
+        ...current,
+        job: {
+          ...current.job,
+          status: externallyVisible,
+          stage: mapped.status === "cancelled" ? "cancelled" : "cancelling",
+          ...(mapped.terminal ? { completed_at: this.now().toISOString() } : {}),
+        },
+        cancellationDecision: mapped.status === "cancelled" ? "cancel_won" : "cancel_requested",
+      };
+    });
+    const status = settled?.job.status ?? externallyVisible;
+    return this.cancelResult(record.job.job_id, status, requestedAt, "requested");
   }
 
   /**
@@ -519,13 +732,14 @@ export class ReviewService {
    *                             cancel surface reports `not_supported`.
    *
    * `cancellation_requested_at` is set once (first cancel) so a duplicate cancel
-   * is idempotent. Note: durable running-job state, principal injection, and the
-   * two-tenant / cancel-vs-complete race fixtures land with the async
-   * application store in #28; against the current synchronous engine only the
-   * terminal-idempotent and unknown paths are reachable end to end, while the
-   * full queued/running state table is proven by `engine-cancel` unit tests.
+   * is idempotent. Production uses the durable async application store and the
+   * persisted Judgment Engine job id; the synchronous branch remains only for
+   * fixture/local compatibility.
    */
-  async cancelReview(jobId: string, _reason?: string): Promise<DesignReviewCancelResult> {
+  async cancelReview(jobId: string, reason?: string): Promise<DesignReviewCancelResult> {
+    if (this.scopes && !this.scopes.has(REVIEWS_CANCEL_SCOPE)) {
+      throw new InsufficientScopeError(`cancelling a review requires ${REVIEWS_CANCEL_SCOPE}`);
+    }
     let record = await this.store.get(this.tenantId, jobId);
     if (!record || record.principalId !== this.principalId) {
       throw new JobNotFoundError(`no job with id ${jobId}`);
@@ -537,6 +751,7 @@ export class ReviewService {
       record = await this.store.update(this.tenantId, jobId, (current) => ({
         ...current,
         cancellationRequestedAt: current.cancellationRequestedAt ?? this.now().toISOString(),
+        cancellationReason: current.cancellationReason ?? reason ?? null,
       }));
       if (!record) throw new JobNotFoundError(`no job with id ${jobId}`);
     }
@@ -547,7 +762,7 @@ export class ReviewService {
       return this.cancelResult(jobId, status, requestedAt, "already_terminal");
     }
 
-    if (status === "queued") {
+    if (status === "queued" && record.engineJobId === null) {
       await this.store.update(this.tenantId, jobId, (current) => ({
         ...current,
         job: { ...current.job, status: "cancelled", completed_at: this.now().toISOString() },
@@ -556,11 +771,32 @@ export class ReviewService {
       return this.cancelResult(jobId, "cancelled", requestedAt, "not_needed");
     }
 
+    if (this.engineJobs) {
+      if (record.cancellationDecision === "cancel_requested" && record.engineJobId) {
+        const refreshed = await this.refreshDurableReview(record);
+        return this.cancelResult(jobId, refreshed.job.status, requestedAt, "requested");
+      }
+      // A concurrent submit may be between the durable start transition and
+      // persisting the upstream id. Record the intent now; submitReview observes
+      // it and immediately forwards cancellation once the id is known.
+      if (!record.engineJobId) {
+        await this.store.update(this.tenantId, jobId, (current) => ({
+          ...current,
+          cancellationDecision: "awaiting_engine_job_id",
+        }));
+        return this.cancelResult(jobId, "running", requestedAt, "requested");
+      }
+      return this.cancelDurableReview(record, requestedAt);
+    }
+
     // status === "running": cooperative engine cancellation.
     if (!this.engine.cancel) {
       return this.cancelResult(jobId, status, requestedAt, "not_supported");
     }
-    const ack = await this.engine.cancel(jobId);
+    // The legacy fixture seam has no durable upstream id. Production never
+    // reaches this branch: it always supplies `engineJobs` and uses the
+    // persisted `engineJobId` path above.
+    const ack = await this.engine.cancel(record.engineJobId ?? jobId);
     if (!ack.accepted) {
       return this.cancelResult(jobId, status, requestedAt, "not_supported");
     }
@@ -662,6 +898,27 @@ function recheckRequestFingerprint(input: DesignRecheckInput, normalizedUrl: str
     finding_ids: dedupe(input.finding_ids).slice().sort(),
     url: normalizedUrl ?? "",
   });
+}
+
+function mapEngineJobPoll(
+  poll: EngineJobPoll,
+): { status: JobStatus; terminal: boolean; stage: string } {
+  switch (poll.state) {
+    case "pending":
+      return { status: "queued", terminal: false, stage: "waiting_for_capacity" };
+    case "running":
+      return { status: "running", terminal: false, stage: "judging" };
+    case "cancelling": {
+      const mapped = mapEngineStatusToMcp({ state: "cancelling" });
+      return { ...mapped, stage: "cancelling" };
+    }
+    case "completed":
+      return { status: "completed", terminal: true, stage: "finalizing" };
+    case "failed": {
+      const mapped = mapEngineStatusToMcp({ state: "failed", error: poll.error });
+      return { ...mapped, stage: mapped.status === "cancelled" ? "cancelled" : "failed" };
+    }
+  }
 }
 
 /** Human-readable message for a throttle decision (issue #5). */

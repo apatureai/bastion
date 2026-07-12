@@ -9,6 +9,7 @@ import {
   JobExpiredError,
   RecheckRejectedError,
   RecheckThrottledError,
+  InsufficientScopeError,
   ReviewService,
 } from "./review-service.js";
 import type { ReviewServiceDeps, RecheckRejectionReason } from "./review-service.js";
@@ -337,6 +338,12 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
           return errorResult("JOB_EXPIRED", err.message, {
             retriable: false,
             nextAction: "start_new_review",
+          });
+        }
+        if (err instanceof InsufficientScopeError) {
+          return errorResult("INSUFFICIENT_SCOPE", err.message, {
+            retriable: false,
+            nextAction: "request_scope",
           });
         }
         return errorResult("INTERNAL_ERROR", "the review could not be cancelled", {

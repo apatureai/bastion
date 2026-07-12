@@ -18,6 +18,8 @@ export interface ApplicationJobRecord {
   recheck: Recheck | null;
   recheckRequestHash: string | null;
   cancellationRequestedAt: string | null;
+  /** Caller-supplied audit reason, stored once with the first cancellation request. */
+  cancellationReason: string | null;
   cancellationDecision: string | null;
   expiresAt: string;
   revision: number;

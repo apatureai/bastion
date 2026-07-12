@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   createProductionHttpServer,
   InMemoryReviewApplicationStore,
-  MockEngineClient,
+  MockEngineJobClient,
   type AllowlistResolver,
   type TokenVerifier,
 } from "../src/index.js";
@@ -19,7 +19,7 @@ const fakeVerifier: TokenVerifier = {
     return {
       token,
       clientId: m[2]!,
-      scopes: ["reviews:cancel"],
+      scopes: m[2] === "no-cancel" ? [] : ["reviews:cancel"],
       extra: { tenantId: m[1]! },
     };
   },
@@ -50,7 +50,7 @@ async function start(options: { engineReady?: boolean; dnsReady?: boolean } = {}
     allowlistResolver,
     dnsResolver: { resolve: async () => ["93.184.216.34"] },
     applicationStore: new InMemoryReviewApplicationStore(),
-    engine: new MockEngineClient(),
+    engine: new MockEngineJobClient(),
     engineReady: async () => options.engineReady ?? true,
     dnsReady: async () => options.dnsReady ?? true,
     resourceUrl: RESOURCE,
@@ -110,8 +110,29 @@ describe("production HTTP MCP server (#28)", () => {
     const result = (await client.callTool({
       name: "design_review",
       arguments: { url: "https://preview.example.com/", client_request_id: "http-e2e-0001" },
+    })) as { structuredContent?: { job?: { job_id?: string; status?: string } } };
+    expect(result.structuredContent?.job?.status).toBe("running");
+    const jobId = result.structuredContent?.job?.job_id;
+    const completed = (await client.callTool({
+      name: "design_review_get",
+      arguments: { job_id: jobId },
     })) as { structuredContent?: { job?: { status?: string } } };
-    expect(result.structuredContent?.job?.status).toBe("completed");
+    expect(completed.structuredContent?.job?.status).toBe("completed");
+  });
+
+  it("enforces reviews:cancel from the authenticated principal", async () => {
+    const { base } = await start();
+    const { client } = await connect(base, "tok::acme::no-cancel");
+    const submitted = (await client.callTool({
+      name: "design_review",
+      arguments: { url: "https://preview.example.com/", client_request_id: "scope-e2e-0001" },
+    })) as { structuredContent?: { job?: { job_id?: string } } };
+    const denied = (await client.callTool({
+      name: "design_review_cancel",
+      arguments: { job_id: submitted.structuredContent?.job?.job_id },
+    })) as { isError?: boolean; structuredContent?: { error?: { code?: string } } };
+    expect(denied.isError).toBe(true);
+    expect(denied.structuredContent?.error?.code).toBe("INSUFFICIENT_SCOPE");
   });
 
   it("isolates transports while a same-tenant reconnect recovers the durable product job", async () => {
@@ -140,6 +161,26 @@ describe("production HTTP MCP server (#28)", () => {
       arguments: { job_id: jobId },
     })) as { isError?: boolean };
     expect(got.isError).toBe(true);
+  });
+
+  it("does not let another principal in the tenant drive an existing MCP session", async () => {
+    const { base } = await start();
+    const owner = await connect(base, "tok::acme::agent-owner");
+    const sessionId = owner.transport.sessionId;
+    expect(sessionId).toBeTruthy();
+
+    const hijack = await fetch(`${base}/mcp`, {
+      method: "POST",
+      headers: {
+        authorization: "Bearer tok::acme::agent-other",
+        "content-type": "application/json",
+        accept: "application/json, text/event-stream",
+        "mcp-session-id": sessionId!,
+      },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 7, method: "tools/list", params: {} }),
+    });
+    expect(hijack.status).toBe(404);
+    await expect(hijack.json()).resolves.toEqual({ error: "unknown_session" });
   });
 
   it("readyz reports the live session count and livez is always ok", async () => {

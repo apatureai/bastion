@@ -13,7 +13,7 @@ import {
 import { createMcpReviewServer } from "./server.js";
 import type { DnsResolver, TenantAllowlist } from "./target-auth.js";
 import type { ReviewApplicationStore } from "./application-store.js";
-import type { EngineClient } from "./engine-client.js";
+import type { EngineJobClient } from "./engine-client.js";
 
 /** Resolve a tenant's ownership-verified target allowlist (issue #4). Injected. */
 export interface AllowlistResolver {
@@ -27,7 +27,7 @@ export interface ProductionHttpConfig {
   dnsResolver: DnsResolver;
   applicationStore: ReviewApplicationStore;
   /** Production engine adapter. Required so the protocol root can never default to MockEngineClient. */
-  engine: EngineClient;
+  engine: EngineJobClient;
   /** Health of the real Judgment Engine dependency. */
   engineReady: () => Promise<boolean>;
   /** Optional DNS adapter probe; absence is not assumed healthy. */
@@ -52,6 +52,7 @@ interface Session {
   server: McpServer;
   transport: StreamableHTTPServerTransport;
   tenantId: string;
+  principalId: string;
 }
 
 const SESSION_HEADER = "mcp-session-id";
@@ -123,7 +124,8 @@ export function createProductionHttpServer(config: ProductionHttpConfig): {
       principalId: principal.clientId,
       tenantId: principal.tenantId,
       store: config.applicationStore,
-      engine: config.engine,
+      engineJobs: config.engine,
+      scopes: principal.scopes,
       ...(config.now ? { now: config.now } : {}),
       ...(config.newId ? { newId: config.newId } : {}),
     });
@@ -132,7 +134,12 @@ export function createProductionHttpServer(config: ProductionHttpConfig): {
       enableDnsRebindingProtection: true,
       allowedHosts: [...allowedHosts],
       onsessioninitialized: (sessionId) => {
-        sessions.set(sessionId, { server, transport, tenantId: principal.tenantId });
+        sessions.set(sessionId, {
+          server,
+          transport,
+          tenantId: principal.tenantId,
+          principalId: principal.clientId,
+        });
       },
     });
     transport.onclose = () => {
@@ -198,7 +205,7 @@ export function createProductionHttpServer(config: ProductionHttpConfig): {
         sendJson(res, 404, { error: "unknown_session" });
         return;
       }
-      if (session.tenantId !== principal.tenantId) {
+      if (session.tenantId !== principal.tenantId || session.principalId !== principal.clientId) {
         // Non-enumerating: same shape as an unknown session.
         sendJson(res, 404, { error: "unknown_session" });
         return;

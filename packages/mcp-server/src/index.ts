@@ -5,6 +5,7 @@ export {
   IdempotencyConflictError,
   JobNotFoundError,
   JobExpiredError,
+  InsufficientScopeError,
   RecheckRejectedError,
   RecheckThrottledError,
 } from "./review-service.js";
@@ -17,8 +18,14 @@ export type {
   ThrottleKind,
   ThrottleDecision,
 } from "./rate-limit.js";
-export { MockEngineClient } from "./engine-client.js";
-export type { EngineClient, EngineRecheckRequest, EngineCancelAck } from "./engine-client.js";
+export { MockEngineClient, MockEngineJobClient } from "./engine-client.js";
+export type {
+  EngineClient,
+  EngineJobClient,
+  EngineJobPoll,
+  EngineRecheckRequest,
+  EngineCancelAck,
+} from "./engine-client.js";
 export {
   InMemoryReviewApplicationStore,
 } from "./application-store.js";
@@ -30,7 +37,7 @@ export type {
   ReviewApplicationStore,
 } from "./application-store.js";
 export { JudgmentEngineHttpClient, EngineDependencyError } from "./engine-http-client.js";
-export type { EngineHttpClientOptions, EngineJobPoll } from "./engine-http-client.js";
+export type { EngineHttpClientOptions } from "./engine-http-client.js";
 export {
   ENGINE_CANCEL_MAPPING_VERSION,
   ENGINE_CANCELED_ERROR,

@@ -9,13 +9,21 @@ MCP transports are disposable. Product jobs live in `ReviewApplicationStore`, ke
 Production startup must inject all of the following into `startFromEnv`:
 
 - `PostgresReviewApplicationStore` backed by migration `packages/mcp-server/migrations/001_review_application.sql`;
-- an `EngineClient` backed by the signed Judgment Engine API, plus `JudgmentEngineHttpClient.ready` for readiness;
+- an `EngineJobClient` backed by the signed Judgment Engine API, plus `JudgmentEngineHttpClient.ready` for readiness;
 - an ownership-verified `AllowlistResolver` with a real readiness probe;
 - the sandboxed `DnsResolver` and its readiness probe.
 
 The container entrypoint deliberately refuses to boot with placeholders. `/livez` proves only that the process is alive. `/readyz` returns 503 until the job store, Judgment Engine, target store, and DNS boundary all report usable.
 
 Judgment Engine calls sign the exact request body with HMAC-SHA256, propagate correlation/trace identifiers, enforce bounded timeouts/retries, honor `Retry-After` for 429/503, and reject a missing or mismatched `x-schema-version`.
+
+## Durable cancellation binding
+
+Added July 12, 2026 for issue #32.
+
+The MCP product job ID and Judgment Engine job ID are distinct. Submission stores the engine ID on the tenant/principal-owned application record; poll and cancel always address that stored engine ID. A cancel that races submission records its timestamp, first reason, and `awaiting_engine_job_id` decision, then the submitter forwards the request as soon as the upstream ID is durable.
+
+Only credentials carrying `reviews:cancel` can read or mutate cancellation state. Transport sessions are bound to both tenant and principal, so another client in the same tenant cannot reuse a session ID. Duplicate cancellation calls poll the existing request rather than issuing repeated upstream deletes. The store transaction is the completion-versus-cancel linearization point: terminal cancellation suppresses a late result, while a completion that commits first remains immutable. Units stay reserved but unconsumed until completion; cancellation consumes none.
 
 ## Migration and retention
 

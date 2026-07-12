@@ -3,7 +3,7 @@ import { createProductionHttpServer, type AllowlistResolver } from "./http-serve
 import { createJwtVerifier } from "./jwt-verifier.js";
 import type { DnsResolver } from "./target-auth.js";
 import type { ReviewApplicationStore } from "./application-store.js";
-import type { EngineClient } from "./engine-client.js";
+import type { EngineJobClient } from "./engine-client.js";
 
 /**
  * Deployable remote MCP Review entrypoint (#28). Reads configuration from the
@@ -29,7 +29,7 @@ export interface MainDeps {
   allowlistResolver: AllowlistResolver;
   dnsResolver: DnsResolver;
   applicationStore: ReviewApplicationStore;
-  engine: EngineClient;
+  engine: EngineJobClient;
   engineReady: () => Promise<boolean>;
   dnsReady: () => Promise<boolean>;
   env?: NodeJS.ProcessEnv;

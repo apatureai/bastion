@@ -15,6 +15,28 @@ export interface EngineCancelAck {
   poll: EnginePollStatus;
 }
 
+/** Poll result returned by Judgment Engine's durable async job API. */
+export type EngineJobPoll =
+  | { jobId: string; state: "pending" | "running" | "cancelling" }
+  | { jobId: string; state: "completed"; result: EngineReviewResult; schemaVersion: string }
+  | { jobId: string; state: "failed"; error: string; schemaVersion: string };
+
+/**
+ * Production application-plane boundary. Unlike the fixture-oriented
+ * `EngineClient` below, this preserves the upstream job id and never ties
+ * capture/inference lifetime to one MCP request or transport session.
+ */
+export interface EngineJobClient {
+  submit(
+    installationId: string,
+    idempotencyKey: string,
+    request: NormalizedReviewRequest,
+    correlationId?: string,
+  ): Promise<string>;
+  get(installationId: string, engineJobId: string, correlationId?: string): Promise<EngineJobPoll>;
+  cancel(installationId: string, engineJobId: string, correlationId?: string): Promise<boolean>;
+}
+
 /**
  * A normalized recheck request as the engine receives it. The flagged findings
  * carry their prior route/viewport/element so the engine can focus capture
@@ -109,6 +131,39 @@ export class MockEngineClient implements EngineClient {
    */
   async cancel(_jobId: string): Promise<EngineCancelAck> {
     return { accepted: true, poll: { state: "cancelling" } };
+  }
+}
+
+/** Deterministic async job adapter for protocol/application tests only. */
+export class MockEngineJobClient implements EngineJobClient {
+  private readonly jobs = new Map<string, EngineReviewResult>();
+  private readonly cancelled = new Set<string>();
+  private sequence = 0;
+
+  async submit(
+    _installationId: string,
+    _idempotencyKey: string,
+    _request: NormalizedReviewRequest,
+  ): Promise<string> {
+    const jobId = `engine_mock_${++this.sequence}`;
+    this.jobs.set(jobId, loadGoldenEngineResult());
+    return jobId;
+  }
+
+  async get(_installationId: string, engineJobId: string): Promise<EngineJobPoll> {
+    if (this.cancelled.has(engineJobId)) {
+      return { jobId: engineJobId, state: "failed", error: "canceled", schemaVersion: "1.0.0" };
+    }
+    const result = this.jobs.get(engineJobId);
+    return result
+      ? { jobId: engineJobId, state: "completed", result, schemaVersion: "1.0.0" }
+      : { jobId: engineJobId, state: "failed", error: "not_found", schemaVersion: "1.0.0" };
+  }
+
+  async cancel(_installationId: string, engineJobId: string): Promise<boolean> {
+    if (!this.jobs.has(engineJobId)) return false;
+    this.cancelled.add(engineJobId);
+    return true;
   }
 }
 

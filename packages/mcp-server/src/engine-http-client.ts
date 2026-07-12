@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import type { EngineReviewResult } from "@apature/mcp-types";
 import type { NormalizedReviewRequest } from "./normalize.js";
+import type { EngineJobClient, EngineJobPoll } from "./engine-client.js";
 
 const INSTALLATION_HEADER = "x-gate-installation";
 const TIMESTAMP_HEADER = "x-gate-timestamp";
@@ -17,11 +18,6 @@ export interface EngineHttpClientOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-export type EngineJobPoll =
-  | { jobId: string; state: "pending" | "running" | "cancelling" }
-  | { jobId: string; state: "completed"; result: EngineReviewResult; schemaVersion: string }
-  | { jobId: string; state: "failed"; error: string; schemaVersion: string };
-
 export class EngineDependencyError extends Error {
   constructor(
     message: string,
@@ -34,7 +30,7 @@ export class EngineDependencyError extends Error {
 }
 
 /** Signed async client for Judgment Engine's POST/GET/DELETE /jobs contract. */
-export class JudgmentEngineHttpClient {
+export class JudgmentEngineHttpClient implements EngineJobClient {
   private readonly fetchImpl: typeof fetch;
   private readonly expectedSchema: string;
   private readonly timeoutMs: number;
