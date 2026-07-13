@@ -1,4 +1,6 @@
 import type { AddressInfo } from "node:net";
+import { createConnection } from "node:net";
+import { request as httpRequest } from "node:http";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
@@ -8,6 +10,7 @@ import {
   InMemoryReviewApplicationStore,
   MockEngineJobClient,
   type AllowlistResolver,
+  type HttpResourceLimits,
   type TokenVerifier,
 } from "../src/index.js";
 
@@ -39,7 +42,11 @@ afterEach(async () => {
   for (const s of running.splice(0)) await s.close();
 });
 
-async function start(options: { engineReady?: boolean; dnsReady?: boolean } = {}) {
+async function start(options: {
+  engineReady?: boolean;
+  dnsReady?: boolean;
+  httpLimits?: Partial<HttpResourceLimits>;
+} = {}) {
   // The SDK validates the Host header (incl. port) against allowedHosts — the
   // DNS-rebinding defense. The bound port is only known after listen, so pass a
   // mutable array and register 127.0.0.1:<port> once it is known (in production
@@ -56,12 +63,70 @@ async function start(options: { engineReady?: boolean; dnsReady?: boolean } = {}
     resourceUrl: RESOURCE,
     authorizationServers: ["https://auth.apature.ai"],
     allowedHosts,
+    httpLimits: options.httpLimits,
   });
   running.push(built);
   await new Promise<void>((resolve) => built.server.listen(0, "127.0.0.1", resolve));
   const port = (built.server.address() as AddressInfo).port;
   allowedHosts.push(`127.0.0.1:${port}`);
   return { built, base: `http://127.0.0.1:${port}` };
+}
+
+async function postBytes(
+  base: string,
+  body: Buffer | string,
+  headers: Record<string, string> = {},
+): Promise<{ status: number; body: string }> {
+  const url = new URL(`${base}/mcp`);
+  return await new Promise((resolve, reject) => {
+    const req = httpRequest(
+      url,
+      {
+        method: "POST",
+        headers: {
+          authorization: "Bearer tok::acme::agent-1",
+          "content-type": "application/json",
+          accept: "application/json, text/event-stream",
+          ...headers,
+        },
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk: Buffer) => chunks.push(chunk));
+        res.on("end", () => resolve({
+          status: res.statusCode ?? 0,
+          body: Buffer.concat(chunks).toString("utf8"),
+        }));
+      },
+    );
+    req.on("error", reject);
+    req.end(body);
+  });
+}
+
+async function openPartialRequest(base: string, token = "tok::acme::agent-1") {
+  const url = new URL(base);
+  const socket = createConnection(Number(url.port), url.hostname);
+  await new Promise<void>((resolve, reject) => {
+    socket.once("connect", resolve);
+    socket.once("error", reject);
+  });
+  socket.write(
+    `POST /mcp HTTP/1.1\r\nHost: ${url.host}\r\nAuthorization: Bearer ${token}\r\n` +
+      "Content-Type: application/json\r\nContent-Length: 100\r\nConnection: close\r\n\r\n{",
+  );
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  return socket;
+}
+
+async function slowRequestStatus(base: string): Promise<number> {
+  const socket = await openPartialRequest(base);
+  return await new Promise((resolve, reject) => {
+    let response = "";
+    socket.on("data", (chunk) => { response += chunk.toString("utf8"); });
+    socket.on("end", () => resolve(Number(/^HTTP\/1\.1 (\d+)/.exec(response)?.[1])));
+    socket.on("error", reject);
+  });
 }
 
 async function connect(base: string, token: string | null) {
@@ -200,5 +265,142 @@ describe("production HTTP MCP server (#28)", () => {
       checks: { store: true, engine: false, targets: true, dns: true },
     });
     expect((await fetch(`${base}/livez`)).status).toBe(200);
+  });
+});
+
+describe("HTTP resource boundary (#42)", () => {
+  const initialize = JSON.stringify({
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {
+      protocolVersion: "2025-11-25",
+      capabilities: {},
+      clientInfo: { name: "limit-test", version: "1" },
+    },
+  });
+
+  it("rejects an oversized declared length before opening a session", async () => {
+    const { base, built } = await start({ httpLimits: { maxBodyBytes: 128 } });
+    const response = await postBytes(base, "{}", { "content-length": "129" });
+    expect(response.status).toBe(413);
+    expect(built.metrics().rejectedRequests.body_too_large_declared).toBe(1);
+    expect((await (await fetch(`${base}/readyz`)).json()) as { sessions: number })
+      .toMatchObject({ sessions: 0 });
+  });
+
+  it("aborts an oversized chunked body while preserving the exact boundary", async () => {
+    const { base, built } = await start({ httpLimits: { maxBodyBytes: 256 } });
+    const tooLarge = await postBytes(base, Buffer.alloc(257, 0x20), {
+      "transfer-encoding": "chunked",
+    });
+    expect(tooLarge.status).toBe(413);
+    expect(built.metrics().rejectedRequests.body_too_large_streamed).toBe(1);
+
+    const exact = initialize.padEnd(256, " ");
+    expect(Buffer.byteLength(exact)).toBe(256);
+    const accepted = await postBytes(base, exact);
+    expect(accepted.status).toBe(200);
+  });
+
+  it("returns protocol parse errors for malformed UTF-8/JSON without echoing input", async () => {
+    const { base, built } = await start();
+    const response = await postBytes(base, Buffer.from([0xff, 0xfe, 0x7b]));
+    expect(response.status).toBe(400);
+    expect(JSON.parse(response.body)).toEqual({
+      jsonrpc: "2.0",
+      id: null,
+      error: { code: -32700, message: "Parse error" },
+    });
+    expect(response.body).not.toContain("Bearer");
+    expect(built.metrics().rejectedRequests.invalid_json).toBe(1);
+  });
+
+  it("requires a JSON media type and never opens a session for a rejected body", async () => {
+    const { base, built } = await start();
+    const response = await postBytes(base, initialize, { "content-type": "text/plain" });
+    expect(response.status).toBe(415);
+    expect(built.metrics().rejectedRequests.unsupported_media_type).toBe(1);
+    const ready = (await (await fetch(`${base}/readyz`)).json()) as { sessions: number };
+    expect(ready.sessions).toBe(0);
+  });
+
+  it("times out an incomplete body and closes the rejected connection", async () => {
+    const { base, built } = await start({
+      httpLimits: { bodyReadTimeoutMs: 50, requestTimeoutMs: 100, headersTimeoutMs: 50 },
+    });
+    await expect(slowRequestStatus(base)).resolves.toBe(408);
+    expect(built.metrics().rejectedRequests.body_timeout).toBe(1);
+  });
+
+  it("isolates in-flight saturation by verified tenant/principal", async () => {
+    const { base, built } = await start({
+      httpLimits: {
+        maxInFlightPerPrincipal: 1,
+        bodyReadTimeoutMs: 500,
+        requestTimeoutMs: 1_000,
+        headersTimeoutMs: 500,
+      },
+    });
+    const held = await openPartialRequest(base);
+    const saturated = await postBytes(base, initialize);
+    expect(saturated.status).toBe(429);
+
+    const independent = await postBytes(base, initialize, {
+      authorization: "Bearer tok::beta::agent-1",
+    });
+    expect(independent.status).toBe(200);
+    expect(built.metrics().rejectedRequests.in_flight_saturated).toBe(1);
+    held.destroy();
+  });
+
+  it("stays available to another tenant during 100 concurrent over-limit uploads", async () => {
+    const { base, built } = await start({
+      httpLimits: { maxBodyBytes: 1_024, maxInFlightPerPrincipal: 64 },
+    });
+    const rssBefore = process.memoryUsage().rss;
+    const body = Buffer.alloc(64 * 1_024, 0x78);
+    const responses = await Promise.all(
+      Array.from({ length: 100 }, () => postBytes(base, body)),
+    );
+    expect(responses.every((response) => response.status === 413 || response.status === 429))
+      .toBe(true);
+    expect(built.metrics().rejectedRequests.body_too_large_declared).toBeGreaterThan(0);
+    expect(process.memoryUsage().rss - rssBefore).toBeLessThan(96 * 1_024 * 1_024);
+
+    const independent = await postBytes(base, initialize, {
+      authorization: "Bearer tok::beta::agent-2",
+    });
+    expect(independent.status).toBe(200);
+  });
+
+  it("applies documented Node HTTP timeout and keep-alive settings", async () => {
+    const { built } = await start({
+      httpLimits: {
+        requestTimeoutMs: 2_000,
+        headersTimeoutMs: 1_000,
+        keepAliveTimeoutMs: 750,
+        maxRequestsPerSocket: 25,
+      },
+    });
+    expect(built.server.requestTimeout).toBe(2_000);
+    expect(built.server.headersTimeout).toBe(1_000);
+    expect(built.server.keepAliveTimeout).toBe(750);
+    expect(built.server.maxRequestsPerSocket).toBe(25);
+  });
+
+  it("enforces hard configuration ceilings", () => {
+    expect(() => createProductionHttpServer({
+      verifier: fakeVerifier,
+      allowlistResolver,
+      dnsResolver: { resolve: async () => ["93.184.216.34"] },
+      applicationStore: new InMemoryReviewApplicationStore(),
+      engine: new MockEngineJobClient(),
+      engineReady: async () => true,
+      dnsReady: async () => true,
+      resourceUrl: RESOURCE,
+      authorizationServers: ["https://auth.apature.ai"],
+      httpLimits: { maxBodyBytes: 1024 * 1024 + 1 },
+    })).toThrow(/hard limit/);
   });
 });

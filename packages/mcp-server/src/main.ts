@@ -1,5 +1,9 @@
 import { createRemoteJWKSet } from "jose";
-import { createProductionHttpServer, type AllowlistResolver } from "./http-server.js";
+import {
+  createProductionHttpServer,
+  type AllowlistResolver,
+  type HttpResourceMetrics,
+} from "./http-server.js";
 import { createJwtVerifier } from "./jwt-verifier.js";
 import type { DnsResolver } from "./target-auth.js";
 import type { ReviewApplicationStore } from "./application-store.js";
@@ -19,6 +23,8 @@ import type { EngineJobClient } from "./engine-client.js";
  *   MCP_TOKEN_ISSUER           expected token `iss`
  * Optional:
  *   PORT (8080), MCP_PATH (/mcp), MCP_ALLOWED_HOSTS (comma list; default resource host)
+ *   MCP_MAX_BODY_BYTES (262144), MCP_BODY_TIMEOUT_MS (30000),
+ *   MCP_MAX_IN_FLIGHT_PER_PRINCIPAL (8)
  *
  * `allowlistResolver`/`dnsResolver` are injected by the caller in production
  * (they front the tenant target store and the sandboxed DNS resolver); this
@@ -42,7 +48,21 @@ function required(env: NodeJS.ProcessEnv, key: string): string {
   return value;
 }
 
-export async function startFromEnv(deps: MainDeps): Promise<{ close(): Promise<void>; port: number }> {
+function optionalPositiveInt(env: NodeJS.ProcessEnv, key: string): number | undefined {
+  const raw = env[key];
+  if (raw === undefined) return undefined;
+  const value = Number(raw);
+  if (!Number.isSafeInteger(value) || value <= 0) {
+    throw new Error(`${key} must be a positive integer`);
+  }
+  return value;
+}
+
+export async function startFromEnv(deps: MainDeps): Promise<{
+  close(): Promise<void>;
+  metrics(): HttpResourceMetrics;
+  port: number;
+}> {
   const env = deps.env ?? process.env;
   const log = deps.logger ?? console;
 
@@ -59,6 +79,12 @@ export async function startFromEnv(deps: MainDeps): Promise<{ close(): Promise<v
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
+  const maxBodyBytes = optionalPositiveInt(env, "MCP_MAX_BODY_BYTES");
+  const bodyReadTimeoutMs = optionalPositiveInt(env, "MCP_BODY_TIMEOUT_MS");
+  const maxInFlightPerPrincipal = optionalPositiveInt(
+    env,
+    "MCP_MAX_IN_FLIGHT_PER_PRINCIPAL",
+  );
 
   const verifier = createJwtVerifier({
     keySource: createRemoteJWKSet(new URL(jwksUrl)),
@@ -66,7 +92,7 @@ export async function startFromEnv(deps: MainDeps): Promise<{ close(): Promise<v
     audience: resourceUrl,
   });
 
-  const { server, close } = createProductionHttpServer({
+  const { server, close, metrics } = createProductionHttpServer({
     verifier,
     allowlistResolver: deps.allowlistResolver,
     dnsResolver: deps.dnsResolver,
@@ -78,6 +104,11 @@ export async function startFromEnv(deps: MainDeps): Promise<{ close(): Promise<v
     authorizationServers,
     mcpPath,
     allowedHosts,
+    httpLimits: {
+      ...(maxBodyBytes !== undefined ? { maxBodyBytes } : {}),
+      ...(bodyReadTimeoutMs !== undefined ? { bodyReadTimeoutMs } : {}),
+      ...(maxInFlightPerPrincipal !== undefined ? { maxInFlightPerPrincipal } : {}),
+    },
     logger: log,
   });
 
@@ -91,7 +122,7 @@ export async function startFromEnv(deps: MainDeps): Promise<{ close(): Promise<v
   process.once("SIGTERM", () => void shutdown().then(() => process.exit(0)));
   process.once("SIGINT", () => void shutdown().then(() => process.exit(0)));
 
-  return { close, port };
+  return { close, metrics, port };
 }
 
 // Boot when run as the container entrypoint.

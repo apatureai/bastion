@@ -15,6 +15,26 @@ Production startup must inject all of the following into `startFromEnv`:
 
 The container entrypoint deliberately refuses to boot with placeholders. `/livez` proves only that the process is alive. `/readyz` returns 503 until the job store, Judgment Engine, target store, and DNS boundary all report usable.
 
+## HTTP resource limits
+
+Added July 12, 2026 for issue #42.
+
+Authenticated MCP POSTs are bounded before the SDK transport or application
+plane sees them. The production defaults are a 256 KiB body, a 30 second total
+body/request lifetime, 10 second headers, 5 second keep-alive, 100 requests per
+socket, and 8 in-flight requests per verified tenant/principal. The body ceiling
+has a non-configurable 1 MiB hard maximum and the per-principal ceiling has a
+hard maximum of 64.
+
+Set `MCP_MAX_BODY_BYTES`, `MCP_BODY_TIMEOUT_MS`, and
+`MCP_MAX_IN_FLIGHT_PER_PRINCIPAL` only when a measured client requirement needs
+the override. Oversized declared bodies fail before reading; chunked bodies stop
+buffering at the ceiling. Unsupported media, malformed JSON/UTF-8, slow bodies,
+and saturation return deterministic 415/JSON-RPC parse/408/429 responses without
+echoing or logging payloads or credentials. `metrics()` exposes only aggregate
+in-flight, rejection-reason, and rejected-byte counters. Capacity saturation
+never changes `/readyz`; readiness continues to report dependency health only.
+
 Judgment Engine calls sign the exact request body with HMAC-SHA256, propagate correlation/trace identifiers, enforce bounded timeouts/retries, honor `Retry-After` for 429/503, and reject a missing or mismatched `x-schema-version`.
 
 ## Durable cancellation binding
