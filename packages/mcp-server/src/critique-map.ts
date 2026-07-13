@@ -6,6 +6,7 @@ import type {
   EngineReviewResult,
   EngineSeverity,
 } from "@apature/mcp-types";
+import { hasDisplayableEngineConfidence } from "@apature/mcp-types";
 
 /**
  * Map an engine `EngineReviewResult` into the agent-facing §6.4 Critique.
@@ -29,7 +30,7 @@ function mapSeverity(severity: EngineSeverity): CritiqueSeverity {
   }
 }
 
-function mapFinding(finding: EngineFinding): CritiqueFinding {
+function mapFinding(finding: EngineFinding, confidenceIsDisplayable: boolean): CritiqueFinding {
   return {
     finding_id: finding.id,
     severity: mapSeverity(finding.severity),
@@ -44,17 +45,18 @@ function mapFinding(finding: EngineFinding): CritiqueFinding {
     element_ref: finding.element,
     suggestion: finding.suggestion,
     evidence_id: finding.screenshotId,
-    confidence: finding.confidence ?? null,
+    confidence: confidenceIsDisplayable ? (finding.confidence ?? null) : null,
   };
 }
 
 export function mapEngineResultToCritique(reviewId: string, result: EngineReviewResult): Critique {
+  const confidenceIsDisplayable = hasDisplayableEngineConfidence(result);
   return {
     review_id: reviewId,
     grade: result.grade,
-    confidence: result.confidence ?? null,
+    confidence: confidenceIsDisplayable ? result.confidence : null,
     overall: result.overall,
-    findings: result.findings.map(mapFinding),
+    findings: result.findings.map((finding) => mapFinding(finding, confidenceIsDisplayable)),
     not_reviewed: result.notReviewed,
   };
 }

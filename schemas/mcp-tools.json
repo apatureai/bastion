@@ -410,7 +410,7 @@
                 ],
                 "minimum": 0,
                 "maximum": 1,
-                "description": "Engine-produced aggregate confidence, or null when unavailable for an uncalibrated legacy result."
+                "description": "Report-backed engine confidence, or null when calibration provenance is missing, malformed, or incomplete."
               },
               "overall": {
                 "type": "string",
@@ -470,7 +470,7 @@
                       ],
                       "minimum": 0,
                       "maximum": 1,
-                      "description": "Engine-produced finding confidence, or null when unavailable."
+                      "description": "Report-backed engine finding confidence, or null when calibration provenance is unavailable."
                     }
                   },
                   "required": [

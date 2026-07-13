@@ -18,6 +18,27 @@ export type EngineViewport = "mobile" | "tablet" | "desktop";
 /** Overall verdict for a review. */
 export type EngineGrade = "ship" | "ship_with_nits" | "needs_work" | "blocked";
 
+export type EngineConfidenceSource =
+  | "raw_verbalized"
+  | "post_hoc_isotonic"
+  | "post_hoc_histogram"
+  | "hidden_state_probe"
+  | "ensemble";
+
+export type EngineCalibrationReference = {
+  reportId: string;
+  reportHash: `sha256:${string}`;
+  calibrationVersion: string;
+  confidenceSource: EngineConfidenceSource;
+};
+
+export type EngineConfidenceUnavailableReason =
+  | "missing_calibration_report"
+  | "invalid_calibration_report"
+  | "mismatched_calibration_report"
+  | "insufficient_evidence"
+  | "unattested_calibration_report";
+
 /** A single design-review finding produced by the engine. */
 /** The engine's eight-value design rubric on the wire (judgment-engine#159). */
 export type EngineDimension =
@@ -71,6 +92,12 @@ export type EngineReviewResult = {
    * as `EngineFinding.confidence`.
    */
   confidence?: number;
+  /** Exact promoted calibration artifact for every numeric confidence. */
+  calibration?: EngineCalibrationReference;
+  /** Explicit engine promotion mode; MCP Review never derives it from a score. */
+  blockingEnabled?: boolean;
+  /** Why confidence was withheld on a current fail-closed result. */
+  confidenceUnavailableReason?: EngineConfidenceUnavailableReason;
   findings: EngineFinding[];
   /** Routes/viewports/previews the engine skipped. */
   notReviewed: string[];
@@ -85,9 +112,56 @@ export type EngineReviewResult = {
     model: string;
     promptVersion: string;
     captureVersion: string;
+    rubricVersion?: string;
     uiDnaVersion: string | null;
   };
 };
+
+const CONFIDENCE_SOURCES: readonly EngineConfidenceSource[] = [
+  "raw_verbalized",
+  "post_hoc_isotonic",
+  "post_hoc_histogram",
+  "hidden_state_probe",
+  "ensemble",
+];
+
+/** True only when every score is backed by well-formed promoted-report provenance. */
+export function hasDisplayableEngineConfidence(
+  result: EngineReviewResult,
+): result is EngineReviewResult & {
+  confidence: number;
+  calibration: EngineCalibrationReference;
+  findings: Array<EngineFinding & { confidence: number }>;
+} {
+  const calibration = result.calibration;
+  return (
+    calibration != null &&
+    typeof calibration.reportId === "string" &&
+    calibration.reportId.length > 0 &&
+    typeof calibration.reportHash === "string" &&
+    /^sha256:[0-9a-f]{64}$/.test(calibration.reportHash) &&
+    typeof calibration.calibrationVersion === "string" &&
+    calibration.calibrationVersion.length > 0 &&
+    typeof calibration.confidenceSource === "string" &&
+    (CONFIDENCE_SOURCES as readonly string[]).includes(calibration.confidenceSource) &&
+    result.confidenceUnavailableReason === undefined &&
+    Array.isArray(result.findings) &&
+    result.findings.length > 0 &&
+    typeof result.confidence === "number" &&
+    Number.isFinite(result.confidence) &&
+    result.confidence >= 0 &&
+    result.confidence <= 1 &&
+    result.findings.every(
+      (finding) =>
+        finding !== null &&
+        typeof finding === "object" &&
+        typeof finding.confidence === "number" &&
+        Number.isFinite(finding.confidence) &&
+        finding.confidence >= 0 &&
+        finding.confidence <= 1,
+    )
+  );
+}
 
 /** Per-finding recheck verdict from the engine (never a forced boolean). */
 export type EngineRecheckOutcomeKind = "passed" | "failed" | "inconclusive";

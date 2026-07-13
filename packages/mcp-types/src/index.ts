@@ -2,6 +2,9 @@ export type {
   EngineSeverity,
   EngineViewport,
   EngineGrade,
+  EngineConfidenceSource,
+  EngineCalibrationReference,
+  EngineConfidenceUnavailableReason,
   EngineDimension,
   EngineFinding,
   EngineReviewResult,
@@ -9,6 +12,7 @@ export type {
   EngineRecheckOutcome,
   EngineRecheckResult,
 } from "./engine.js";
+export { hasDisplayableEngineConfidence } from "./engine.js";
 export {
   SCHEMA_VERSION,
 } from "./critique.js";
@@ -34,4 +38,9 @@ export type {
 } from "./critique.js";
 export { ERROR_CODES } from "./error.js";
 export type { ReviewErrorCode, NextAction, ReviewError } from "./error.js";
-export { GOLDEN_ENGINE_RESULT_PATH, loadGoldenEngineResult } from "./golden.js";
+export {
+  GOLDEN_ENGINE_RESULT_PATH,
+  PRE_CALIBRATION_ENGINE_RESULT_PATH,
+  loadGoldenEngineResult,
+  loadPreCalibrationEngineResult,
+} from "./golden.js";

@@ -2,13 +2,6 @@
   "grade": "needs_work",
   "overall": "The new pricing page reads clearly on desktop, but the mobile layout breaks the design system: the primary CTA loses its brand color and the card grid overflows the viewport. Two nits on spacing.",
   "confidence": 0.7,
-  "calibration": {
-    "reportId": "calibration_qwen3vl_2026_07",
-    "reportHash": "sha256:675dcd6a31db1157aa84fce80a00d1dd2a591e15877226697134b79269a9ac08",
-    "calibrationVersion": "isotonic@1",
-    "confidenceSource": "post_hoc_isotonic"
-  },
-  "blockingEnabled": true,
   "findings": [
     {
       "id": "f_001",
@@ -73,7 +66,6 @@
     "model": "qwen3-vl",
     "promptVersion": "gate-design-review@7",
     "captureVersion": "playwright-capture@3",
-    "rubricVersion": "design-rubric@1",
     "uiDnaVersion": "ui-dna@2026.06.12"
   }
 }

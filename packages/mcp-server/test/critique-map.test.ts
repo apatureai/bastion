@@ -66,6 +66,12 @@ describe("confidence pass-through (mcp-review#13 / judgment-engine#150)", () => 
     const withConfidence: EngineReviewResult = {
       ...engineResult,
       confidence: 0,
+      calibration: {
+        reportId: "calibration_test_1",
+        reportHash: "sha256:675dcd6a31db1157aa84fce80a00d1dd2a591e15877226697134b79269a9ac08",
+        calibrationVersion: "isotonic@1",
+        confidenceSource: "post_hoc_isotonic",
+      },
       findings: engineResult.findings.map((f, i, all) => ({
         ...f,
         confidence: i / (all.length - 1),
@@ -94,7 +100,7 @@ describe("confidence pass-through (mcp-review#13 / judgment-engine#150)", () => 
     expect(JSON.stringify(critique)).not.toContain('"confidence":0.8');
   });
 
-  it("emits 0.8 only when the engine actually supplied 0.8", () => {
+  it("withholds supplied numeric fields when report provenance is absent", () => {
     const engineResult = loadBlockerEngineResult();
     const supplied: EngineReviewResult = {
       ...engineResult,
@@ -102,7 +108,61 @@ describe("confidence pass-through (mcp-review#13 / judgment-engine#150)", () => 
       findings: engineResult.findings.map((finding) => ({ ...finding, confidence: 0.8 })),
     };
     const critique = mapEngineResultToCritique("review_conf_0003", supplied);
+    expect(critique.confidence).toBeNull();
+    expect(critique.findings.every((finding) => finding.confidence === null)).toBe(true);
+  });
+
+  it("emits supplied confidence only with complete, valid report provenance", () => {
+    const engineResult = loadBlockerEngineResult();
+    const supplied: EngineReviewResult = {
+      ...engineResult,
+      confidence: 0.8,
+      calibration: {
+        reportId: "calibration_test_2",
+        reportHash: "sha256:675dcd6a31db1157aa84fce80a00d1dd2a591e15877226697134b79269a9ac08",
+        calibrationVersion: "isotonic@1",
+        confidenceSource: "post_hoc_isotonic",
+      },
+      findings: engineResult.findings.map((finding) => ({ ...finding, confidence: 0.8 })),
+    };
+    const critique = mapEngineResultToCritique("review_conf_0004", supplied);
     expect(critique.confidence).toBe(0.8);
     expect(critique.findings.every((finding) => finding.confidence === 0.8)).toBe(true);
+  });
+
+  it("fails closed for malformed provenance or partial confidence", () => {
+    const engineResult = loadBlockerEngineResult();
+    const base: EngineReviewResult = {
+      ...engineResult,
+      confidence: 0.8,
+      calibration: {
+        reportId: "calibration_test_3",
+        reportHash: "sha256:675dcd6a31db1157aa84fce80a00d1dd2a591e15877226697134b79269a9ac08",
+        calibrationVersion: "isotonic@1",
+        confidenceSource: "post_hoc_isotonic",
+      },
+      findings: engineResult.findings.map((finding) => ({ ...finding, confidence: 0.8 })),
+    };
+    const malformed = mapEngineResultToCritique("review_conf_0005", {
+      ...base,
+      calibration: { ...base.calibration!, reportHash: "sha256:not-a-digest" },
+    });
+    expect(malformed.confidence).toBeNull();
+    expect(malformed.findings.every((finding) => finding.confidence === null)).toBe(true);
+
+    const missingFields = mapEngineResultToCritique("review_conf_0005b", {
+      ...base,
+      calibration: {} as NonNullable<EngineReviewResult["calibration"]>,
+    });
+    expect(missingFields.confidence).toBeNull();
+    expect(missingFields.findings.every((finding) => finding.confidence === null)).toBe(true);
+
+    const partial = mapEngineResultToCritique("review_conf_0006", {
+      ...base,
+      findings: base.findings.map((finding, index) =>
+        index === 0 ? { ...finding, confidence: undefined } : finding),
+    });
+    expect(partial.confidence).toBeNull();
+    expect(partial.findings.every((finding) => finding.confidence === null)).toBe(true);
   });
 });

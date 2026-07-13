@@ -1,5 +1,13 @@
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { loadGoldenEngineResult } from "../src/index.js";
+import {
+  GOLDEN_ENGINE_RESULT_PATH,
+  hasDisplayableEngineConfidence,
+  loadGoldenEngineResult,
+  loadPreCalibrationEngineResult,
+  PRE_CALIBRATION_ENGINE_RESULT_PATH,
+} from "../src/index.js";
 import type {
   EngineFinding,
   EngineGrade,
@@ -9,6 +17,8 @@ import type {
 
 const GRADES: EngineGrade[] = ["ship", "ship_with_nits", "needs_work", "blocked"];
 const SEVERITIES: EngineSeverity[] = ["nit", "minor", "major", "blocker"];
+const JUDGMENT_ENGINE_GOLDEN_BLOB = "54a7add15f3431964f092f9795af2a72800d33a0";
+const JUDGMENT_ENGINE_PRE_CALIBRATION_BLOB = "7d1c7e4780b5967c1df937f12667875e4d38ffb8";
 
 describe("golden EngineReviewResult fixture", () => {
   // Compile-time guarantee: the loader's return type IS EngineReviewResult.
@@ -21,6 +31,31 @@ describe("golden EngineReviewResult fixture", () => {
   it("has a non-empty overall summary", () => {
     expect(typeof golden.overall).toBe("string");
     expect(golden.overall.length).toBeGreaterThan(0);
+  });
+
+  it("is byte-identical to the pinned Judgment Engine fixtures", () => {
+    for (const [path, expected] of [
+      [GOLDEN_ENGINE_RESULT_PATH, JUDGMENT_ENGINE_GOLDEN_BLOB],
+      [PRE_CALIBRATION_ENGINE_RESULT_PATH, JUDGMENT_ENGINE_PRE_CALIBRATION_BLOB],
+    ] as const) {
+      const bytes = readFileSync(path);
+      const oid = createHash("sha1")
+        .update(`blob ${bytes.length}\0`)
+        .update(bytes)
+        .digest("hex");
+      expect(oid).toBe(expected);
+    }
+  });
+
+  it("authorizes only complete report-backed confidence", () => {
+    expect(golden.calibration?.reportHash).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(golden.blockingEnabled).toBe(true);
+    expect(hasDisplayableEngineConfidence(golden)).toBe(true);
+
+    const historical = loadPreCalibrationEngineResult();
+    expect(typeof historical.confidence).toBe("number");
+    expect(historical.calibration).toBeUndefined();
+    expect(hasDisplayableEngineConfidence(historical)).toBe(false);
   });
 
   it("has structurally valid findings", () => {

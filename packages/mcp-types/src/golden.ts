@@ -14,7 +14,16 @@ export const GOLDEN_ENGINE_RESULT_PATH = fileURLToPath(
   new URL("../fixtures/engine-review-result.golden.json", import.meta.url),
 );
 
+export const PRE_CALIBRATION_ENGINE_RESULT_PATH = fileURLToPath(
+  new URL("../fixtures/engine-review-result.pre-calibration.json", import.meta.url),
+);
+
 /** Load the golden `EngineReviewResult`. Tests and the mock engine share this. */
 export function loadGoldenEngineResult(): EngineReviewResult {
   return JSON.parse(readFileSync(GOLDEN_ENGINE_RESULT_PATH, "utf8")) as EngineReviewResult;
+}
+
+/** Load the shared deploy-skew/legacy counterexample. */
+export function loadPreCalibrationEngineResult(): EngineReviewResult {
+  return JSON.parse(readFileSync(PRE_CALIBRATION_ENGINE_RESULT_PATH, "utf8")) as EngineReviewResult;
 }
