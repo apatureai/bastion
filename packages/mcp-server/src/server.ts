@@ -23,7 +23,10 @@ import {
 } from "./tools.js";
 
 const SERVER_NAME = "apature-mcp-review";
-const SERVER_VERSION = "0.0.0";
+// Locked to directory/server.json `version` and schemas/mcp-tools.json
+// `catalog_version` by the catalog-drift gate (#29): the version a client sees
+// in serverInfo is the version the registry listing advertises.
+const SERVER_VERSION = "1.0.0";
 
 /** Render a value as the tool's JSON text content plus structured content. */
 function jsonResult(payload: Record<string, unknown>): CallToolResult {
@@ -204,8 +207,8 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
     {
       title: "Get design review",
       description:
-        "Get status or the compact Critique for an existing review job. Poll no faster than the " +
-        "returned poll_after_ms. Result reads do not consume review units.",
+        "Get status or a compact, focused, or evidence view for an existing review job. Poll no " +
+        "faster than the returned poll_after_ms. Result reads do not consume review units.",
       inputSchema: designReviewGetInputShape,
       annotations: {
         readOnlyHint: true,

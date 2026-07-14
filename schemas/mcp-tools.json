@@ -204,7 +204,7 @@
     {
       "name": "design_review_get",
       "title": "Get design review",
-      "description": "Get status or a compact, paginated, focused, or evidence view for an existing review job. Poll no faster than the returned poll_after_ms. Result reads do not consume review units.",
+      "description": "Get status or a compact, focused, or evidence view for an existing review job. Poll no faster than the returned poll_after_ms. Result reads do not consume review units.",
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
@@ -237,48 +237,8 @@
               "focus",
               "evidence"
             ],
-            "default": "summary"
-          },
-          "finding_ids": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 10,
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "minLength": 8,
-              "maxLength": 128
-            }
-          },
-          "evidence_ids": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": 10,
-            "uniqueItems": true,
-            "items": {
-              "type": "string",
-              "minLength": 8,
-              "maxLength": 128
-            }
-          },
-          "cursor": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 1024
-          },
-          "page_size": {
-            "type": "integer",
-            "minimum": 1,
-            "maximum": 20,
-            "default": 10
-          },
-          "evidence_mode": {
-            "type": "string",
-            "enum": [
-              "refs",
-              "inline_selected"
-            ],
-            "default": "refs"
+            "default": "summary",
+            "description": "Result view (default: summary)."
           }
         },
         "required": [
@@ -568,7 +528,7 @@
     {
       "name": "design_recheck",
       "title": "Submit design recheck",
-      "description": "Submit a metered recheck for findings from a completed review after the customer's agent changes the UI. The tool never edits code. Unchanged targets and exhausted recheck loops are rejected without running judgment.",
+      "description": "Submit a metered recheck for findings from a completed review after the customer's agent changes the UI. This tool never edits code. Unchanged targets and exhausted recheck loops are rejected without running judgment. Reuse client_request_id on retries.",
       "annotations": {
         "readOnlyHint": false,
         "destructiveHint": false,
@@ -773,7 +733,7 @@
     {
       "name": "design_review_cancel",
       "title": "Cancel design review",
-      "description": "Request best-effort cancellation of a queued or running review job. Terminal jobs keep their existing state. Cancellation does not edit customer systems.",
+      "description": "Request best-effort cancellation of a queued or running review job. Terminal jobs keep their existing state. Cancellation does not edit customer systems and consumes no review units.",
       "annotations": {
         "readOnlyHint": false,
         "destructiveHint": true,

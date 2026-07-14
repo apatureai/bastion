@@ -130,6 +130,10 @@ runs asynchronously. Reuse `client_request_id` on retries and honor
 
 ## Verifying the listing
 
-The directory manifest's advertised tools must match the catalog in
-[`schemas/mcp-tools.json`](../schemas/mcp-tools.json). This is checked in CI by
-`packages/mcp-server/test/directory.test.ts`.
+The listing is CI-gated from both sides: the directory manifest must match the
+catalog in [`schemas/mcp-tools.json`](../schemas/mcp-tools.json)
+(`packages/mcp-server/test/directory.test.ts`), and the LIVE server's
+`tools/list` + `serverInfo.version` must match that same catalog and the
+listing version (`packages/mcp-server/test/catalog-drift.test.ts`) — so a
+published listing can never advertise tools, descriptions, annotations, input
+fields, or a version the deployed server does not actually serve.
