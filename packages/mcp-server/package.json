@@ -13,7 +13,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "migrations"
   ],
   "scripts": {
     "test": "vitest run",
@@ -23,7 +24,12 @@
     "@apature/mcp-types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "zod": "^4.4.3",
-    "jose": "^6.2.3"
+    "jose": "^6.2.3",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@types/pg": "^8.15.4"
   },
   "bin": {
     "mcp-review-server": "./dist/main.js"

@@ -104,3 +104,7 @@ export type {
   DesignReviewGetToolInput,
   DesignRecheckToolInput,
 } from "./tools.js";
+export { PgPoolConnectionFactory, runMcpMigrations, MCP_MIGRATIONS_DIR } from "./pg.js";
+export { PostgresAllowlistResolver, SystemDnsResolver } from "./production-adapters.js";
+export { bootProduction } from "./production.js";
+export type { ProductionOverrides, ProductionHandle } from "./production.js";

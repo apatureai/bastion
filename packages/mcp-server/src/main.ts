@@ -125,11 +125,15 @@ export async function startFromEnv(deps: MainDeps): Promise<{
   return { close, metrics, port };
 }
 
-// Boot when run as the container entrypoint.
+// Boot when run as the container entrypoint: the production composition root
+// (#36) wires the durable Postgres application plane, the signed Judgment
+// Engine client, the ownership-verified target registry, and the system DNS
+// resolver. Missing config or an unusable database exits non-zero — never a
+// green-but-unusable listener.
 if (import.meta.url === `file://${process.argv[1]}`) {
-  console.error(
-    "mcp-review requires an injected durable application store, Judgment Engine client, " +
-      "ownership-verified target store, and sandboxed DNS resolver; refusing placeholder startup",
-  );
-  process.exit(1);
+  const { bootProduction } = await import("./production.js");
+  bootProduction().catch((error: unknown) => {
+    console.error(`mcp-review failed to start: ${error instanceof Error ? error.message : String(error)}`);
+    process.exit(1);
+  });
 }
