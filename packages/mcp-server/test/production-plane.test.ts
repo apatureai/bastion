@@ -1,4 +1,7 @@
 import { PGlite } from "@electric-sql/pglite";
+import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ApplicationJobRecord } from "../src/application-store.js";
 import { PostgresReviewApplicationStore, type SqlConnection, type SqlConnectionFactory } from "../src/postgres-store.js";
@@ -64,9 +67,60 @@ describe("runMcpMigrations", () => {
     expect(first).toEqual(["001_review_application", "002_review_targets"]);
     const second = await runMcpMigrations(factory, MCP_MIGRATIONS_DIR);
     expect(second).toEqual([]);
+    const tracked = await db.query<{ checksum: string; id: string }>(
+      "SELECT id, checksum FROM mcp_schema_migrations ORDER BY id",
+    );
+    expect(tracked.rows).toEqual([
+      { id: "001_review_application", checksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) },
+      { id: "002_review_targets", checksum: expect.stringMatching(/^sha256:[0-9a-f]{64}$/) },
+    ]);
     // Both tables exist and answer.
     await db.query("SELECT 1 FROM mcp_review_jobs LIMIT 0");
     await db.query("SELECT 1 FROM mcp_review_targets LIMIT 0");
+  });
+
+  it("adopts legacy id-only rows once, then enforces immutable checksums", async () => {
+    await db.exec(readFileSync(join(MCP_MIGRATIONS_DIR, "001_review_application.sql"), "utf8"));
+    await db.exec(readFileSync(join(MCP_MIGRATIONS_DIR, "002_review_targets.sql"), "utf8"));
+    await db.exec(
+      `CREATE TABLE mcp_schema_migrations (
+        id text PRIMARY KEY,
+        applied_at timestamptz NOT NULL DEFAULT now()
+      );
+      INSERT INTO mcp_schema_migrations (id) VALUES
+        ('001_review_application'), ('002_review_targets');`,
+    );
+
+    expect(await runMcpMigrations(factory)).toEqual([]);
+    const adopted = await db.query<{ checksum: string }>(
+      "SELECT checksum FROM mcp_schema_migrations ORDER BY id",
+    );
+    expect(adopted.rows).toHaveLength(2);
+    expect(adopted.rows.every(({ checksum }) => /^sha256:[0-9a-f]{64}$/.test(checksum))).toBe(true);
+
+    const copied = mkdtempSync(join(tmpdir(), "mcp-migrations-"));
+    try {
+      cpSync(MCP_MIGRATIONS_DIR, copied, { recursive: true });
+      const first = join(copied, "001_review_application.sql");
+      writeFileSync(first, `${readFileSync(first, "utf8")}\n-- forbidden historical edit\n`);
+      await expect(runMcpMigrations(factory, copied)).rejects.toThrow(
+        /migration checksum mismatch for 001_review_application/,
+      );
+    } finally {
+      rmSync(copied, { force: true, recursive: true });
+    }
+  });
+
+  it("allows an older image to observe a checksum-pinned newer migration", async () => {
+    await runMcpMigrations(factory);
+    await db.query(
+      "INSERT INTO mcp_schema_migrations (id, checksum) VALUES ($1, $2)",
+      ["999_future_additive", `sha256:${"a".repeat(64)}`],
+    );
+    expect(await runMcpMigrations(factory)).toEqual([]);
+    expect(
+      (await db.query<{ count: number }>("SELECT count(*)::int AS count FROM mcp_schema_migrations")).rows[0]?.count,
+    ).toBe(3);
   });
 });
 

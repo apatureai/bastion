@@ -31,13 +31,22 @@ Application plane (consumed by `bootProduction`):
 ## Migrations
 
 `migrations/*.sql` apply automatically at boot, in lexical order, tracked in
-`mcp_schema_migrations` — idempotent, so restarts and multiple replicas are
-safe (each migration runs in its own transaction). Current set:
+`mcp_schema_migrations`. One product-scoped transaction advisory lock covers
+the post-lock state read, all pending DDL, and all tracking inserts. Concurrent
+replica boots serialize; a killed runner rolls back and releases the lock so
+another replica can finish. Current set:
 
 - `001_review_application.sql` — `mcp_review_jobs` (tenant-scoped durable jobs,
   `(tenant_id, client_request_id)` idempotency uniqueness, RLS).
 - `002_review_targets.sql` — `mcp_review_targets` (ownership-verified capture
   targets; only rows with `verified_at` are served, RLS).
+
+Every applied ID stores the SQL file's SHA-256. The first checksum-aware boot
+adopts legacy ID-only rows from the matching files; after that, historical
+migration files are immutable and a mismatch fails startup. Add schema changes
+in a new migration. Older images ignore unknown, checksum-pinned newer IDs, so
+the current additive migrations allow rolling overlap and code rollback. Drain
+older replicas before any future migration that is not backward compatible.
 
 The database role must run with RLS enforced (not `BYPASSRLS`); every store
 transaction binds `app.tenant_id`.

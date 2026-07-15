@@ -47,7 +47,11 @@ Only credentials carrying `reviews:cancel` can read or mutate cancellation state
 
 ## Migration and retention
 
-Apply migrations before bringing up a new application revision. The table uses tenant-scoped primary/unique keys and Postgres RLS; the adapter binds `app.tenant_id` inside every transaction. Grant the runtime role no `BYPASSRLS` privilege.
+Migration safety added July 14, 2026 for issue #52. Production boot applies migrations before opening the listener. The runner acquires a fixed, product-scoped transaction advisory lock before it reads migration state; every pending migration and tracking insert commits in that same transaction. Concurrent replica boots therefore serialize. A query failure, killed backend, process death, or connection loss rolls back partial DDL and releases the lock automatically so another replica can finish.
+
+`mcp_schema_migrations` records `sha256:<hex>` beside each applied ID. The first checksum-aware boot adopts a legacy ID-only row only when the matching SQL file is present in that image. After adoption, editing a known historical migration fails startup; schema changes require a new lexically ordered file. A checksum-pinned migration unknown to an older image is left untouched, permitting rollback across additive migrations. Deploy incompatible migrations only after draining older replicas; current migrations are additive and support a rolling new-then-old overlap.
+
+The application tables use tenant-scoped primary/unique keys and Postgres RLS; the adapter binds `app.tenant_id` inside every transaction. Grant the runtime role no `BYPASSRLS` privilege.
 
 Expire terminal records only after the public `expires_at` plus the support/replay window. A sweeper may delete expired rows in bounded batches, but must retain the budget/audit ledger according to tenant policy. Never reuse an expired `client_request_id` while its ledger entry remains in retention.
 
