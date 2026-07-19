@@ -8,6 +8,7 @@ import { createJwtVerifier } from "./jwt-verifier.js";
 import type { DnsResolver } from "./target-auth.js";
 import type { ReviewApplicationStore } from "./application-store.js";
 import type { EngineJobClient } from "./engine-client.js";
+import { requiredEnv } from "./env.js";
 
 /**
  * Deployable remote MCP Review entrypoint (#28). Reads configuration from the
@@ -42,11 +43,6 @@ export interface MainDeps {
   logger?: Pick<Console, "info" | "error">;
 }
 
-function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = env[key];
-  if (!value) throw new Error(`missing required environment variable ${key}`);
-  return value;
-}
 
 function optionalPositiveInt(env: NodeJS.ProcessEnv, key: string): number | undefined {
   const raw = env[key];
@@ -66,13 +62,13 @@ export async function startFromEnv(deps: MainDeps): Promise<{
   const env = deps.env ?? process.env;
   const log = deps.logger ?? console;
 
-  const resourceUrl = required(env, "MCP_RESOURCE_URL");
-  const authorizationServers = required(env, "MCP_AUTHORIZATION_SERVERS")
+  const resourceUrl = requiredEnv(env, "MCP_RESOURCE_URL");
+  const authorizationServers = requiredEnv(env, "MCP_AUTHORIZATION_SERVERS")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
-  const jwksUrl = required(env, "MCP_JWKS_URL");
-  const issuer = required(env, "MCP_TOKEN_ISSUER");
+  const jwksUrl = requiredEnv(env, "MCP_JWKS_URL");
+  const issuer = requiredEnv(env, "MCP_TOKEN_ISSUER");
   const port = Number.parseInt(env.PORT ?? "8080", 10);
   const mcpPath = env.MCP_PATH ?? "/mcp";
   const allowedHosts = (env.MCP_ALLOWED_HOSTS ?? new URL(resourceUrl).host)

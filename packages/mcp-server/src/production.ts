@@ -5,6 +5,7 @@ import { PgPoolConnectionFactory, runMcpMigrations } from "./pg.js";
 import { PostgresReviewApplicationStore, type SqlConnectionFactory } from "./postgres-store.js";
 import { PostgresAllowlistResolver, SystemDnsResolver } from "./production-adapters.js";
 import type { DnsResolver } from "./target-auth.js";
+import { requiredEnv } from "./env.js";
 
 /**
  * Production composition root (#36): constructs the durable application plane
@@ -37,20 +38,15 @@ export interface ProductionHandle {
   port: number;
 }
 
-function required(env: NodeJS.ProcessEnv, key: string): string {
-  const value = env[key];
-  if (!value) throw new Error(`missing required environment variable ${key}`);
-  return value;
-}
 
 export async function bootProduction(overrides: ProductionOverrides = {}): Promise<ProductionHandle> {
   const env = overrides.env ?? process.env;
   const logger = overrides.logger ?? console;
 
-  const engineBaseUrl = required(env, "ENGINE_BASE_URL");
-  const engineHmacSecret = required(env, "ENGINE_HMAC_SECRET");
+  const engineBaseUrl = requiredEnv(env, "ENGINE_BASE_URL");
+  const engineHmacSecret = requiredEnv(env, "ENGINE_HMAC_SECRET");
   const factory =
-    overrides.connectionFactory ?? new PgPoolConnectionFactory(required(env, "DATABASE_URL"));
+    overrides.connectionFactory ?? new PgPoolConnectionFactory(requiredEnv(env, "DATABASE_URL"));
 
   // An unusable database is a startup failure, not a degraded-ready state: the
   // durable plane is the point of this composition.
