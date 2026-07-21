@@ -1,4 +1,7 @@
 export { createMcpReviewServer } from "./server.js";
+// D3 (#58): multimedia-native design_review result shaping — annotated screenshot
+// image blocks with an honest capability downgrade for non-multimedia hosts.
+export { buildMultimediaCritiqueContent } from "./multimedia-content.js";
 export { ReviewService } from "./review-service.js";
 export type { ReviewServiceDeps, RecheckRejectionReason } from "./review-service.js";
 export {

@@ -35,6 +35,12 @@ export type {
   DesignRecheckResult,
   UpstreamCancellation,
   DesignReviewCancelResult,
+  TextContentBlock,
+  ImageContentBlock,
+  McpContentBlock,
+  AnnotatedImage,
+  HostMediaCapability,
+  MultimediaCritiqueContent,
 } from "./critique.js";
 export { ERROR_CODES } from "./error.js";
 export type { ReviewErrorCode, NextAction, ReviewError } from "./error.js";

@@ -166,3 +166,54 @@ export type DesignReviewCancelResult = {
   cancellation_requested_at: string;
   upstream_cancellation: UpstreamCancellation;
 };
+
+// --- D3: multimedia-native design_review result (issue #58) --------------
+// Apature is inherently visual — a design-review tool that returns ANNOTATED
+// SCREENSHOTS an agent can see has no text-only code-review equivalent. Aligned
+// to the 2026-07-28 MCP spec's image content, with an HONEST capability
+// downgrade: a host that cannot render images gets the text/structured result
+// and is told which images were withheld, never a broken/absent block.
+
+/** An MCP `text` content block. */
+export type TextContentBlock = { type: "text"; text: string };
+
+/**
+ * An MCP `image` content block — base64-encoded image bytes + MIME type, per the
+ * MCP multimedia content shape. Used for annotated screenshot crops.
+ */
+export type ImageContentBlock = { type: "image"; data: string; mimeType: string };
+
+/** A content block in a multimedia MCP tool result. */
+export type McpContentBlock = TextContentBlock | ImageContentBlock;
+
+/**
+ * An annotated screenshot crop for a finding, supplied by the engine/capture
+ * plane (dependency-inverted: this surface shapes it into content, it does not
+ * produce pixels). `evidenceId` matches `CritiqueFinding.evidence_id`.
+ */
+export type AnnotatedImage = {
+  evidenceId: string;
+  /** Base64-encoded image bytes. */
+  data: string;
+  /** An `image/*` MIME type (e.g. `image/png`). */
+  mimeType: string;
+};
+
+/** What the calling host can render, negotiated per request (MCP capabilities). */
+export type HostMediaCapability = {
+  /** The host can render `image` content blocks (MCP multimedia). */
+  images: boolean;
+};
+
+/**
+ * A multimedia `design_review` result: the content blocks to return, whether any
+ * image was actually emitted, and — for the honest downgrade — which annotated
+ * images were withheld because the host cannot render them.
+ */
+export type MultimediaCritiqueContent = {
+  content: McpContentBlock[];
+  /** True when at least one image block was emitted (host supports images AND an image was available). */
+  multimedia: boolean;
+  /** `evidence_id`s whose annotated image was withheld for a non-multimedia host. */
+  images_withheld: string[];
+};
