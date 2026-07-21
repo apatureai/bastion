@@ -96,6 +96,15 @@ function panelUri(reviewId: string): string {
 }
 
 /**
+ * The MIME type that marks an MCP-Apps interactive HTML panel (ext-apps spec,
+ * 2026-01-26). It is NOT plain `text/html`: the `;profile=mcp-app` parameter is
+ * how a host distinguishes a panel it should render in its sandboxed MCP-Apps
+ * iframe (with `postMessage` bridge) from a generic HTML resource. Getting this
+ * wrong silently downgrades the panel to inert markup.
+ */
+export const MCP_APP_PANEL_MIME = "text/html;profile=mcp-app";
+
+/**
  * Build the full `design_review` content: the interactive MCP-Apps HTML panel
  * (when the host supports it) followed by the multimedia findings. The panel is
  * the catalyst's "bigger first-mover lever" — an annotated, in-host review
@@ -124,7 +133,7 @@ export function buildDesignReviewContent(
     if (capability.appsPanel === true) {
       const block: ResourceContentBlock = {
         type: "resource",
-        resource: { uri: panelUri(critique.review_id), mimeType: "text/html", text: panelHtml },
+        resource: { uri: panelUri(critique.review_id), mimeType: MCP_APP_PANEL_MIME, text: panelHtml },
       };
       content.unshift(block); // panel first; text/image blocks are the fallback
       panel = true;

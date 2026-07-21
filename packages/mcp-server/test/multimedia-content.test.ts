@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMultimediaCritiqueContent, buildDesignReviewContent } from "../src/multimedia-content.js";
+import { buildMultimediaCritiqueContent, buildDesignReviewContent, MCP_APP_PANEL_MIME } from "../src/multimedia-content.js";
 import type { AnnotatedImage, Critique, CritiqueFinding } from "@apature/mcp-types";
 
 /**
@@ -107,8 +107,11 @@ describe("buildDesignReviewContent — MCP-Apps panel + multimedia", () => {
     expect(r.panel_withheld).toBe(false);
     expect(r.content[0]).toEqual({
       type: "resource",
-      resource: { uri: "ui://apature/design-review/r1", mimeType: "text/html", text: PANEL },
+      resource: { uri: "ui://apature/design-review/r1", mimeType: MCP_APP_PANEL_MIME, text: PANEL },
     });
+    // The MCP-Apps profile marker — not plain text/html — is what makes the host
+    // render it as an interactive panel.
+    expect(MCP_APP_PANEL_MIME).toBe("text/html;profile=mcp-app");
     // panel first, then the multimedia blocks (overall, finding, image)
     expect(r.content.map((b) => b.type)).toEqual(["resource", "text", "text", "image"]);
   });
