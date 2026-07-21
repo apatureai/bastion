@@ -183,8 +183,19 @@ export type TextContentBlock = { type: "text"; text: string };
  */
 export type ImageContentBlock = { type: "image"; data: string; mimeType: string };
 
+/**
+ * An MCP `resource` content block carrying an embedded resource — used to deliver
+ * the interactive MCP-Apps HTML review panel in-host (a `text/html` resource the
+ * host renders in a sandboxed iframe). The catalyst's "bigger first-mover lever":
+ * an annotated, in-host review surface, not just an image.
+ */
+export type ResourceContentBlock = {
+  type: "resource";
+  resource: { uri: string; mimeType: string; text: string };
+};
+
 /** A content block in a multimedia MCP tool result. */
-export type McpContentBlock = TextContentBlock | ImageContentBlock;
+export type McpContentBlock = TextContentBlock | ImageContentBlock | ResourceContentBlock;
 
 /**
  * An annotated screenshot crop for a finding, supplied by the engine/capture
@@ -203,6 +214,29 @@ export type AnnotatedImage = {
 export type HostMediaCapability = {
   /** The host can render `image` content blocks (MCP multimedia). */
   images: boolean;
+  /**
+   * The host can render an MCP-Apps embedded HTML panel (a `resource` block the
+   * host shows in a sandboxed iframe). Optional; treated as `false` when absent,
+   * so a text/image-only host degrades honestly.
+   */
+  appsPanel?: boolean;
+};
+
+/**
+ * The full `design_review` content result: the interactive panel (when the host
+ * supports it) plus the multimedia findings, with honest downgrade flags for the
+ * two surfaces the host may not render.
+ */
+export type DesignReviewContent = {
+  content: McpContentBlock[];
+  /** True when the interactive MCP-Apps HTML panel was emitted. */
+  panel: boolean;
+  /** True when a panel was available but withheld (host lacks MCP-Apps support). */
+  panel_withheld: boolean;
+  /** True when at least one annotated image block was emitted. */
+  multimedia: boolean;
+  /** `evidence_id`s whose annotated image was withheld for a non-multimedia host. */
+  images_withheld: string[];
 };
 
 /**

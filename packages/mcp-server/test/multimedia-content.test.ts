@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildMultimediaCritiqueContent } from "../src/multimedia-content.js";
+import { buildMultimediaCritiqueContent, buildDesignReviewContent } from "../src/multimedia-content.js";
 import type { AnnotatedImage, Critique, CritiqueFinding } from "@apature/mcp-types";
 
 /**
@@ -94,6 +94,56 @@ describe("buildMultimediaCritiqueContent", () => {
 
   it("is deterministic", () => {
     const build = () => buildMultimediaCritiqueContent(critique([finding()]), [png("ev-1")], { images: true });
+    expect(build()).toEqual(build());
+  });
+});
+
+describe("buildDesignReviewContent — MCP-Apps panel + multimedia", () => {
+  const PANEL = "<section>review panel</section>";
+
+  it("leads with the HTML panel resource block when the host supports MCP-Apps", () => {
+    const r = buildDesignReviewContent(critique([finding()]), [png("ev-1")], { images: true, appsPanel: true }, PANEL);
+    expect(r.panel).toBe(true);
+    expect(r.panel_withheld).toBe(false);
+    expect(r.content[0]).toEqual({
+      type: "resource",
+      resource: { uri: "ui://apature/design-review/r1", mimeType: "text/html", text: PANEL },
+    });
+    // panel first, then the multimedia blocks (overall, finding, image)
+    expect(r.content.map((b) => b.type)).toEqual(["resource", "text", "text", "image"]);
+  });
+
+  it("withholds the panel honestly when the host lacks MCP-Apps (no resource block)", () => {
+    const r = buildDesignReviewContent(critique([finding()]), [png("ev-1")], { images: true, appsPanel: false }, PANEL);
+    expect(r.panel).toBe(false);
+    expect(r.panel_withheld).toBe(true);
+    expect(r.content.some((b) => b.type === "resource")).toBe(false);
+    expect(r.multimedia).toBe(true); // images still flow
+  });
+
+  it("treats absent appsPanel capability as unsupported (withheld)", () => {
+    const r = buildDesignReviewContent(critique([finding()]), [], { images: false }, PANEL);
+    expect(r.panel).toBe(false);
+    expect(r.panel_withheld).toBe(true);
+  });
+
+  it("emits no panel and does not mark it withheld when no panel HTML is supplied", () => {
+    const r = buildDesignReviewContent(critique([finding()]), [png("ev-1")], { images: true, appsPanel: true });
+    expect(r.panel).toBe(false);
+    expect(r.panel_withheld).toBe(false);
+    expect(r.content.some((b) => b.type === "resource")).toBe(false);
+  });
+
+  it("carries the multimedia downgrade flags through", () => {
+    const r = buildDesignReviewContent(critique([finding()]), [png("ev-1")], { images: false, appsPanel: true }, PANEL);
+    expect(r.panel).toBe(true); // panel supported
+    expect(r.multimedia).toBe(false); // but images are not
+    expect(r.images_withheld).toEqual(["ev-1"]);
+  });
+
+  it("is deterministic", () => {
+    const build = () =>
+      buildDesignReviewContent(critique([finding()]), [png("ev-1")], { images: true, appsPanel: true }, PANEL);
     expect(build()).toEqual(build());
   });
 });

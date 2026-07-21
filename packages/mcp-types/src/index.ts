@@ -37,10 +37,12 @@ export type {
   DesignReviewCancelResult,
   TextContentBlock,
   ImageContentBlock,
+  ResourceContentBlock,
   McpContentBlock,
   AnnotatedImage,
   HostMediaCapability,
   MultimediaCritiqueContent,
+  DesignReviewContent,
 } from "./critique.js";
 export { ERROR_CODES } from "./error.js";
 export type { ReviewErrorCode, NextAction, ReviewError } from "./error.js";

@@ -2,9 +2,11 @@ import type {
   AnnotatedImage,
   Critique,
   CritiqueFinding,
+  DesignReviewContent,
   HostMediaCapability,
   McpContentBlock,
   MultimediaCritiqueContent,
+  ResourceContentBlock,
 } from "@apature/mcp-types";
 
 /**
@@ -86,4 +88,56 @@ export function buildMultimediaCritiqueContent(
   }
 
   return { content, multimedia: emittedImage, images_withheld: imagesWithheld };
+}
+
+/** Stable in-host URI for a review's MCP-Apps panel resource. */
+function panelUri(reviewId: string): string {
+  return `ui://apature/design-review/${reviewId}`;
+}
+
+/**
+ * Build the full `design_review` content: the interactive MCP-Apps HTML panel
+ * (when the host supports it) followed by the multimedia findings. The panel is
+ * the catalyst's "bigger first-mover lever" — an annotated, in-host review
+ * surface rendered in the host's sandboxed iframe — supplied by the caller as
+ * rendered HTML (dependency inversion; e.g. pointer's `renderReviewPanel`). Both
+ * surfaces degrade honestly: a host that can't render an MCP-Apps panel gets the
+ * text/image result with `panel_withheld: true` (never a broken resource block),
+ * exactly as image blocks degrade for a non-multimedia host.
+ *
+ * Pass no `panelHtml` (or an empty string) to return the multimedia result with
+ * no panel. Pure and deterministic; the panel block leads so the host renders the
+ * interactive surface first, with the text/image blocks as the accessible fallback.
+ */
+export function buildDesignReviewContent(
+  critique: Critique,
+  images: readonly AnnotatedImage[],
+  capability: HostMediaCapability,
+  panelHtml?: string,
+): DesignReviewContent {
+  const media = buildMultimediaCritiqueContent(critique, images, capability);
+  const content: McpContentBlock[] = [...media.content];
+
+  let panel = false;
+  let panelWithheld = false;
+  if (panelHtml !== undefined && panelHtml.length > 0) {
+    if (capability.appsPanel === true) {
+      const block: ResourceContentBlock = {
+        type: "resource",
+        resource: { uri: panelUri(critique.review_id), mimeType: "text/html", text: panelHtml },
+      };
+      content.unshift(block); // panel first; text/image blocks are the fallback
+      panel = true;
+    } else {
+      panelWithheld = true; // honest downgrade — the panel exists, the host can't show it
+    }
+  }
+
+  return {
+    content,
+    panel,
+    panel_withheld: panelWithheld,
+    multimedia: media.multimedia,
+    images_withheld: media.images_withheld,
+  };
 }
