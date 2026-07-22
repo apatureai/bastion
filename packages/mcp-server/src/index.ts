@@ -116,3 +116,6 @@ export { PgPoolConnectionFactory, runMcpMigrations, MCP_MIGRATIONS_DIR } from ".
 export { PostgresAllowlistResolver, SystemDnsResolver } from "./production-adapters.js";
 export { bootProduction } from "./production.js";
 export type { ProductionOverrides, ProductionHandle } from "./production.js";
+// Idea #64: pure reducer for the interactive MCP-Apps review panel — maps a panel
+// action (apply-fix / recheck) to the host response, eyes-not-hands preserved.
+export { handlePanelAction } from "./panel-interaction.js";

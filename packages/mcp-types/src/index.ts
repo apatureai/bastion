@@ -52,3 +52,6 @@ export {
   loadGoldenEngineResult,
   loadPreCalibrationEngineResult,
 } from "./golden.js";
+// Idea #64: interactive MCP-Apps review-panel contract — the actions the panel
+// emits and the responses the host returns over the postMessage bridge.
+export type { PanelFinding, PanelAction, PanelResponse } from "./panel.js";
