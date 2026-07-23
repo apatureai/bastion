@@ -119,3 +119,6 @@ export type { ProductionOverrides, ProductionHandle } from "./production.js";
 // Idea #64: pure reducer for the interactive MCP-Apps review panel — maps a panel
 // action (apply-fix / recheck) to the host response, eyes-not-hands preserved.
 export { handlePanelAction } from "./panel-interaction.js";
+// Idea #64: the review-side producer — projects a review's fix plan (structural
+// AxisFixItems) into the PanelFindings the panel renders and the reducer consumes.
+export { toPanelFinding, buildPanelFindings, type ReviewFixItem } from "./panel-findings.js";
