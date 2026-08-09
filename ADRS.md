@@ -159,7 +159,7 @@ Why:
 
 Rejected:
 
-- MCP Review local sidecar: overlaps Pointer and creates supply-chain/installation complexity.
+- MCP Review local sidecar: creates supply-chain/installation complexity and fragments capture environments.
 
 ## ADR-009: OAuth first, scoped bearer fallback
 
@@ -192,13 +192,13 @@ Why:
 - valid auth does not authorize arbitrary URLs;
 - shared provider domains need exact project binding.
 
-## ADR-011: Review units drive budgets and pricing
+## ADR-011: Review units are the budget and quota primitive
 
 Status: accepted
 
 Decision:
 
-Use versioned review units for quoting, reservation, settlement, and included Gate allowances.
+Use versioned review units for quoting, reservation, and settlement.
 
 Why:
 
@@ -206,19 +206,12 @@ Why:
 - request-count limits do not track cost;
 - raw model-token billing is unstable and confusing.
 
-## ADR-012: Included allowance plus opt-in overage
+## ADR-012: Withdrawn
 
-Status: accepted
+Status: withdrawn
 
-Decision:
-
-Bundle usage with Gate and permit explicit metered overage.
-
-Why:
-
-- pure per-call pricing suppresses beneficial rechecks;
-- unlimited usage creates retry-storm and margin risk;
-- Gate stays the economic anchor.
+This ADR covered commercial packaging and was removed before publication. The
+number is left vacant so later ADRs keep their identifiers.
 
 ## ADR-013: Tool metadata is static and release-controlled
 
@@ -271,7 +264,7 @@ MCP Review never publishes GitHub status or represents a review as merge authori
 
 Why:
 
-- independent CI verification is the product and revenue boundary;
+- independent CI verification is the product boundary;
 - in-loop results can be stale or selectively invoked;
 - mixed-agent teams require a neutral final gate.
 

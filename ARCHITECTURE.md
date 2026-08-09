@@ -82,15 +82,13 @@ flowchart LR
 
 ```mermaid
 flowchart LR
-  SOT["Source Of Truth<br/>standard before generation"]
   Agent["Customer agent<br/>generates and edits"]
   MCP["MCP Review<br/>in-loop judgment"]
   Gate["Gate<br/>PR enforcement"]
   Engine["Judgment Engine<br/>shared capture and critique"]
   DNA["UI DNA<br/>canonical standard"]
 
-  DNA --> SOT
-  SOT --> Agent
+  DNA --> Agent
   Agent --> MCP
   DNA --> Engine
   Engine --> MCP
@@ -101,7 +99,6 @@ flowchart LR
 
 The boundaries are:
 
-- Source Of Truth says what standard to use.
 - The customer's agent writes code.
 - MCP Review judges and verifies during creation.
 - Gate independently enforces the PR boundary.
@@ -367,14 +364,6 @@ MCP Review requests named views from Judgment Engine by review and finding IDs. 
 
 MCP Review may link a review to a repository, PR, and SHA for analytics, but it never publishes comments or Check Runs. Gate can later correlate MCP fix-loop outcomes with CI results.
 
-### Source Of Truth
-
-Tool names and responses remain distinct. MCP Review may cite the same DNA version, but it does not expose Source Of Truth's component lookup tools.
-
-### Pointer
-
-Pointer owns localhost, live browser attachment, overlay state, and pointing. MCP Review does not start or manage live sessions.
-
 ## 11. Deployment Shape
 
 ```mermaid
@@ -455,7 +444,7 @@ These survive transport, SDK, hosting, and model changes:
 
 1. No customer code or application writes.
 2. No GitHub publishing.
-3. Gate remains the enforcement and primary revenue surface.
+3. Gate remains the enforcement surface for pull requests.
 4. Tenant identity comes from credentials, never tool arguments.
 5. Target ownership and safe network destination are both required.
 6. Review jobs are explicit, durable, and independent of MCP sessions.

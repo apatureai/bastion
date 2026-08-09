@@ -23,6 +23,7 @@
     }
   ],
   "_meta": {
+    "ai.apature/status": "archived - Apature is wound down. The endpoint in `remotes` is decommissioned and no tokens are issued; this listing is retained as a historical record and must not be resubmitted to a registry.",
     "ai.apature/protocol_baseline": "2025-11-25",
     "ai.apature/catalog_version": "1.0.0",
     "ai.apature/read_only_boundary": "Customer-facing: the server judges, explains, and verifies. It never edits code, commits, pushes, or opens pull requests. Submit and recheck create metered jobs; only design_review_get is read-only.",

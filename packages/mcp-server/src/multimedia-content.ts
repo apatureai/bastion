@@ -107,9 +107,9 @@ export const MCP_APP_PANEL_MIME = "text/html;profile=mcp-app";
 /**
  * Build the full `design_review` content: the interactive MCP-Apps HTML panel
  * (when the host supports it) followed by the multimedia findings. The panel is
- * the catalyst's "bigger first-mover lever" — an annotated, in-host review
- * surface rendered in the host's sandboxed iframe — supplied by the caller as
- * rendered HTML (dependency inversion; e.g. pointer's `renderReviewPanel`). Both
+ * an annotated, in-host review surface rendered in the host's sandboxed iframe,
+ * supplied by the caller as rendered HTML (dependency inversion: the renderer
+ * lives outside this repo, so nothing here depends on it). Both
  * surfaces degrade honestly: a host that can't render an MCP-Apps panel gets the
  * text/image result with `panel_withheld: true` (never a broken resource block),
  * exactly as image blocks degrade for a non-multimedia host.

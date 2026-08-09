@@ -3,9 +3,8 @@
 Created: 2026-06-15
 Revised: 2026-06-19
 Status: research-backed product specification
-Canonical company context: `apatureai/core`
 Primary dependencies: `apatureai/judgment-engine`, `apatureai/ui-dna`, `apatureai/ui-graph`
-Revenue and enforcement surface: `apatureai/gate`
+Enforcement surface: `apatureai/gate`
 
 ## 1. Product Summary
 
@@ -19,24 +18,18 @@ MCP Review does not write code, edit files, commit, push, open pull requests, su
 
 This customer-facing read-only posture does not imply that every MCP tool is annotated read-only. Submit, recheck, and cancel mutate Apature job or budget state; only result retrieval is protocol-read-only.
 
-## 2. Company Role
+## 2. Product Role
 
-MCP Review is distribution and data acquisition, not the primary revenue surface.
+MCP Review is the in-loop surface. Gate is the enforcement surface. The two are complementary, not substitutes.
 
-It supports Apature in four ways:
+MCP Review exists to:
 
-- reaches developers inside the coding-agent workflow;
-- creates high-density fix-then-recheck labels;
-- makes Apature the neutral reviewer across mixed-agent teams;
-- reduces the number of low-quality findings that reach Gate.
+- reach developers inside the coding-agent workflow;
+- create high-density fix-then-recheck labels;
+- act as a neutral reviewer across mixed-agent teams;
+- reduce the number of low-quality findings that reach Gate.
 
-The business hierarchy is:
-
-1. Gate is the enforceable review and primary paid surface.
-2. MCP Review is included distribution with metered heavy usage.
-3. UI DNA and feedback data improve both surfaces.
-
-MCP Review must not become an independent browser agent or a cheaper substitute for Gate.
+MCP Review must not become an independent browser agent or a substitute for Gate's independent CI verification.
 
 ## 3. Users, Buyers, and Jobs
 
@@ -45,10 +38,6 @@ Primary users:
 - frontend developers using Codex, Claude Code, Cursor, VS Code, GitHub Copilot, or similar agents;
 - coding agents that can deploy or access a preview and apply code changes;
 - platform teams standardizing pre-CI agent workflows.
-
-Economic buyer:
-
-- the same engineering, platform, or design-system team that buys Gate.
 
 Primary job:
 
@@ -249,7 +238,7 @@ Hosted capture is the v1 default for verified remote previews because it gives A
 - centralized budgets and observability;
 - comparable feedback labels.
 
-A local sidecar is deferred to Pointer. Mixing localhost capture into MCP Review would duplicate Pointer's live-session boundary and create installation, supply-chain, and network-reachability complexity.
+A local sidecar is out of scope. Mixing localhost capture into MCP Review would create installation, supply-chain, and network-reachability complexity.
 
 ### 7.3 Stateless application jobs over stateful product sessions
 
@@ -310,18 +299,6 @@ Suggestions should state:
 
 They should not claim a specific source patch is correct when MCP Review has no repository filesystem access.
 
-### 7.8 Included credits plus metered overage
-
-Pure per-call pricing discourages rechecks and creates bill anxiety. Unlimited subscriptions invite retry storms and hide marginal cost.
-
-Recommended packaging:
-
-- Gate subscription includes a monthly MCP Review allowance;
-- review units are visible before and after each job;
-- team admins set repo and tenant hard limits;
-- overage is metered only after explicit enablement;
-- enterprise tiers add retention, regional/in-VPC engine routing, SSO, and policy controls.
-
 ## 8. Domain Authorization
 
 Authentication answers who is calling. Domain verification answers which preview targets that tenant may review.
@@ -367,9 +344,7 @@ Required product controls:
 ### Adoption
 
 - weekly active MCP repos;
-- active agent-client mix;
-- Gate customers enabling MCP Review;
-- MCP-to-Gate attach and retention.
+- active agent-client mix.
 
 ### Agent-loop quality
 
@@ -418,8 +393,7 @@ Required experiments before GA:
 4. Focused graph view versus full screenshot/DOM context: measure tokens and fix success.
 5. Repair constraints versus patch-like hints: measure code-change success and hallucinated locator rate.
 6. OAuth versus scoped static token onboarding: measure completion and support burden by client.
-7. Included credits plus overage versus per-call pricing: measure recheck completion and spend predictability.
-8. Recheck limits and unchanged-target detection: measure cost saved without suppressing valid repairs.
+7. Recheck limits and unchanged-target detection: measure cost saved without suppressing valid repairs.
 
 ## 12. Phased Sequencing
 
@@ -439,23 +413,20 @@ Required experiments before GA:
 - OAuth plus scoped bearer compatibility;
 - verified remote previews;
 - compact review and polling;
-- no `design_direction`;
-- no paid overage.
+- no `design_direction`.
 
-### Phase 2 - Gate customer beta
+### Phase 2 - Design-partner beta
 
 - recheck loops;
 - focused UI Graph views;
 - feedback labeling;
 - usage dashboards and hard budgets;
-- GitHub Copilot compatibility path;
-- included Gate allowance.
+- GitHub Copilot compatibility path.
 
 ### Phase 3 - General availability
 
 - registry and client-directory publication;
 - support policy and SLOs;
-- metered overage;
 - enterprise auth and retention controls;
 - evidence retention and audit export.
 
@@ -468,14 +439,12 @@ Required experiments before GA:
 
 ## 13. Open Questions
 
-- What exact review-unit allowance should ship with each Gate tier after measured COGS?
 - Which OAuth provider interoperates with target clients across pre-registration, Client ID Metadata Documents, and Dynamic Client Registration fallback?
 - Which preview providers can provide sufficiently strong project ownership metadata without DNS proof?
-- What evidence should permit dashboard-only onboarding after the Gate-customer beta and Judgment Engine workload-principal contract exist?
+- What evidence should permit dashboard-only onboarding once the design-partner beta and the Judgment Engine workload-principal contract exist?
 - Which clients preserve tool-result images reliably enough for inline evidence rather than signed refs?
 - Should a recheck on a changed host be forbidden or treated as a new review?
 - What minimum UI-DNA confidence is required before emitting a system-conformance finding?
-- Which feedback events can be exposed to customers without leaking internal ranking logic?
 
 ## 14. Repository Boundary
 

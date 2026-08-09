@@ -3,6 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "description": "Apature MCP Review server: agent-facing MCP tools (design_review, design_review_get) over the judgment-engine review surface.",
+  "license": "MIT",
+  "author": "Aditya Prathapa",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/apatureai/mcp-review.git",
+    "directory": "packages/mcp-server"
+  },
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -18,7 +25,7 @@
   ],
   "scripts": {
     "test": "vitest run",
-    "start": "node dist/main.js"
+    "start": "node dist/boot.js"
   },
   "dependencies": {
     "@apature/mcp-types": "workspace:*",
@@ -32,6 +39,6 @@
     "@types/pg": "^8.15.4"
   },
   "bin": {
-    "mcp-review-server": "./dist/main.js"
+    "mcp-review-server": "./dist/boot.js"
   }
 }

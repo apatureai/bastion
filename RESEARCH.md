@@ -226,7 +226,7 @@ Compatibility conclusion:
 | MCP | Shared agent integration, schemas, auth discovery, structured results | Client differences and evolving spec | Primary distribution surface |
 | CLI | Simple debugging, works in shell-first environments | Agents parse text; auth/config duplicated; weaker discovery | Diagnostic and fallback adapter only |
 | Direct HTTP API | Best service-to-service primitive and operational control | Every agent vendor needs custom integration | Internal application/engine seam, not primary user surface |
-| Local sidecar | Can reach localhost and keep pixels local | Installation and supply-chain risk; fragmented capture versions; overlaps Pointer | Defer to Pointer |
+| Local sidecar | Can reach localhost and keep pixels local | Installation and supply-chain risk; fragmented capture versions | Rejected |
 
 Why MCP is better than CLI for this product:
 
@@ -244,7 +244,7 @@ Why HTTP still matters:
 
 ### 5.2 Stateful sessions versus stateless jobs
 
-Stateful sessions are useful for live browser interaction, which belongs to Pointer. They are a poor fit for remote review:
+Stateful sessions are useful for live browser interaction, which is out of scope here. They are a poor fit for remote review:
 
 - sessions are lost when clients restart;
 - the final MCP specification's session behavior is changing toward statelessness;
@@ -299,7 +299,7 @@ Decision:
 
 ### 5.6 Local capture versus hosted capture
 
-Local capture preserves privacy and reaches localhost, but it creates divergent capture environments and overlaps Pointer's live-session product.
+Local capture preserves privacy and reaches localhost, but it creates divergent capture environments and duplicates a separate live-session surface.
 
 Hosted capture provides deterministic versions and one security boundary, but requires verified remote previews and artifact controls.
 
@@ -307,7 +307,6 @@ Decision:
 
 - hosted capture for MCP Review v1;
 - enterprise can route to in-VPC Judgment Engine;
-- localhost and local sidecar belong to Pointer.
 
 ### 5.7 Suggestions versus patch hints
 
@@ -319,27 +318,6 @@ Decision:
 - include token/class/component direction, likely locator, expected result, and verification rule;
 - label locator confidence;
 - let the customer's agent inspect code and produce the diff.
-
-### 5.8 Per-call versus subscription pricing
-
-Per-call:
-
-- aligns revenue with COGS;
-- discourages beneficial rechecks;
-- creates unpredictable spend in agent loops.
-
-Unlimited subscription:
-
-- improves adoption;
-- hides marginal cost;
-- invites runaway loops.
-
-Decision:
-
-- Gate subscription with included review units;
-- explicit hard budgets;
-- opt-in metered overage;
-- usage quote and remaining allowance in every create response.
 
 ## 6. URL Ownership and SSRF
 
@@ -460,7 +438,7 @@ Controls:
 
 ## 10. Feedback Labeling
 
-The data moat requires separating high-quality labels from convenient but ambiguous telemetry.
+Label quality requires separating high-quality labels from convenient but ambiguous telemetry.
 
 Recommended label hierarchy:
 
@@ -488,17 +466,7 @@ Rules:
 
 MCP Review should not reproduce browser-control tools. It consumes evidence from Judgment Engine and returns product-specific judgment.
 
-### Source Of Truth
-
-`apatureai/source-of-truth` serves approved UI DNA before generation. MCP Review judges after generation. The tools must remain distinct:
-
-- Source Of Truth answers "what standard should I use?";
-- MCP Review answers "does this rendered result meet the standard?";
-- Gate answers "may this PR pass the enforced boundary?"
-
-### Pointer
-
-Pointer owns live localhost sessions, overlays, and pointing. MCP Review owns remote request/response review jobs. A local sidecar in MCP Review would collapse this boundary.
+MCP Review answers "does this rendered result meet the standard?"; Gate answers "may this PR pass the enforced boundary?"
 
 ## 12. Recommended Choices
 
@@ -515,7 +483,6 @@ Pointer owns live localhost sessions, overlays, and pointing. MCP Review owns re
 | URL authorization | Gate/provider provenance, DNS, HTTP proof | Strong ownership with practical fallbacks |
 | Capture | Hosted/in-VPC remote preview | Determinism and boundary clarity |
 | Guidance | Repair constraints, not patches | No false claim of source authority |
-| Pricing | Gate-included units plus opt-in overage | Predictable adoption and bounded COGS |
 
 ## 13. Research Gaps
 
@@ -523,5 +490,4 @@ Pointer owns live localhost sessions, overlays, and pointing. MCP Review owns re
 - Actual inline-image behavior and limits across model choices in each client.
 - Dynamic Client Registration and Client ID Metadata compatibility across target clients and the selected authorization provider.
 - Provider-specific proof quality for Vercel, Netlify, Cloudflare, and Render previews.
-- Measured capture and Qwen3-VL COGS needed to set review-unit allowances.
 - Whether client hosts expose stable agent/session identifiers suitable for telemetry without becoming auth inputs.

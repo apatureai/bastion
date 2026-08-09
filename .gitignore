@@ -3,3 +3,13 @@ dist/
 *.tsbuildinfo
 .DS_Store
 *.log
+
+# Local environment / tooling
+.env
+.env.*
+!.env.example
+coverage/
+*.tgz
+.pnpm-store/
+.idea/
+.vscode/

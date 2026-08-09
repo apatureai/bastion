@@ -1,0 +1,14 @@
+# Keep host build output and local state out of the build context: `tsc -b` is
+# incremental, so a copied-in *.tsbuildinfo makes it emit nothing.
+node_modules
+**/node_modules
+dist
+**/dist
+*.tsbuildinfo
+**/*.tsbuildinfo
+.git
+.github
+.DS_Store
+*.log
+**/*.log
+coverage

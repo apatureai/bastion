@@ -63,4 +63,4 @@ Expire terminal records only after the public `expires_at` plus the support/repl
 - Roll back application code before rolling back an additive migration. This migration is backward-compatible; leave the table and RLS policy in place during code rollback.
 - Verify `/readyz`, then run the deterministic reconnect, cross-tenant, and idempotency-race fixtures before restoring traffic.
 
-Staging graduation additionally requires a verified target to complete through the real Judgment Engine and a focused recheck/cancel exercise. Default tests use only in-memory stores and fake HTTP responses—never a model, browser, or network.
+Note the limits of the test suite: it uses only in-memory stores and fake HTTP responses—never a model, browser, or network. No automated test in this repository exercises a review end to end against a real Judgment Engine, so a deployment's first real target, recheck, and cancel remain unverified by CI.

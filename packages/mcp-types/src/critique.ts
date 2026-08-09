@@ -186,8 +186,8 @@ export type ImageContentBlock = { type: "image"; data: string; mimeType: string 
 /**
  * An MCP `resource` content block carrying an embedded resource — used to deliver
  * the interactive MCP-Apps HTML review panel in-host (a `text/html` resource the
- * host renders in a sandboxed iframe). The catalyst's "bigger first-mover lever":
- * an annotated, in-host review surface, not just an image.
+ * host renders in a sandboxed iframe): an annotated, in-host review surface
+ * rather than a bare image.
  */
 export type ResourceContentBlock = {
   type: "resource";

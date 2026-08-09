@@ -204,25 +204,6 @@ Decision bar:
 
 - proposed policy reduces wasted units by at least 70% while blocking fewer than 2% of ultimately successful fix loops.
 
-### Experiment G: Pricing presentation
-
-Variants:
-
-- per-call dollars;
-- subscription only;
-- Gate-included units plus overage.
-
-Metrics:
-
-- willingness to recheck;
-- spend comprehension;
-- admin hard-limit adoption;
-- support questions.
-
-Decision bar:
-
-- included units plus overage has the best combination of recheck completion and spend predictability.
-
 ## 4. Judgment and Agent-Loop Quality
 
 Dataset:
@@ -433,7 +414,7 @@ Pass:
 - 429/structured rate errors include usable retry timing;
 - polling does not starve review submissions;
 - hard limits cannot be bypassed with new MCP sessions or principals from the same tenant;
-- overage never occurs without opt-in.
+- usage never exceeds a configured hard limit without an explicit opt-in.
 
 ## 9. Feedback Label Evaluation
 
@@ -510,8 +491,6 @@ Each drill must identify:
 
 - 30-day beta reliability data;
 - no retry-storm or cross-tenant incident;
-- measured COGS and review-unit policy;
-- Gate packaging and overage policy approved;
 - official Registry/client directory metadata reviewed;
 - compatibility matrix refreshed against current client versions and final MCP specification.
 

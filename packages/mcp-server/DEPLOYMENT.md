@@ -1,6 +1,11 @@
-# MCP Review — production deployment (#36)
+# MCP Review — production deployment
 
-The container entrypoint (`dist/main.js`) boots the production composition
+> **Archived.** Apature is wound down; the deployment described here is no
+> longer operated, and the Judgment Engine that `ENGINE_BASE_URL` points at is
+> not part of the open-source release. This document is retained as a record of
+> what the service required to run.
+
+The container entrypoint (`dist/boot.js`) boots the production composition
 root: durable Postgres application plane, signed Judgment Engine async client,
 ownership-verified target registry, system DNS resolver, Streamable HTTP
 transport with per-client isolation. Missing configuration or an unusable
