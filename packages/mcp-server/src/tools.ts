@@ -85,12 +85,39 @@ export const designReviewCancelInputShape = {
     .describe("Optional free-text reason for the cancellation, recorded for audit."),
 };
 
+/**
+ * Input for the interactive MCP-Apps panel's callback tool. The panel rendered by
+ * `design_review_get` with `view: "evidence"` is inert markup; when the reviewer
+ * acts on a finding the HOST calls this tool, and the pure reducer in
+ * `panel-interaction.ts` decides what happens. `apply_fix` never edits anything —
+ * it returns a grounded finding's fix for the host to hand to the coding agent, or
+ * `human_only` for advisory judgment.
+ */
+export const designReviewPanelActionInputShape = {
+  job_id: z.string().min(8).max(128).describe("Job id of the completed review the panel is showing."),
+  action: z
+    .enum(["apply_fix", "recheck"])
+    .describe(
+      "apply_fix returns a grounded finding's fix for the host to hand to the coding agent; recheck returns the refs to re-verify.",
+    ),
+  finding_id: z
+    .string()
+    .min(3)
+    .max(128)
+    .optional()
+    .describe(
+      "Required for apply_fix; optional for recheck (omit to scope the recheck to the whole review).",
+    ),
+};
+
 export const designReviewInputSchema = z.object(designReviewInputShape);
 export const designReviewGetInputSchema = z.object(designReviewGetInputShape);
 export const designRecheckInputSchema = z.object(designRecheckInputShape);
 export const designReviewCancelInputSchema = z.object(designReviewCancelInputShape);
+export const designReviewPanelActionInputSchema = z.object(designReviewPanelActionInputShape);
 
 export type DesignReviewToolInput = z.infer<typeof designReviewInputSchema>;
 export type DesignReviewGetToolInput = z.infer<typeof designReviewGetInputSchema>;
 export type DesignRecheckToolInput = z.infer<typeof designRecheckInputSchema>;
 export type DesignReviewCancelToolInput = z.infer<typeof designReviewCancelInputSchema>;
+export type DesignReviewPanelActionToolInput = z.infer<typeof designReviewPanelActionInputSchema>;

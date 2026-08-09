@@ -1,7 +1,22 @@
 import { randomUUID } from "node:crypto";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { ReviewError, ReviewErrorCode, NextAction } from "@apature/mcp-types";
+import type {
+  AnnotatedImage,
+  Critique,
+  DesignReviewGetResult,
+  HostMediaCapability,
+  PanelAction,
+  ReviewError,
+  ReviewErrorCode,
+  NextAction,
+} from "@apature/mcp-types";
+import { SCHEMA_VERSION } from "@apature/mcp-types";
+import type { EvidenceProvider } from "./evidence.js";
+import { buildDesignReviewContent } from "./multimedia-content.js";
+import { renderReviewPanel } from "./panel-html.js";
+import { buildPanelFindings, reviewFixItemsFromCritique } from "./panel-findings.js";
+import { handlePanelAction } from "./panel-interaction.js";
 import { NormalizationError } from "./normalize.js";
 import {
   IdempotencyConflictError,
@@ -20,13 +35,22 @@ import {
   designReviewCancelInputShape,
   designReviewGetInputShape,
   designReviewInputShape,
+  designReviewPanelActionInputShape,
 } from "./tools.js";
 
 const SERVER_NAME = "apature-mcp-review";
 // Locked to directory/server.json `version` and schemas/mcp-tools.json
 // `catalog_version` by the catalog-drift gate (#29): the version a client sees
 // in serverInfo is the version the registry listing advertises.
-const SERVER_VERSION = "1.0.0";
+const SERVER_VERSION = "1.1.0";
+
+/**
+ * What the connected host can render. The default is the MCP base protocol and
+ * nothing more: `image` content blocks are core, so they are emitted; the MCP-Apps
+ * HTML panel is an extension a host has to opt into, so it is withheld (and
+ * reported as withheld) until a composition root says otherwise.
+ */
+const DEFAULT_HOST_MEDIA: HostMediaCapability = { images: true, appsPanel: false };
 
 /** Render a value as the tool's JSON text content plus structured content. */
 function jsonResult(payload: Record<string, unknown>): CallToolResult {
@@ -131,12 +155,76 @@ function recheckRejectionResult(reason: RecheckRejectionReason, message: string)
   }
 }
 
+/** Everything the review service needs, plus how results are presented. */
+export interface McpReviewServerDeps extends ReviewServiceDeps {
+  /**
+   * What the connected host can render (MCP `image` blocks, MCP-Apps HTML panel).
+   * Defaults to images-only; whatever the host cannot render is reported as
+   * withheld rather than dropped.
+   */
+  hostMedia?: HostMediaCapability;
+  /**
+   * Supplies annotated screenshot bytes for `design_review_get` with
+   * `view: "evidence"`. With no provider the evidence view still returns the
+   * findings and the panel — just no image blocks.
+   */
+  evidence?: EvidenceProvider;
+}
+
+/** The `design_review_get` result views, narrowed to what this repo can produce. */
+type ReviewView = "status" | "summary" | "findings" | "focus" | "evidence";
+
+/** `focus` = the actionable subset: blockers and should-fixes, nits dropped. */
+function narrowToFocus(critique: Critique): Critique {
+  return { ...critique, findings: critique.findings.filter((f) => f.severity !== "nit") };
+}
+
 /**
- * Build the MCP Review server with the v1 tool surface. All four catalog tools
- * — `design_review`, `design_review_get`, `design_recheck`, and
- * `design_review_cancel` — are wired, so the registered surface matches
- * schemas/mcp-tools.json exactly (no advertised-but-missing tool). Pass `deps`
- * (mock engine, fixed clock/ids) to make
+ * Shape a completed review as the multimedia `evidence` view: the MCP-Apps panel
+ * (when the host renders one) followed by per-finding text and the annotated
+ * evidence crops. This is the live call site for `multimedia-content.ts` — the
+ * capability downgrade it implements is what a host that cannot render images or
+ * panels actually receives, with `presentation` naming exactly what was withheld.
+ */
+async function evidenceResult(
+  result: DesignReviewGetResult,
+  critique: Critique,
+  hostMedia: HostMediaCapability,
+  evidence: EvidenceProvider | undefined,
+): Promise<CallToolResult> {
+  const evidenceIds = critique.findings
+    .map((f) => f.evidence_id)
+    .filter((id): id is string => id !== null);
+  const images: readonly AnnotatedImage[] = evidence
+    ? await evidence.forReview(critique.review_id, evidenceIds)
+    : [];
+  const panelFindings = buildPanelFindings(reviewFixItemsFromCritique(critique));
+  const panelHtml = renderReviewPanel(critique, panelFindings, images);
+  const built = buildDesignReviewContent(critique, images, hostMedia, panelHtml);
+
+  const structured = {
+    schema_version: SCHEMA_VERSION,
+    job: result.job,
+    review: critique,
+    presentation: {
+      panel: built.panel,
+      panel_withheld: built.panel_withheld,
+      multimedia: built.multimedia,
+      images_withheld: built.images_withheld,
+    },
+  };
+  return {
+    content: built.content as CallToolResult["content"],
+    structuredContent: structured,
+  };
+}
+
+/**
+ * Build the MCP Review server with the v1 tool surface. All five catalog tools
+ * — `design_review`, `design_review_get`, `design_recheck`,
+ * `design_review_cancel`, and `design_review_panel_action` — are wired, so the
+ * registered surface matches schemas/mcp-tools.json exactly (no
+ * advertised-but-missing tool). Pass `deps` (mock engine, fixed clock/ids) to make
  * the server deterministic under test — tests MUST never reach a real engine.
  *
  * The P0 SSRF guard (issue #4) is enforced whenever `deps.allowlist` and
@@ -144,12 +232,14 @@ function recheckRejectionResult(reason: RecheckRejectionReason, message: string)
  * empty allowlist rejects every target as `DOMAIN_UNVERIFIED`, so a
  * misconfigured deployment can never capture an arbitrary URL.
  */
-export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
+export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer {
   const service = new ReviewService({
     ...deps,
     allowlist: deps.allowlist ?? { tenantId: "unconfigured", targets: [] },
     resolver: deps.resolver ?? { resolve: async () => [] },
   });
+  const hostMedia = deps.hostMedia ?? DEFAULT_HOST_MEDIA;
+  const evidence = deps.evidence;
   const server = new McpServer({ name: SERVER_NAME, version: SERVER_VERSION });
 
   server.registerTool(
@@ -221,7 +311,17 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
     async (input): Promise<CallToolResult> => {
       try {
         const result = await service.getReview(input.job_id);
-        return jsonResult(result as unknown as Record<string, unknown>);
+        const view: ReviewView = input.view ?? "summary";
+        // `status` never carries a result body, so it is answerable while the job
+        // is still running and stays cheap for a polling loop.
+        if (view === "status" || result.review === undefined) {
+          return jsonResult({ schema_version: result.schema_version, job: result.job });
+        }
+        if (view === "evidence") {
+          return await evidenceResult(result, result.review, hostMedia, evidence);
+        }
+        const review = view === "focus" ? narrowToFocus(result.review) : result.review;
+        return jsonResult({ schema_version: result.schema_version, job: result.job, review });
       } catch (err) {
         if (err instanceof JobNotFoundError) {
           return errorResult("JOB_NOT_FOUND", err.message, {
@@ -350,6 +450,80 @@ export function createMcpReviewServer(deps: ReviewServiceDeps = {}): McpServer {
           });
         }
         return errorResult("INTERNAL_ERROR", "the review could not be cancelled", {
+          retriable: true,
+          nextAction: "wait",
+        });
+      }
+    },
+  );
+
+  server.registerTool(
+    "design_review_panel_action",
+    {
+      title: "Act on a review panel finding",
+      description:
+        "Route an interaction from the interactive review panel: return a grounded finding's fix for " +
+        "the coding agent to apply, or the refs to re-verify. This tool never edits code — an advisory " +
+        "finding returns human_only, never an automatic fix. Reads only; consumes no review units.",
+      inputSchema: designReviewPanelActionInputShape,
+      annotations: {
+        // Routes work by reading a completed review. It creates no job, spends no
+        // units, and changes nothing on either side of the boundary.
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+      _meta: { "com.apature/metered": false, "com.apature/product": "mcp-review" },
+    },
+    async (input): Promise<CallToolResult> => {
+      try {
+        if (input.action === "apply_fix" && input.finding_id === undefined) {
+          return errorResult("INVALID_ARGUMENT", "apply_fix requires a finding_id", {
+            retriable: false,
+            nextAction: "none",
+          });
+        }
+        const result = await service.getReview(input.job_id);
+        if (result.review === undefined) {
+          return errorResult("REVIEW_NOT_READY", `job ${input.job_id} has no completed review yet`, {
+            retriable: true,
+            nextAction: "wait",
+          });
+        }
+        const action: PanelAction =
+          input.action === "apply_fix"
+            ? { type: "apply_fix", finding_id: input.finding_id! }
+            : { type: "recheck", ...(input.finding_id ? { finding_id: input.finding_id } : {}) };
+        const panelFindings = buildPanelFindings(reviewFixItemsFromCritique(result.review));
+        const response = handlePanelAction(action, panelFindings);
+        if (response.type === "unknown_finding") {
+          return errorResult(
+            "FINDING_NOT_FOUND",
+            `finding ${response.finding_id} does not belong to review ${result.review.review_id}`,
+            { retriable: false, nextAction: "none" },
+          );
+        }
+        return jsonResult({
+          schema_version: SCHEMA_VERSION,
+          job_id: input.job_id,
+          review_id: result.review.review_id,
+          response,
+        });
+      } catch (err) {
+        if (err instanceof JobNotFoundError) {
+          return errorResult("JOB_NOT_FOUND", err.message, {
+            retriable: false,
+            nextAction: "start_new_review",
+          });
+        }
+        if (err instanceof JobExpiredError) {
+          return errorResult("JOB_EXPIRED", err.message, {
+            retriable: false,
+            nextAction: "start_new_review",
+          });
+        }
+        return errorResult("INTERNAL_ERROR", "the panel action could not be routed", {
           retriable: true,
           nextAction: "wait",
         });

@@ -39,6 +39,7 @@
     "@types/pg": "^8.15.4"
   },
   "bin": {
-    "mcp-review-server": "./dist/boot.js"
+    "mcp-review-server": "./dist/boot.js",
+    "mcp-review-local": "./dist/local-stdio.js"
   }
 }

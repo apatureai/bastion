@@ -28,7 +28,7 @@ own fork's README so downstream forks can see them. Please do not expect a fix
 here.
 
 Do not report issues in the hosted Apature service. It is no longer operated,
-and the endpoint documented in `docs/install.md` (`https://mcp.apature.ai/mcp`)
+and the endpoint retained in `directory/server.json` (`https://mcp.apature.ai/mcp`)
 should be treated as dead, not as a live target.
 
 ## If you are going to run this code
@@ -49,11 +49,12 @@ inside an operated environment. Read it before you trust it:
   review preview hosts a tenant has ownership-verified, with egress controls in
   `packages/mcp-server/src/egress.ts`. Weakening that turns the server into an
   SSRF vector against your own network. Note that the ownership *proofs*
-  themselves were issued outside this repository — see the "Limits and
-  unfinished work" section of the README.
+  themselves were issued outside this repository — see the Limitations section
+  of the README.
 - **Audit dependencies first**: `pnpm install && pnpm audit`, then upgrade
   before exposing anything to a network.
 
-`THREAT_MODEL.md` documents the assets, trust boundaries, and controls the
-design assumed. It is background for readers, not a statement that those
-controls are currently maintained.
+The offline server (`pnpm start:local`) takes no credentials and opens no
+network connections, but it is not a sandbox: it is the same code path with a
+fixture engine and a stub resolver. Target authorization still runs, and
+weakening it there weakens it everywhere.

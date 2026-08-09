@@ -19,7 +19,9 @@
     "typecheck": "tsc -b",
     "clean": "tsc -b --clean",
     "test": "vitest run",
-    "lint": "eslint . --max-warnings=0"
+    "lint": "eslint . --max-warnings=0",
+    "start:local": "node packages/mcp-server/dist/local-stdio.js",
+    "demo": "node packages/mcp-server/dist/demo.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

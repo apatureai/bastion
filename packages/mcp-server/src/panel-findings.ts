@@ -18,7 +18,7 @@
  * same anchor stay distinct. Pure and deterministic.
  */
 
-import type { PanelFinding } from "@apature/mcp-types";
+import type { Critique, PanelFinding } from "@apature/mcp-types";
 
 /**
  * A review-side fix item the panel is built from — structurally the combined
@@ -58,4 +58,33 @@ export function toPanelFinding(item: ReviewFixItem): PanelFinding {
  */
 export function buildPanelFindings(items: readonly ReviewFixItem[]): PanelFinding[] {
   return items.map(toPanelFinding);
+}
+
+/**
+ * Project a completed review's agent-facing `Critique` into the fix-plan items the
+ * panel is built from. This is the call site that makes the panel reachable from a
+ * live tool: `design_review_panel_action` maps a job's Critique through here, into
+ * `buildPanelFindings`, into `handlePanelAction`.
+ *
+ * The groundedness rule is the eyes-not-hands boundary expressed in the Critique's
+ * own vocabulary: a finding is agent-appliable only when it is BOTH localizable
+ * (`element_ref` — the agent knows what to change) and carries a concrete repair
+ * constraint (`suggestion` — the agent knows what to change it to). A finding
+ * missing either is advisory model judgment: it keeps its description as the
+ * instruction a human reads, but `grounded: false` means the reducer can only ever
+ * return `human_only` for it.
+ *
+ * Grounded items are ordered first, each group keeping the engine's severity order,
+ * so the panel renders an actionable worklist ahead of the judgment calls. The
+ * `finding_id` is preserved verbatim (no axis namespacing — a Critique is a single
+ * axis), which is what makes each `recheck_ref` a valid `design_recheck` argument.
+ * Pure and deterministic.
+ */
+export function reviewFixItemsFromCritique(critique: Critique): ReviewFixItem[] {
+  const items = critique.findings.map((f) => ({
+    ref: f.finding_id,
+    instruction: f.suggestion ?? f.description,
+    grounded: f.element_ref !== null && f.suggestion !== null,
+  }));
+  return [...items.filter((i) => i.grounded), ...items.filter((i) => !i.grounded)];
 }

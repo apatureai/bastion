@@ -1,4 +1,16 @@
 export { createMcpReviewServer } from "./server.js";
+export type { McpReviewServerDeps } from "./server.js";
+// The offline composition root: the same five tools with fixture judgments, a stub
+// resolver, and placeholder evidence — no credentials, database, network, or engine.
+export {
+  createLocalReviewServer,
+  LOCAL_ALLOWED_HOST,
+  LOCAL_RESOLVED_ADDRESS,
+} from "./local-server.js";
+export type { LocalReviewServerOptions } from "./local-server.js";
+export type { EvidenceProvider } from "./evidence.js";
+export { SyntheticEvidenceProvider, renderPlaceholderPng } from "./synthetic-evidence.js";
+export { renderReviewPanel, escapeHtml } from "./panel-html.js";
 // D3 (#58): multimedia-native design_review result shaping — annotated screenshot
 // image blocks + the interactive MCP-Apps HTML panel, each with an honest
 // capability downgrade for hosts that can't render them.
@@ -103,14 +115,17 @@ export {
   designReviewInputShape,
   designReviewGetInputShape,
   designRecheckInputShape,
+  designReviewPanelActionInputShape,
   designReviewInputSchema,
   designReviewGetInputSchema,
   designRecheckInputSchema,
+  designReviewPanelActionInputSchema,
 } from "./tools.js";
 export type {
   DesignReviewToolInput,
   DesignReviewGetToolInput,
   DesignRecheckToolInput,
+  DesignReviewPanelActionToolInput,
 } from "./tools.js";
 export { PgPoolConnectionFactory, runMcpMigrations, MCP_MIGRATIONS_DIR } from "./pg.js";
 export { PostgresAllowlistResolver, SystemDnsResolver } from "./production-adapters.js";
@@ -121,4 +136,9 @@ export type { ProductionOverrides, ProductionHandle } from "./production.js";
 export { handlePanelAction } from "./panel-interaction.js";
 // Idea #64: the review-side producer — projects a review's fix plan (structural
 // AxisFixItems) into the PanelFindings the panel renders and the reducer consumes.
-export { toPanelFinding, buildPanelFindings, type ReviewFixItem } from "./panel-findings.js";
+export {
+  toPanelFinding,
+  buildPanelFindings,
+  reviewFixItemsFromCritique,
+  type ReviewFixItem,
+} from "./panel-findings.js";

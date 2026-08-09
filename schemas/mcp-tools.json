@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.0.0",
+  "catalog_version": "1.1.0",
   "protocol_baseline": "2025-11-25",
   "tools": [
     {
@@ -808,6 +808,104 @@
           "status",
           "cancellation_requested_at",
           "upstream_cancellation"
+        ]
+      }
+    },
+    {
+      "name": "design_review_panel_action",
+      "title": "Act on a review panel finding",
+      "description": "Route an interaction from the interactive review panel: return a grounded finding's fix for the coding agent to apply, or the refs to re-verify. This tool never edits code \u2014 an advisory finding returns human_only, never an automatic fix. Reads only; consumes no review units.",
+      "annotations": {
+        "readOnlyHint": true,
+        "destructiveHint": false,
+        "idempotentHint": true,
+        "openWorldHint": false
+      },
+      "execution": {
+        "taskSupport": "forbidden"
+      },
+      "_meta": {
+        "com.apature/metered": false,
+        "com.apature/product": "mcp-review"
+      },
+      "inputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "job_id": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 128
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "apply_fix",
+              "recheck"
+            ]
+          },
+          "finding_id": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "job_id",
+          "action"
+        ]
+      },
+      "outputSchema": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "1.0.0"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "review_id": {
+            "type": "string"
+          },
+          "response": {
+            "type": "object",
+            "description": "The panel reducer's routed response: a grounded fix for the coding agent, a human_only referral, or the recheck refs.",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "fix",
+                  "human_only",
+                  "recheck"
+                ]
+              },
+              "finding_id": {
+                "type": "string"
+              },
+              "fix": {
+                "type": "string"
+              },
+              "refs": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "type"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "job_id",
+          "review_id",
+          "response"
         ]
       }
     }

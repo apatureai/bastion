@@ -13,3 +13,6 @@ coverage/
 .pnpm-store/
 .idea/
 .vscode/
+
+# Demo output (pnpm demo)
+out/

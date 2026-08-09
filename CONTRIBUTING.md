@@ -23,8 +23,10 @@ pnpm workspace, TypeScript, two packages:
   engine client, Postgres application plane.
 
 Supporting material: `schemas/` (machine-readable MCP tool and error schemas),
-`directory/server.json` (the directory listing), `migrations/` under `packages/mcp-server`, and
-the design docs listed in the README.
+`directory/server.json` (the directory listing), and `migrations/` under `packages/mcp-server`.
+The README is the documentation; the internal design documents (TRD, ARCHITECTURE, CONTRACTS,
+THREAT_MODEL and the rest) are not part of this release, though source comments still cite them
+by section shorthand.
 
 ## Building and testing
 
@@ -43,8 +45,12 @@ pnpm test        # vitest run
 
 `pnpm clean` (`tsc -b --clean`) removes build output.
 
-All of these were run green against this tree on Node 24.14.0. `pnpm test` reports 23 files
-passed and 1 skipped (222 passed, 2 skipped); the skipped file needs Postgres, below.
+All of these were run green against this tree on Node 24.14.0. `pnpm test` reports 29 files
+passed and 1 skipped (254 passed, 2 skipped); the skipped file needs Postgres, below.
+
+`pnpm build` also produces the offline server and the worked example: `pnpm start:local` runs the
+credential-free MCP server over stdio, and `pnpm demo` drives a full review loop against it. See
+the README quickstart.
 
 One caveat, recorded for honesty: during archival testing a single unidentified test failure
 appeared in one of ~43 consecutive full-suite runs and could not be reproduced in the other 42.
@@ -67,7 +73,7 @@ MCP_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/mcp_review_tes
   pnpm test
 ```
 
-With a database supplied the suite is 24 files / 224 tests, all passing. The suite creates and
+With a database supplied the suite is 30 files / 256 tests, all passing. The suite creates and
 drops its own throwaway schemas — point it at a scratch database, never a real one.
 
 ### Running the server
@@ -75,10 +81,11 @@ drops its own throwaway schemas — point it at a scratch database, never a real
 `packages/mcp-server` exposes `mcp-review-server` (`node dist/boot.js`). It fails closed, with a
 readable message, without `MCP_RESOURCE_URL`, `MCP_AUTHORIZATION_SERVERS`, `MCP_JWKS_URL`,
 `MCP_TOKEN_ISSUER`, `DATABASE_URL`, `ENGINE_BASE_URL`, and `ENGINE_HMAC_SECRET`. The `Dockerfile`
-builds the workspace and runs that entrypoint on port 8080 with `/livez` and `/readyz` probes. See
-`packages/mcp-server/DEPLOYMENT.md` and `docs/application-plane.md` — noting that the hosted
-service those docs describe is no longer operated, and that a real Judgment Engine to point
-`ENGINE_BASE_URL` at is not part of this release.
+builds the workspace and runs that entrypoint on port 8080 with `/livez` and `/readyz` probes. The
+README's Configuration section lists every variable the code reads — noting that the hosted service
+is no longer operated, and that a real Judgment Engine to point `ENGINE_BASE_URL` at is not part of
+this release. For anything you can actually run, use `packages/mcp-server/src/local-server.ts`
+instead; the production root deliberately has no mock fallback.
 
 `src/boot.ts` is the entrypoint rather than `src/main.ts` on purpose: `production.ts` imports
 `startFromEnv` from `main.ts`, so a top-level boot guard inside `main.ts` formed an ESM import
@@ -92,7 +99,7 @@ cycle that never settled. Keep the entrypoint out of the cycle if you refactor t
   sense with that constraint held.
 - **The tool catalog is contract-tested.** `schemas/mcp-tools.json`, `directory/server.json`, and
   the live server's `tools/list` are cross-checked by `directory.test.ts` and
-  `catalog-drift.test.ts`. Change one, change all three.
+  `catalog-drift.test.ts`, including the version string. Change one, change all three.
 - **Contracts live in `mcp-types`**, with golden fixtures under `packages/mcp-types/fixtures`.
   Changing a result shape means updating the golden file deliberately, not regenerating it to make
   tests pass.

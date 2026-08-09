@@ -171,6 +171,7 @@ describe("production HTTP MCP server (#28)", () => {
       "design_review",
       "design_review_cancel",
       "design_review_get",
+      "design_review_panel_action",
     ]);
     const result = (await client.callTool({
       name: "design_review",
