@@ -2,9 +2,9 @@
 
 ## Supported versions
 
-This repository is developed on `main`, and there are no tagged releases or published npm packages
-yet. `main` is the supported version: fixes land there, and anyone running this code should track
-it. When releases start, this section will name the supported range.
+This repository is developed on `main`. The current release is `v0.1.0`; nothing is published to
+npm yet. `main` is the supported version: fixes land there first, and anyone running this code
+should track it rather than pinning a tag.
 
 | Version | Supported |
 |---|---|

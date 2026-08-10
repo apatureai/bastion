@@ -23,7 +23,11 @@ pnpm build
 pnpm demo
 ```
 
-`pnpm demo` is a real MCP client. It spawns the server as a child process over stdio, completes a handshake, submits a review, reads it back four ways, acts on a finding, rechecks it, and gets denied on an unauthorized host:
+`pnpm demo` is a real MCP client.
+
+> The server still identifies itself on the wire as `apature-mcp-review`. That name is part of the
+> MCP handshake and any client configuration that already references it, so the repository rename to
+> `bastion` deliberately left it alone. It spawns the server as a child process over stdio, completes a handshake, submits a review, reads it back four ways, acts on a finding, rechecks it, and gets denied on an unauthorized host:
 
 ```console
 $ pnpm demo
