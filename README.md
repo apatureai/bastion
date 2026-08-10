@@ -1,7 +1,5 @@
 # mcp-review
 
-**Archived and provided as-is. No updates expected.** Issues and pull requests are not monitored. Last verified working 2026-08-09 on macOS 15 + Node 24.14.0 + pnpm 9.15.0.
-
 An MCP server that hands a coding agent structured design-review findings for a web preview, then re-verifies the findings after the agent fixes them.
 
 ## Why this exists
