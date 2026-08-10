@@ -1,6 +1,6 @@
 {
   "name": "@apature/mcp-server",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "description": "Apature Bastion server: agent-facing MCP tools (design_review, design_review_get) over the Verdict review surface.",
   "license": "MIT",
