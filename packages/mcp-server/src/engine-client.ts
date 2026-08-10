@@ -15,7 +15,7 @@ export interface EngineCancelAck {
   poll: EnginePollStatus;
 }
 
-/** Poll result returned by Judgment Engine's durable async job API. */
+/** Poll result returned by Verdict's durable async job API. */
 export type EngineJobPoll =
   | { jobId: string; state: "pending" | "running" | "cancelling" }
   | { jobId: string; state: "completed"; result: EngineReviewResult; schemaVersion: string }
@@ -51,8 +51,8 @@ export type EngineRecheckRequest = {
 };
 
 /**
- * The engine boundary as MCP Review sees it. The real implementation lives in
- * `apatureai/judgment-engine`; MCP Review only submits authorized targets and
+ * The engine boundary as Bastion sees it. The real implementation lives in
+ * `apatureai/verdict`; Bastion only submits authorized targets and
  * reads results. This interface is the seam that lets tests and local runs use
  * a mock instead of capture + inference.
  */
@@ -73,7 +73,7 @@ export interface EngineClient {
   /**
    * Request cooperative cancellation of a running engine job (#66). Optional:
    * a client without a cancel surface reports `not_supported`. The real engine
-   * aborts work and suppresses late writes; MCP Review maps the returned poll
+   * aborts work and suppresses late writes; Bastion maps the returned poll
    * status through `engine-cancel.ts` and never marks a job terminally
    * `cancelled` until the engine proves no late result can publish.
    */

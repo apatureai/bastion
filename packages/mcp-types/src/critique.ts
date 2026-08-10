@@ -1,9 +1,9 @@
 /**
- * Agent-facing MCP Review surface (TRD §6.4 Critique and the job/budget
+ * Agent-facing Bastion surface (TRD §6.4 Critique and the job/budget
  * envelopes from schemas/mcp-tools.json). These are the shapes returned to the
  * customer's coding agent over MCP. They are intentionally separate from the
  * engine boundary (`engine.ts`): the engine speaks in richer internal fields,
- * MCP Review presents a compact, agent-ready Critique with `element_ref` and
+ * Bastion presents a compact, agent-ready Critique with `element_ref` and
  * concrete repair suggestions.
  */
 
@@ -51,7 +51,7 @@ export type CritiqueFinding = {
   finding_id: string;
   severity: CritiqueSeverity;
   /**
-   * The engine's rubric dimension (judgment-engine#159), passed through verbatim
+   * The engine's rubric dimension (verdict#159), passed through verbatim
    * so the agent can group findings by reason category. `null` when the engine
    * result predates the field, an explicit "unavailable", never a value
    * synthesized from severity.
@@ -139,9 +139,9 @@ export type DesignRecheckResult = {
 /**
  * What cancellation asked of the upstream engine (schemas/mcp-tools.json
  * design_review_cancel outputSchema):
- *  - `not_needed`:         the job was still queued; MCP Review made it terminal
+ *  - `not_needed`:         the job was still queued; Bastion made it terminal
  *                          `cancelled` itself, no engine work was ever started.
- *  - `requested`:          the job was running; MCP Review asked the engine to
+ *  - `requested`:          the job was running; Bastion asked the engine to
  *                          cancel and the job stays `running` until a terminal
  *                          engine acknowledgement proves no late result can
  *                          publish.

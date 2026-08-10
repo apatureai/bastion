@@ -11,7 +11,7 @@ import {
 
 /**
  * Cross-repo cancel-state mapping (#32) against the pinned golden. Any change
- * to Judgment Engine's public cancel surfacing must update the golden AND the
+ * to Verdict's public cancel surfacing must update the golden AND the
  * mapping together, or this test fails, which is the whole point of pinning a
  * contract instead of inferring cancellation from transport timing.
  */

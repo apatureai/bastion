@@ -33,7 +33,7 @@ describe("golden EngineReviewResult fixture", () => {
     expect(golden.overall.length).toBeGreaterThan(0);
   });
 
-  it("is byte-identical to the pinned Judgment Engine fixtures", () => {
+  it("is byte-identical to the pinned Verdict fixtures", () => {
     for (const [path, expected] of [
       [GOLDEN_ENGINE_RESULT_PATH, JUDGMENT_ENGINE_GOLDEN_BLOB],
       [PRE_CALIBRATION_ENGINE_RESULT_PATH, JUDGMENT_ENGINE_PRE_CALIBRATION_BLOB],
@@ -94,7 +94,7 @@ describe("golden EngineReviewResult fixture", () => {
     expect(typeof metadata.captureVersion).toBe("string");
     expect(metadata.uiDnaVersion === null || typeof metadata.uiDnaVersion === "string").toBe(true);
 
-    // MCP Review must never hard-code Claude as the judge in the boundary.
+    // Bastion must never hard-code Claude as the judge in the boundary.
     const serialized = JSON.stringify(golden).toLowerCase();
     expect(serialized).not.toContain("claude");
     expect(serialized).not.toContain("anthropic");

@@ -3,8 +3,8 @@
  * classification of an IP address as a *prohibited* capture destination:
  * private, loopback, link-local, cloud metadata, multicast, or reserved.
  *
- * MCP Review owns this *policy*; the actual DNS resolution + pinned connection
- * lives in `judgment-engine`. This module is the shared predicate both sides
+ * Bastion owns this *policy*; the actual DNS resolution + pinned connection
+ * lives in `verdict`. This module is the shared predicate both sides
  * agree on, so it must be exhaustive and easy to audit. It NEVER touches the
  * network; it classifies an address string a resolver already produced.
  */

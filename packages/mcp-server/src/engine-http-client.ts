@@ -29,7 +29,7 @@ export class EngineDependencyError extends Error {
   }
 }
 
-/** Signed async client for Judgment Engine's POST/GET/DELETE /jobs contract. */
+/** Signed async client for Verdict's POST/GET/DELETE /jobs contract. */
 export class JudgmentEngineHttpClient implements EngineJobClient {
   private readonly fetchImpl: typeof fetch;
   private readonly expectedSchema: string;
@@ -40,7 +40,7 @@ export class JudgmentEngineHttpClient implements EngineJobClient {
 
   constructor(private readonly options: EngineHttpClientOptions) {
     this.fetchImpl = options.fetch ?? fetch;
-    // Judgment Engine's current wire contract is schema "1". MCP Review's own
+    // Verdict's current wire contract is schema "1". Bastion's own
     // public result envelope is independently versioned as "1.0.0".
     this.expectedSchema = options.schemaVersion ?? "1";
     this.timeoutMs = options.timeoutMs ?? 5_000;

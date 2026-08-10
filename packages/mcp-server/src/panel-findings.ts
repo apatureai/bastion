@@ -7,7 +7,7 @@
  *
  * It is dependency-inverted: the input is a STRUCTURAL `ReviewFixItem` (the shape
  * of the combined review's axis-tagged fix-plan item),
- * declared here so mcp-review imports nothing from the review engine. The
+ * declared here so bastion imports nothing from the review engine. The
  * eyes-not-hands split is preserved by construction: a grounded item carries its
  * instruction as the appliable `fix`; an advisory item gets `fix: null` +
  * `appliable: false`, so the reducer can only ever route it to a human.
@@ -23,7 +23,7 @@ import type { Critique, PanelFinding } from "@apature/mcp-types";
 /**
  * A review-side fix item the panel is built from, structurally the combined
  * review's fix-plan item (an axis-tagged combined fix item).
- * Declared HERE, not imported, so mcp-review stays dependency-free
+ * Declared HERE, not imported, so bastion stays dependency-free
  * of the review engine (structural typing / dependency inversion).
  */
 export interface ReviewFixItem {

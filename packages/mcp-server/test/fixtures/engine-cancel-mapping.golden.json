@@ -1,5 +1,5 @@
 {
-  "$comment": "Cross-repo cancel-state mapping (#32). Judgment Engine (#66) public poll -> MCP-visible job status. Pinned so a change to the engine's cancel surfacing breaks the test and forces an explicit remap. See packages/mcp-server/src/engine-cancel.ts.",
+  "$comment": "Cross-repo cancel-state mapping (#32). Verdict (#66) public poll -> MCP-visible job status. Pinned so a change to the engine's cancel surfacing breaks the test and forces an explicit remap. See packages/mcp-server/src/engine-cancel.ts.",
   "mappingVersion": "1",
   "canceledErrorSentinel": "canceled",
   "rows": [

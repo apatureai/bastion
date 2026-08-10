@@ -7,7 +7,7 @@ import { SyntheticEvidenceProvider } from "./synthetic-evidence.js";
 import type { EvidenceProvider } from "./evidence.js";
 
 /**
- * The offline composition root: a complete MCP Review server with no credentials,
+ * The offline composition root: a complete Bastion server with no credentials,
  * no database, no network, and no judgment engine.
  *
  * It exists because the production root (`production.ts`) deliberately has no mock

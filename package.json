@@ -3,12 +3,12 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Apature MCP Review - in-loop, read-only design review for coding agents over MCP",
+  "description": "Apature Bastion - in-loop, read-only design review for coding agents over MCP",
   "license": "MIT",
   "author": "Aditya Prathapa",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/apatureai/mcp-review.git"
+    "url": "git+https://github.com/apatureai/bastion.git"
   },
   "packageManager": "pnpm@9.15.0",
   "engines": {

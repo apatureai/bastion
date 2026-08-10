@@ -99,7 +99,7 @@ export class RecheckThrottledError extends Error {
 export type ReviewServiceDeps = {
   /** Fixture/local synchronous adapter. Production supplies `engineJobs`. */
   engine?: EngineClient;
-  /** Durable Judgment Engine submit/poll/cancel adapter used by production. */
+  /** Durable Verdict submit/poll/cancel adapter used by production. */
   engineJobs?: EngineJobClient;
   now?: () => Date;
   newId?: (prefix: string) => string;
@@ -721,7 +721,7 @@ export class ReviewService {
    *                             maps it to a generic JOB_NOT_FOUND).
    *   - already terminal       → idempotent no-op: return the existing status
    *                             with `upstream_cancellation: already_terminal`.
-   *   - `queued`               → nothing started upstream, so MCP Review makes
+   *   - `queued`               → nothing started upstream, so Bastion makes
    *                             it terminal `cancelled` itself (`not_needed`).
    *   - `running`              → ask the engine to cancel and map its post-cancel
    *                             poll (`engine-cancel.ts`): the job stays
@@ -733,7 +733,7 @@ export class ReviewService {
    *
    * `cancellation_requested_at` is set once (first cancel) so a duplicate cancel
    * is idempotent. Production uses the durable async application store and the
-   * persisted Judgment Engine job id; the synchronous branch remains only for
+   * persisted Verdict job id; the synchronous branch remains only for
    * fixture/local compatibility.
    */
   async cancelReview(jobId: string, reason?: string): Promise<DesignReviewCancelResult> {

@@ -1,12 +1,12 @@
 /**
- * Judgment Engine review-result boundary (the upstream contract MCP Review
+ * Verdict review-result boundary (the upstream contract Bastion
  * consumes). This mirrors the proven `apatureai/gate` GateReviewResult shape so
  * the two repos share one boundary artifact and the mock engine cannot drift
- * from the live contract. MCP Review never owns capture, inference, or storage;
+ * from the live contract. Bastion never owns capture, inference, or storage;
  * it only maps this result into the agent-facing Critique (see `critique.ts`).
  *
  * Nothing here may hard-code a specific judge model; the default is Qwen3-VL via
- * `judgment-engine`, carried opaquely in `metadata.model`.
+ * `verdict`, carried opaquely in `metadata.model`.
  */
 
 /** Engine-side severity scale (richer than the agent-facing three-level scale). */
@@ -40,7 +40,7 @@ export type EngineConfidenceUnavailableReason =
   | "unattested_calibration_report";
 
 /** A single design-review finding produced by the engine. */
-/** The engine's eight-value design rubric on the wire (judgment-engine#159). */
+/** The engine's eight-value design rubric on the wire (verdict#159). */
 export type EngineDimension =
   | "visual_hierarchy"
   | "spacing"
@@ -56,7 +56,7 @@ export type EngineFinding = {
   id: string;
   severity: EngineSeverity;
   /**
-   * Rubric dimension the engine selected (judgment-engine#159). Additive on
+   * Rubric dimension the engine selected (verdict#159). Additive on
    * schema v1: newly produced results always carry it; optional only because
    * results produced before the field existed exist. When absent, consumers
    * surface the dimension as unavailable, never synthesizing one from severity.
@@ -74,7 +74,7 @@ export type EngineFinding = {
   suggestion: string | null;
   /**
    * Engine-produced confidence 0..1, capped upstream by the capture
-   * confidence-ceiling (judgment-engine#150, additive on schema v1). Optional
+   * confidence-ceiling (verdict#150, additive on schema v1). Optional
    * only because results produced before the engine emitted it exist; when
    * absent, consumers surface confidence as unavailable; they never compute
    * or synthesize a numeric value locally.
@@ -82,19 +82,19 @@ export type EngineFinding = {
   confidence?: number;
 };
 
-/** The engine's review result, consumed but not owned by MCP Review. */
+/** The engine's review result, consumed but not owned by Bastion. */
 export type EngineReviewResult = {
   grade: EngineGrade;
   overall: string;
   /**
-   * Engine-owned result-level confidence 0..1 (judgment-engine#150): the min
+   * Engine-owned result-level confidence 0..1 (verdict#150): the min
    * over finding confidences, 1 for a clean result. Same optionality rationale
    * as `EngineFinding.confidence`.
    */
   confidence?: number;
   /** Exact promoted calibration artifact for every numeric confidence. */
   calibration?: EngineCalibrationReference;
-  /** Explicit engine promotion mode; MCP Review never derives it from a score. */
+  /** Explicit engine promotion mode; Bastion never derives it from a score. */
   blockingEnabled?: boolean;
   /** Why confidence was withheld on a current fail-closed result. */
   confidenceUnavailableReason?: EngineConfidenceUnavailableReason;

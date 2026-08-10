@@ -2,12 +2,12 @@
   "name": "@apature/mcp-types",
   "version": "0.0.0",
   "private": true,
-  "description": "MCP Review boundary contracts: tool envelopes, Critique result, and the golden engine fixture. Single source of truth for the agent-facing surface.",
+  "description": "Bastion boundary contracts: tool envelopes, Critique result, and the golden engine fixture. Single source of truth for the agent-facing surface.",
   "license": "MIT",
   "author": "Aditya Prathapa",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/apatureai/mcp-review.git",
+    "url": "git+https://github.com/apatureai/bastion.git",
     "directory": "packages/mcp-types"
   },
   "type": "module",

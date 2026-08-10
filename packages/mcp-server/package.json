@@ -2,12 +2,12 @@
   "name": "@apature/mcp-server",
   "version": "0.0.0",
   "private": true,
-  "description": "Apature MCP Review server: agent-facing MCP tools (design_review, design_review_get) over the judgment-engine review surface.",
+  "description": "Apature Bastion server: agent-facing MCP tools (design_review, design_review_get) over the Verdict review surface.",
   "license": "MIT",
   "author": "Aditya Prathapa",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/apatureai/mcp-review.git",
+    "url": "git+https://github.com/apatureai/bastion.git",
     "directory": "packages/mcp-server"
   },
   "type": "module",

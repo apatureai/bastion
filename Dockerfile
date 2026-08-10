@@ -1,4 +1,4 @@
-# Deployable remote MCP Review server (#28). Multi-stage: build the workspace,
+# Deployable remote Bastion server (#28). Multi-stage: build the workspace,
 # then run the mcp-server entrypoint (src/boot.ts). Fails closed without required env
 # (MCP_RESOURCE_URL, MCP_AUTHORIZATION_SERVERS, MCP_JWKS_URL, MCP_TOKEN_ISSUER).
 FROM node:24-slim AS build

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/apatureai/mcp-review/main/schemas/feedback-event.schema.json",
-  "title": "Apature MCP Review Feedback Event",
+  "$id": "https://raw.githubusercontent.com/apatureai/bastion/main/schemas/feedback-event.schema.json",
+  "title": "Apature Bastion Feedback Event",
   "type": "object",
   "additionalProperties": false,
   "properties": {

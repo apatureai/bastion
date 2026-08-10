@@ -1,8 +1,8 @@
-# mcp-review
+# bastion
 
 **A remote MCP server for in-loop design review, and a worked reference for OAuth 2.1 auth, SSRF-safe URL handling, and long-running jobs over MCP.**
 
-A coding agent changes a UI, deploys a preview, and has no way to see whether the result looks right. `mcp-review` is the MCP server on the other end of that loop: the agent submits a preview URL, gets back structured findings (route, viewport, element ref, suggested fix), applies the fixes itself, then asks the server to recheck them. The server judges and verifies; it never edits code.
+A coding agent changes a UI, deploys a preview, and has no way to see whether the result looks right. `bastion` is the MCP server on the other end of that loop: the agent submits a preview URL, gets back structured findings (route, viewport, element ref, suggested fix), applies the fixes itself, then asks the server to recheck them. The server judges and verifies; it never edits code.
 
 It is also, deliberately, a reference implementation. Most public MCP servers are stdio, unauthenticated, single-tenant, and return in milliseconds. This one carries the other shape: a Streamable HTTP edge with OAuth 2.1 resource-server auth, per-tenant Postgres state, submit-and-poll jobs that outlive the transport session, and a hardened boundary around the one thing an agent-supplied URL always is, which is an SSRF primitive.
 
@@ -13,8 +13,8 @@ Everything below runs offline with no credentials. The judgments come from a fix
 Node 24+ and pnpm 9.15.0 (`corepack enable` installs pnpm from the `packageManager` field). Nothing else: no API key, no database, no Docker. `pnpm install` needs the npm registry once; after that nothing here opens a connection.
 
 ```bash
-git clone https://github.com/apatureai/mcp-review.git
-cd mcp-review
+git clone https://github.com/apatureai/bastion.git
+cd bastion
 corepack enable
 pnpm install --frozen-lockfile
 pnpm build
@@ -100,7 +100,7 @@ The local server speaks MCP over stdio, which is what Claude Code, Cursor, Codex
   "mcpServers": {
     "apature-review-local": {
       "command": "node",
-      "args": ["/absolute/path/to/mcp-review/packages/mcp-server/dist/local-stdio.js"]
+      "args": ["/absolute/path/to/bastion/packages/mcp-server/dist/local-stdio.js"]
     }
   }
 }
@@ -137,7 +137,7 @@ Remember what that buys you: the target is authorized for real, and then judged 
 ## What it deliberately does not do
 
 - **It never edits code.** No patching, committing, pushing, opening pull requests, or driving a browser. It returns judgments and evidence; the agent on the other end does the work. The server is the eyes, the agent is the hands.
-- **It does not screenshot anything and it does not call a model.** Capture and inference sit behind the engine boundary, in the public sibling [apatureai/judgment-engine](https://github.com/apatureai/judgment-engine): it drives headless Chromium for real captures and calls an OpenAI-compatible endpoint configured with `MODEL_BASE_URL` / `MODEL_API_KEY`. That repo exists and is MIT, but this one is not wired to it yet, so the judgments you get here are still fixture-backed. Closing that gap is roadmap item 1 in [Status and roadmap](#status-and-roadmap).
+- **It does not screenshot anything and it does not call a model.** Capture and inference sit behind the engine boundary, in the public sibling [apatureai/verdict](https://github.com/apatureai/verdict): it drives headless Chromium for real captures and calls an OpenAI-compatible endpoint configured with `MODEL_BASE_URL` / `MODEL_API_KEY`. That repo exists and is MIT, but this one is not wired to it yet, so the judgments you get here are still fixture-backed. Closing that gap is roadmap item 1 in [Status and roadmap](#status-and-roadmap).
 - **It does not judge the URL you pass.** Offline, the findings come from a golden fixture describing a fictional pricing page.
 
 ## Why this is technically interesting
@@ -348,9 +348,9 @@ Known gaps, in rough priority order. Each names the seam to work against, and ea
 
 **1. Wire a real critique backend.** This is the main one. Judgments come from a golden fixture, so the server currently tells you nothing about the URL you passed. The seam is `EngineClient` / `EngineJobClient` in `packages/mcp-server/src/engine-client.ts`, with an HMAC-signed HTTP implementation already written in `engine-http-client.ts` and a deterministic mock next to it. A backend needs to answer submit/poll/cancel and return an `EngineReviewResult` matching `packages/mcp-types/fixtures/engine-review-result.golden.json`.
 
-[apatureai/judgment-engine](https://github.com/apatureai/judgment-engine) is the intended counterpart and it is public and MIT, so this is closer than it used to be. Its `packages/api` serves the same async job API this client calls (`POST /jobs`, `GET /jobs/:id`, `DELETE /jobs/:id`), and the request signing lines up on both sides: the same `x-gate-signature` / `x-gate-installation` / `x-gate-timestamp` headers over the same `timestamp.installationId.body` canonical string. What nobody has done is run the two against each other, so treat the result payload mapping (its review output onto `EngineReviewResult`) as unverified rather than done. Standing up `ENGINE_BASE_URL` against it and reporting where the shapes disagree is a genuinely useful contribution, and any service speaking the same shape works just as well.
+[apatureai/verdict](https://github.com/apatureai/verdict) is the intended counterpart and it is public and MIT, so this is closer than it used to be. Its `packages/api` serves the same async job API this client calls (`POST /jobs`, `GET /jobs/:id`, `DELETE /jobs/:id`), and the request signing lines up on both sides: the same `x-gate-signature` / `x-gate-installation` / `x-gate-timestamp` headers over the same `timestamp.installationId.body` canonical string. What nobody has done is run the two against each other, so treat the result payload mapping (its review output onto `EngineReviewResult`) as unverified rather than done. Standing up `ENGINE_BASE_URL` against it and reporting where the shapes disagree is a genuinely useful contribution, and any service speaking the same shape works just as well.
 
-**2. Screenshot capture.** Not implemented here, and still not planned to live here: capture belongs behind the engine boundary above, and it is already written there. `judgment-engine` drives headless Chromium through playwright-core and produces deterministic screenshots plus a DOM geometry map; its `browser:install` and `review` scripts are the entry points, and that repo's README documents how to run them. So the missing piece is not a capture implementation, it is the link in item 1.
+**2. Screenshot capture.** Not implemented here, and still not planned to live here: capture belongs behind the engine boundary above, and it is already written there. `verdict` drives headless Chromium through playwright-core and produces deterministic screenshots plus a DOM geometry map; its `browser:install` and `review` scripts are the entry points, and that repo's README documents how to run them. So the missing piece is not a capture implementation, it is the link in item 1.
 
 **3. Real evidence images.** `EvidenceProvider` in `src/evidence.ts` is the seam and it is documented; the only implementation is `SyntheticEvidenceProvider`, which emits deterministic placeholder PNGs (real bytes, no pixels of your page). An implementation that fetches annotated crops from an artifact store is self-contained and testable.
 
@@ -374,7 +374,7 @@ Known gaps, in rough priority order. Each names the seam to work against, and ea
 
 Two honesty notes that are not roadmap items so much as things to know.
 
-**There are still no published quality numbers, so assume no measured accuracy claims.** The harness to produce them is no longer missing, though: it lives in [apatureai/judgment-engine](https://github.com/apatureai/judgment-engine) under `packages/eval`, which carries the canaries, the golden-set tooling, and the precision, recall and human-agreement metrics, and it declares the bars it grades against as `DEFAULT_QUALITY_BARS` in `packages/eval/src/quality-gate.ts`. What has not happened is a promoted candidate run, so neither repo publishes a results table. Since this server returns fixture judgments anyway, no number measured there would describe what you get here until item 1 is wired.
+**There are still no published quality numbers, so assume no measured accuracy claims.** The harness to produce them is no longer missing, though: it lives in [apatureai/verdict](https://github.com/apatureai/verdict) under `packages/eval`, which carries the canaries, the golden-set tooling, and the precision, recall and human-agreement metrics, and it declares the bars it grades against as `DEFAULT_QUALITY_BARS` in `packages/eval/src/quality-gate.ts`. What has not happened is a promoted candidate run, so neither repo publishes a results table. Since this server returns fixture judgments anyway, no number measured there would describe what you get here until item 1 is wired.
 
 **The auth path has not had an external security review.** The OAuth 2.1 resource-server code, the token verifier and the SSRF boundary are covered by this repo's own tests and nothing more. See [SECURITY.md](SECURITY.md).
 

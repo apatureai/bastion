@@ -220,7 +220,7 @@ async function evidenceResult(
 }
 
 /**
- * Build the MCP Review server with the v1 tool surface. All five catalog tools
+ * Build the Bastion server with the v1 tool surface. All five catalog tools
  * (`design_review`, `design_review_get`, `design_recheck`,
  * `design_review_cancel`, and `design_review_panel_action`) are wired, so the
  * registered surface matches schemas/mcp-tools.json exactly (no

@@ -11,7 +11,7 @@ import type { EngineJobClient } from "./engine-client.js";
 import { requiredEnv } from "./env.js";
 
 /**
- * Deployable remote MCP Review entrypoint (#28). Reads configuration from the
+ * Deployable remote Bastion entrypoint (#28). Reads configuration from the
  * environment, wires the production Streamable HTTP composition (per-client
  * transport isolation, bearer JWT auth, RFC 9728 discovery, DNS-rebinding
  * protection), and starts listening. Fails fast on missing required config so a

@@ -28,7 +28,7 @@ type ToolResult = {
   structuredContent?: Record<string, unknown>;
 };
 
-describe("MCP Review server", () => {
+describe("Bastion server", () => {
   it("advertises only read-or-review tools with correct annotations and no write tool", async () => {
     const { client } = await connectClient();
     const { tools } = await client.listTools();

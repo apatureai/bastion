@@ -1,7 +1,7 @@
 import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
 
 /**
- * Bearer-token authentication for the remote MCP surface (#28). MCP Review is a
+ * Bearer-token authentication for the remote MCP surface (#28). Bastion is a
  * PROTECTED RESOURCE (RFC 9728 / OAuth 2.1): every request carries a bearer
  * access token issued by the tenant's authorization server, and the server
  * verifies it before any tool runs. Verification itself (JWKS, audience,
@@ -101,7 +101,7 @@ export function protectedResourceMetadata(
     authorization_servers: [...authorizationServers],
     bearer_methods_supported: ["header"],
     scopes_supported: [REVIEWS_CANCEL_SCOPE],
-    resource_documentation: "https://github.com/apatureai/mcp-review#readme",
+    resource_documentation: "https://github.com/apatureai/bastion#readme",
   };
 }
 

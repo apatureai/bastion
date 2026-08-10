@@ -11,8 +11,8 @@ import { classifyAddress } from "./egress.js";
  *   3. require every resolved address to clear the egress denylist, with
  *      DNS-rebind / mixed-answer rejection (§7.5, T2).
  *
- * MCP Review owns this policy. The pinned connection + capture stay in
- * judgment-engine; the `DnsResolver` here is a seam so policy can be evaluated
+ * Bastion owns this policy. The pinned connection + capture stay in
+ * `verdict`; the `DnsResolver` here is a seam so policy can be evaluated
  * (and tested) WITHOUT real DNS or network; tests inject a stub resolver.
  */
 
@@ -22,7 +22,7 @@ export type VerifiedTarget =
   | { kind: "github_deployment"; host: string }
   | { kind: "provider_project"; host: string };
 
-/** The tenant's verified-domain registry, as MCP Review reads it. */
+/** The tenant's verified-domain registry, as Bastion reads it. */
 export type TenantAllowlist = {
   tenantId: string;
   targets: VerifiedTarget[];

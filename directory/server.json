@@ -3,9 +3,9 @@
   "name": "ai.apature/mcp-review",
   "description": "In-loop, read-only design review for coding agents: inspect a verified preview, return grounded findings with element refs and fixes, and recheck the agent's fix before CI.",
   "version": "1.1.0",
-  "websiteUrl": "https://github.com/apatureai/mcp-review",
+  "websiteUrl": "https://github.com/apatureai/bastion",
   "repository": {
-    "url": "https://github.com/apatureai/mcp-review",
+    "url": "https://github.com/apatureai/bastion",
     "source": "github"
   },
   "_meta": {

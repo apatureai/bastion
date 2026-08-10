@@ -17,8 +17,8 @@ Prerequisites:
 - **pnpm 9.15.0.** `corepack enable` picks it up from the `packageManager` field.
 
 ```bash
-git clone https://github.com/apatureai/mcp-review.git
-cd mcp-review
+git clone https://github.com/apatureai/bastion.git
+cd bastion
 corepack enable
 pnpm install --frozen-lockfile
 pnpm build

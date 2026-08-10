@@ -28,7 +28,7 @@ export interface ProductionHttpConfig {
   applicationStore: ReviewApplicationStore;
   /** Production engine adapter. Required so the protocol root can never default to MockEngineClient. */
   engine: EngineJobClient;
-  /** Health of the real Judgment Engine dependency. */
+  /** Health of the real Verdict dependency. */
   engineReady: () => Promise<boolean>;
   /** Optional DNS adapter probe; absence is not assumed healthy. */
   dnsReady: () => Promise<boolean>;

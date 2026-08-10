@@ -63,7 +63,7 @@ describe("JudgmentEngineHttpClient (#36)", () => {
     await expect(client.get("tenant-a", "eng_3")).rejects.toBeInstanceOf(EngineDependencyError);
   });
 
-  it("accepts Judgment Engine's current schema 1 header by default", async () => {
+  it("accepts Verdict's current schema 1 header by default", async () => {
     const client = new JudgmentEngineHttpClient({
       baseUrl: "https://engine.example",
       hmacSecret: "secret",

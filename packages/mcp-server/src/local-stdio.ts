@@ -3,7 +3,7 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { createLocalReviewServer, LOCAL_ALLOWED_HOST } from "./local-server.js";
 
 /**
- * Process entrypoint for the offline server: MCP Review over stdio, which is the
+ * Process entrypoint for the offline server: Bastion over stdio, which is the
  * transport Claude Code, Cursor, Codex, and VS Code use for a local server.
  *
  * Kept separate from `local-server.ts` for the same reason `boot.ts` is separate

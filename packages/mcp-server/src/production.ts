@@ -9,7 +9,7 @@ import { requiredEnv } from "./env.js";
 
 /**
  * Production composition root (#36): constructs the durable application plane
- * (Postgres store + migrations), the signed Judgment Engine async client, the
+ * (Postgres store + migrations), the signed Verdict async client, the
  * ownership-verified target registry, and the system DNS resolver, then starts
  * the Streamable HTTP transport via `startFromEnv`. Missing configuration or an
  * unusable database fails startup, never a green-but-unusable listener;
@@ -18,7 +18,7 @@ import { requiredEnv } from "./env.js";
  *
  * Required env (on top of main.ts's MCP_* transport/auth set):
  *   DATABASE_URL         Postgres for the durable review application plane
- *   ENGINE_BASE_URL      Judgment Engine async job API origin
+ *   ENGINE_BASE_URL      Verdict async job API origin
  *   ENGINE_HMAC_SECRET   shared secret for signed service-to-service calls
  *
  * `overrides` exist for black-box tests (PGlite-backed factory, stubbed engine

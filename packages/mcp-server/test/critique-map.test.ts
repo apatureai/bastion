@@ -60,7 +60,7 @@ describe("mapEngineResultToCritique severity mapping", () => {
   });
 });
 
-describe("confidence pass-through (mcp-review#13 / judgment-engine#150)", () => {
+describe("confidence pass-through (bastion#13 / verdict#150)", () => {
   it("passes calibrated boundary values 0 and 1 through untouched", () => {
     const engineResult = loadBlockerEngineResult();
     const withConfidence: EngineReviewResult = {
