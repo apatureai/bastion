@@ -34,7 +34,7 @@ The capture and the model inference lived in a separate service that is not part
 | pnpm 9.15.0 | `pnpm -v  # need 9.15.0` | `corepack enable` installs it from the `packageManager` field |
 | macOS 15 | n/a | The only OS this run verified. CI ran ubuntu-latest |
 
-No credentials, API keys, network access, or Docker are needed for anything in Install, Quickstart, or Development. Dependencies are pinned and `pnpm-lock.yaml` is committed, so install with `--frozen-lockfile`.
+No credentials, API keys, or Docker are needed for anything in Install, Quickstart, or Development. Network access is needed once, by `pnpm install`, to pull dependencies from the npm registry; after that nothing here opens a connection. Dependencies are pinned and `pnpm-lock.yaml` is committed, so install with `--frozen-lockfile`.
 
 One optional extra: Docker, only to run the single Postgres-backed test that is skipped by default (see [Development](#development)).
 
