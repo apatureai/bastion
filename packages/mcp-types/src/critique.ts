@@ -83,6 +83,18 @@ export type CritiqueFinding = {
   evidence_id: string | null;
   /** Engine-produced confidence, or null for an uncalibrated legacy result. */
   confidence: number | null;
+  /**
+   * Present, and always `true`, when nothing judged the page this finding
+   * claims to describe: the same condition that sets `grade` to `"unjudged"`.
+   *
+   * The envelope already says so, but an agent iterating `findings[]` and
+   * applying each `suggestion` never reads the envelope. Every item therefore
+   * carries the signal itself, in the envelope's own vocabulary rather than in
+   * a second scheme. Absence means only "not provably unjudged": the envelope's
+   * `provenance` stays the authority, and a consumer that requires a real
+   * judgment still checks `provenance.model_backed === true` there.
+   */
+  unjudged?: true;
 };
 
 /** The §6.4 Critique object: overall verdict plus structured findings. */
@@ -120,8 +132,19 @@ export type DesignReviewGetResult = {
   review?: Critique;
 };
 
-/** Per-finding verdict after a recheck (TRD §4.3, never a forced boolean). */
-export type RecheckOutcomeKind = "passed" | "failed" | "inconclusive";
+/**
+ * Per-finding verdict after a recheck (TRD §4.3, never a forced boolean).
+ *
+ * `unjudged` is not an engine value and never comes from one, exactly like the
+ * grade of the same name: Bastion substitutes it whenever
+ * `provenance.model_backed` is `false`. `passed`, `failed` and `inconclusive`
+ * all assert that something observed the target and reached (or failed to
+ * reach) a conclusion about it; `inconclusive` in particular means "we looked
+ * and could not tell", which is a different and far weaker claim than "nothing
+ * looked". An agent uses this value to decide its fix landed and it can stop,
+ * so the case where nothing looked needs a value of its own.
+ */
+export type RecheckOutcomeKind = "passed" | "failed" | "inconclusive" | "unjudged";
 
 /**
  * Whether the recheck could focus capture on the flagged elements, or had to
@@ -133,14 +156,20 @@ export type RecheckCaptureScope = "focused" | "broad_fallback";
 export type RecheckOutcome = {
   finding_id: string;
   outcome: RecheckOutcomeKind;
-  confidence: number;
+  /**
+   * The engine's confidence in this outcome, or `null` when there is nothing to
+   * be confident about. Always `null` when `outcome` is `"unjudged"`: a number
+   * attached to a verdict nobody reached is a fabricated number like any other.
+   */
+  confidence: number | null;
   reason: string;
 };
 
 /**
  * The recheck result: a before/after pair plus per-finding outcomes. Callers
  * read `outcomes` to learn which prior findings are resolved (`passed`),
- * persisting (`failed`), or undecided (`inconclusive`).
+ * persisting (`failed`), undecided (`inconclusive`), or never looked at
+ * (`unjudged`).
  */
 export type Recheck = {
   recheck_id: string;
@@ -149,6 +178,13 @@ export type Recheck = {
   after_fingerprint: string;
   capture_scope: RecheckCaptureScope;
   outcomes: RecheckOutcome[];
+  /**
+   * Where this recheck came from, on the same terms as `Critique.provenance`
+   * and for a sharper reason: the agent reads a recheck to decide its fix
+   * landed and it can stop working. Present on every recheck, on every backend,
+   * including the offline fixture path.
+   */
+  provenance: JudgmentProvenance;
 };
 
 /** `design_recheck` response (schemas/mcp-tools.json outputSchema). */

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Critique, CritiqueFinding } from "@apature/mcp-types";
 import { buildPanelFindings, reviewFixItemsFromCritique } from "../src/panel-findings.js";
 import { handlePanelAction } from "../src/panel-interaction.js";
+import { FIXTURE_PROVENANCE } from "../src/provenance.js";
 
 /**
  * The projection that gives the panel producer a real call site: a completed
@@ -89,18 +90,29 @@ describe("reviewFixItemsFromCritique", () => {
         critique([finding(), finding({ finding_id: "f_002", element_ref: null })]),
       ),
     );
-    expect(handlePanelAction({ type: "apply_fix", finding_id: "f_001" }, findings)).toEqual({
+    const judged = critique([]).provenance;
+    expect(handlePanelAction({ type: "apply_fix", finding_id: "f_001" }, findings, judged)).toEqual({
       type: "fix",
       finding_id: "f_001",
       fix: "Apply the --color-accent token.",
     });
-    expect(handlePanelAction({ type: "apply_fix", finding_id: "f_002" }, findings)).toEqual({
+    expect(handlePanelAction({ type: "apply_fix", finding_id: "f_002" }, findings, judged)).toEqual({
       type: "human_only",
       finding_id: "f_002",
     });
-    expect(handlePanelAction({ type: "recheck" }, findings)).toEqual({
+    expect(handlePanelAction({ type: "recheck" }, findings, judged)).toEqual({
       type: "recheck",
       refs: ["f_001", "f_002"],
+    });
+  });
+
+  it("routes every fix to unjudged when the Critique says nothing judged the page", () => {
+    // Same projection, same grounded finding, one different envelope field:
+    // the fix that would otherwise reach a coding agent is withheld.
+    const findings = buildPanelFindings(reviewFixItemsFromCritique(critique([finding()])));
+    expect(handlePanelAction({ type: "apply_fix", finding_id: "f_001" }, findings, FIXTURE_PROVENANCE)).toEqual({
+      type: "unjudged",
+      finding_id: "f_001",
     });
   });
 

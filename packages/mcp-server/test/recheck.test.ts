@@ -1,17 +1,46 @@
 import { describe, expect, it } from "vitest";
+import type { EngineRecheckResult } from "@apature/mcp-types";
 import {
   IdempotencyConflictError,
   MockEngineClient,
   NormalizationError,
   RecheckRejectedError,
   ReviewService,
+  stampProvenance,
+  stampRecheckProvenance,
+  verdictCliProvenance,
 } from "../src/index.js";
+import type { EngineRecheckRequest } from "../src/index.js";
+
+/**
+ * A backend standing in for one that really did re-capture and re-judge the
+ * flagged elements. It reuses the mock's deterministic parity so the outcomes
+ * stay reproducible, and stamps a live provenance so the mapper passes them
+ * through instead of suppressing them. This is what keeps "a real pass/fail
+ * reaches the caller intact" under test now that the fixture path cannot say
+ * pass or fail at all.
+ */
+class JudgedRecheckEngine extends MockEngineClient {
+  override async review(request: Parameters<MockEngineClient["review"]>[0]) {
+    const result = await super.review(request);
+    return stampProvenance(result, verdictCliProvenance("live", result));
+  }
+  override async recheck(request: EngineRecheckRequest): Promise<EngineRecheckResult> {
+    return stampRecheckProvenance(await super.recheck(request), {
+      model_backed: true,
+      source: "model",
+      engine: "verdict-cli",
+      model: "qwen3-vl",
+      detail: "chromium re-captured the flagged elements and a vision model judged the capture",
+    });
+  }
+}
 
 /** A guarded service (SSRF allowlist + stub resolver) with deterministic ids. */
-function guardedService() {
+function guardedService(engine: MockEngineClient = new MockEngineClient()) {
   let counter = 0;
   return new ReviewService({
-    engine: new MockEngineClient(),
+    engine,
     now: () => new Date("2026-06-22T00:00:00.000Z"),
     newId: (prefix) => `${prefix}_${String(++counter).padStart(8, "0")}`,
     allowlist: { tenantId: "t1", targets: [{ kind: "host", host: "preview.example.com" }] },
@@ -53,13 +82,17 @@ describe("ReviewService.submitRecheck (issue #2)", () => {
     expect(out.recheck.outcomes.length).toBe(findingIds.length);
     for (const o of out.recheck.outcomes) {
       expect(findingIds).toContain(o.finding_id);
-      expect(["passed", "failed", "inconclusive"]).toContain(o.outcome);
-      expect(o.confidence).toBeGreaterThan(0);
+      expect(["passed", "failed", "inconclusive", "unjudged"]).toContain(o.outcome);
       expect(typeof o.reason).toBe("string");
     }
   });
 
-  it("surfaces resolved (passed) and persisting (failed) findings", async () => {
+  it("reports every fixture outcome as unjudged, with no confidence and no claim of observation", async () => {
+    // This is the payload an agent reads to decide its fix landed and it can
+    // stop. On the fixture path the outcome comes from a hash of the finding
+    // id: nothing captured, compared or observed anything, so the payload may
+    // not say "passed", may not attach a number, and may not say the issue is
+    // no longer observed at the target.
     const service = guardedService();
     const { reviewId, findingIds } = await seedReview(service);
     const out = await service.submitRecheck({
@@ -68,10 +101,40 @@ describe("ReviewService.submitRecheck (issue #2)", () => {
       expected_revision: "deploy-2",
       client_request_id: "req-recheck002",
     });
+
+    expect(out.recheck.provenance).toMatchObject({
+      model_backed: false,
+      source: "fixture",
+      engine: "bastion-fixture",
+    });
+    for (const o of out.recheck.outcomes) {
+      expect(o.outcome).toBe("unjudged");
+      expect(o.confidence).toBeNull();
+      expect(o.reason).toContain("[bastion] no model judged this page");
+    }
+    // Decidable from the serialized payload alone, which is all an agent holds.
+    const wire = JSON.stringify(out.recheck);
+    expect(wire).not.toContain("no longer observed at the target");
+    expect(wire).not.toContain("still present after the change");
+  });
+
+  it("surfaces resolved (passed) and persisting (failed) findings from a judged backend", async () => {
+    // Suppression applies only where nothing judged the target. A real recheck
+    // verdict must reach the caller intact, or the honesty rule would be a bug.
+    const service = guardedService(new JudgedRecheckEngine());
+    const { reviewId, findingIds } = await seedReview(service);
+    const out = await service.submitRecheck({
+      review_id: reviewId,
+      finding_ids: findingIds,
+      expected_revision: "deploy-2",
+      client_request_id: "req-recheck002b",
+    });
     const outcomes = new Set(out.recheck.outcomes.map((o) => o.outcome));
     // The golden fixture's three finding ids span both verdicts deterministically.
     expect(outcomes.has("passed")).toBe(true);
     expect(outcomes.has("failed")).toBe(true);
+    expect(out.recheck.provenance).toMatchObject({ model_backed: true, source: "model" });
+    for (const o of out.recheck.outcomes) expect(o.confidence).toBeGreaterThan(0);
   });
 
   it("charges focused units = ceil(n/3) and never double-spends on retry", async () => {

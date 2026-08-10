@@ -35,6 +35,18 @@ const step = (n: number, title: string): void => {
   process.stdout.write(`\n[${n}] ${title}\n`);
 };
 
+/**
+ * What the host does with a routed panel response. There are three answers and
+ * only one of them is a string a coding agent may act on, which is the whole
+ * point of the tool: a grounded fix goes to the agent, an advisory finding goes
+ * to a person, and a review nothing judged goes nowhere at all.
+ */
+function handoff(response: { type: string; fix?: string }): string {
+  if (response.type === "fix") return `hand to the coding agent: ${response.fix}`;
+  if (response.type === "human_only") return "human review required: advisory judgment, no auto-fix";
+  return "nothing to hand over: no model judged this review, so its fix text is fixture text";
+}
+
 /** The parent environment, minus unset keys, with the engine choice pinned. */
 function childEnv(): Record<string, string> {
   const env: Record<string, string> = {};
@@ -100,6 +112,7 @@ async function main(): Promise<void> {
       viewport: string;
       element_ref: string | null;
       suggestion: string | null;
+      unjudged?: true;
     }>;
     not_reviewed: string[];
     provenance: { model_backed: boolean | null; source: string; engine: string };
@@ -114,8 +127,11 @@ async function main(): Promise<void> {
   );
   process.stdout.write(`    ${review.overall}\n`);
   for (const f of review.findings) {
+    // The `[unjudged]` marker is the finding's own field, not the demo's gloss:
+    // an agent looping this array and applying `suggestion` never reads the
+    // envelope above, so each item has to say what it is by itself.
     process.stdout.write(
-      `    ${f.finding_id}  ${f.severity.padEnd(10)} ${f.title}\n` +
+      `    ${f.finding_id}  ${f.severity.padEnd(10)} ${f.unjudged ? "[unjudged] " : ""}${f.title}\n` +
         `             ${f.route} (${f.viewport}) ${f.element_ref ?? "-"}\n` +
         `             fix: ${f.suggestion ?? "advisory, no mechanical fix"}\n`,
     );
@@ -156,7 +172,7 @@ async function main(): Promise<void> {
   });
   const response = applied.structuredContent?.response as { type: string; fix?: string };
   process.stdout.write(`    ${first.finding_id} -> ${response.type}\n`);
-  process.stdout.write(`    hand to the coding agent: ${response.fix ?? "(human review required)"}\n`);
+  process.stdout.write(`    ${handoff(response)}\n`);
 
   step(8, "design_recheck  after the agent claims a fix");
   const recheck = await call("design_recheck", {
@@ -165,14 +181,30 @@ async function main(): Promise<void> {
     expected_revision: "deploy-2",
     client_request_id: "demo-recheck-0001",
   });
-  const outcomes = (
-    recheck.structuredContent?.recheck as {
-      capture_scope: string;
-      outcomes: Array<{ finding_id: string; outcome: string; reason: string }>;
-    }
-  ).outcomes;
+  const rechecked = recheck.structuredContent?.recheck as {
+    capture_scope: string;
+    outcomes: Array<{ finding_id: string; outcome: string; confidence: number | null; reason: string }>;
+    provenance: { model_backed: boolean | null; source: string; engine: string };
+  };
+  const outcomes = rechecked.outcomes;
+  // This is the payload an agent reads to decide its fix landed and it can
+  // stop, so it is stamped like the review and for a sharper reason.
+  process.stdout.write(
+    `    provenance: model_backed=${String(rechecked.provenance.model_backed)}` +
+      ` source=${rechecked.provenance.source} engine=${rechecked.provenance.engine}\n`,
+  );
+  // Every outcome carries its own reason, because an agent looping this array
+  // reads one element at a time. They are printed once when they are identical,
+  // which on the fixture path they always are.
+  const reasons = new Set(outcomes.map((o) => o.reason));
   for (const o of outcomes) {
-    process.stdout.write(`    ${o.finding_id}  ${o.outcome.padEnd(12)} ${o.reason}\n`);
+    process.stdout.write(
+      `    ${o.finding_id}  ${o.outcome.padEnd(12)} confidence=${String(o.confidence)}` +
+        `${reasons.size === 1 ? "" : `  ${o.reason}`}\n`,
+    );
+  }
+  if (reasons.size === 1) {
+    process.stdout.write(`    reason on every outcome: ${[...reasons][0]}\n`);
   }
 
   step(9, "design_review  https://evil.example.org/  (SSRF boundary)");

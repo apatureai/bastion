@@ -43,6 +43,15 @@ export type PanelResponse =
   | { type: "fix"; finding_id: string; fix: string }
   /** The finding is advisory (model judgment): it needs a human, not an auto-fix. */
   | { type: "human_only"; finding_id: string }
+  /**
+   * Nothing judged the review this finding came from, so there is no fix to
+   * hand over and no advisory judgment to refer to a human either. A `fix`
+   * string derived from a fixture is fiction, and handing fiction to a coding
+   * agent is the one thing this surface exists to prevent. Same vocabulary as
+   * the `unjudged` grade and the `unjudged` recheck outcome, set under the same
+   * condition: `provenance.model_backed === false`.
+   */
+  | { type: "unjudged"; finding_id: string }
   /** The recheck refs to re-verify (drives the graph cycle-back). */
   | { type: "recheck"; refs: string[] }
   /** The action referenced a finding not in this review. */

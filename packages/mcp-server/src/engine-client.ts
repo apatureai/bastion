@@ -2,7 +2,12 @@ import type { EngineRecheckResult, EngineReviewResult } from "@apature/mcp-types
 import { loadGoldenEngineResult } from "@apature/mcp-types";
 import type { EnginePollStatus } from "./engine-cancel.js";
 import type { NormalizedReviewRequest } from "./normalize.js";
-import { FIXTURE_PROVENANCE, stampProvenance } from "./provenance.js";
+import {
+  FIXTURE_PROVENANCE,
+  FIXTURE_RECHECK_PROVENANCE,
+  stampProvenance,
+  stampRecheckProvenance,
+} from "./provenance.js";
 
 /**
  * The engine's acknowledgement of a cancel request (#32/#66). `accepted` is
@@ -105,30 +110,40 @@ export class MockEngineClient implements EngineClient {
    * which case it still "fails" (persists). Localizable findings (with an
    * element) are focused; otherwise the scope falls back to broad. This is a
    * fixture-grounded stand-in, NOT a judgment of any real UI.
+   *
+   * Which is exactly why it is stamped. Unstamped, this method hands an agent
+   * `outcome: "passed"`, `confidence: 0.86` and the sentence "the flagged issue
+   * is no longer observed at the target" about a page nothing observed, and
+   * that agent stops working on a bug that is still there. The stamp is what
+   * `recheck-map.ts` reads in order to replace all three.
    */
   async recheck(request: EngineRecheckRequest): Promise<EngineRecheckResult> {
     const anyBroad = request.findings.some((f) => f.element === null);
-    return {
-      beforeFingerprint: request.beforeFingerprint,
-      afterFingerprint: request.afterFingerprint,
-      captureScope: anyBroad ? "broad_fallback" : "focused",
-      outcomes: request.findings.map((f) => {
-        const persists = stableParity(f.findingId) === 1;
-        return persists
-          ? {
-              findingId: f.findingId,
-              outcome: "failed" as const,
-              confidence: 0.82,
-              reason: "The flagged issue is still present after the change.",
-            }
-          : {
-              findingId: f.findingId,
-              outcome: "passed" as const,
-              confidence: 0.86,
-              reason: "The flagged issue is no longer observed at the target.",
-            };
-      }),
-    };
+    const outcomes = request.findings.map((f) => {
+      const persists = stableParity(f.findingId) === 1;
+      return persists
+        ? {
+            findingId: f.findingId,
+            outcome: "failed" as const,
+            confidence: 0.82,
+            reason: "The flagged issue is still present after the change.",
+          }
+        : {
+            findingId: f.findingId,
+            outcome: "passed" as const,
+            confidence: 0.86,
+            reason: "The flagged issue is no longer observed at the target.",
+          };
+    });
+    return stampRecheckProvenance(
+      {
+        beforeFingerprint: request.beforeFingerprint,
+        afterFingerprint: request.afterFingerprint,
+        captureScope: anyBroad ? "broad_fallback" : "focused",
+        outcomes,
+      },
+      FIXTURE_RECHECK_PROVENANCE,
+    );
   }
 
   /**

@@ -482,6 +482,10 @@
                       "minimum": 0,
                       "maximum": 1,
                       "description": "Report-backed engine finding confidence, or null when calibration provenance is unavailable."
+                    },
+                    "unjudged": {
+                      "const": true,
+                      "description": "Present, and always true, when nothing judged the page this finding claims to describe."
                     }
                   },
                   "required": [
@@ -493,6 +497,20 @@
                     "viewport",
                     "confidence"
                   ]
+                }
+              },
+              "findings": {
+                "type": "array",
+                "description": "The agent-facing findings. Each item is self-describing: an agent iterating this array and applying suggestion never reads the envelope, so an item from a payload nothing judged carries its own marker.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "properties": {
+                    "unjudged": {
+                      "const": true,
+                      "description": "Present, and always true, when nothing judged the page this finding claims to describe: the same condition that sets grade to \"unjudged\". Absent otherwise, so its absence claims nothing on its own and provenance stays the authority."
+                    }
+                  }
                 }
               }
             },
@@ -562,6 +580,38 @@
               "items"
             ]
           },
+          "presentation": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "Emitted by the evidence view only: the honest capability downgrade, naming exactly what the calling host could not render rather than dropping it silently.",
+            "properties": {
+              "panel": {
+                "type": "boolean",
+                "description": "The interactive MCP-Apps HTML panel was emitted as a resource block."
+              },
+              "panel_withheld": {
+                "type": "boolean",
+                "description": "A panel was available but withheld because the host lacks MCP-Apps support."
+              },
+              "multimedia": {
+                "type": "boolean",
+                "description": "At least one annotated image block was emitted."
+              },
+              "images_withheld": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "evidence_ids whose annotated image was withheld for a non-multimedia host."
+              }
+            },
+            "required": [
+              "panel",
+              "panel_withheld",
+              "multimedia",
+              "images_withheld"
+            ]
+          },
           "recheck": {
             "type": "object",
             "additionalProperties": true
@@ -580,7 +630,7 @@
     {
       "name": "design_recheck",
       "title": "Submit design recheck",
-      "description": "Submit a metered recheck for findings from a completed review after the customer's agent changes the UI. This tool never edits code. Unchanged targets and exhausted recheck loops are rejected without running judgment. Reuse client_request_id on retries.",
+      "description": "Submit a metered recheck for findings from a completed review after the customer's agent changes the UI. This tool never edits code. Unchanged targets and exhausted recheck loops are rejected without running judgment. Check recheck.provenance before acting: when nothing judged the target every outcome is unjudged with a null confidence. Reuse client_request_id on retries.",
       "annotations": {
         "readOnlyHint": false,
         "destructiveHint": false,
@@ -746,19 +796,74 @@
                       "enum": [
                         "passed",
                         "failed",
-                        "inconclusive"
-                      ]
+                        "inconclusive",
+                        "unjudged"
+                      ],
+                      "description": "Per-finding verdict. Always \"unjudged\" when provenance.model_backed is false: no engine emits that value, the server substitutes it because nothing observed the target, and it is deliberately distinct from \"inconclusive\", which means something looked and could not tell."
                     },
                     "confidence": {
-                      "type": "number",
+                      "type": [
+                        "number",
+                        "null"
+                      ],
                       "minimum": 0,
-                      "maximum": 1
+                      "maximum": 1,
+                      "description": "Engine confidence in this outcome, or null when there is no verdict to be confident about. Always null when the outcome is \"unjudged\"."
                     },
                     "reason": {
-                      "type": "string"
+                      "type": "string",
+                      "description": "Why the outcome is what it is. When provenance.model_backed is false this is replaced, not annotated, and begins \"[bastion] no model judged this page\": a sentence asserting the issue is no longer observed at the target is never presented for a target nothing observed."
                     }
                   }
                 }
+              },
+              "provenance": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Where this recheck came from. Present on every recheck, on every backend, including the offline fixture path. A recheck is what an agent reads to decide its fix landed and it can stop working, so it checks this before believing any outcome below.",
+                "properties": {
+                  "model_backed": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "description": "true only when a vision model was called on a capture of the requested target; false when the server knows nothing judged the page; null when it cannot tell, which is the honest answer for a remote engine deployment. Treat anything other than true as not judged."
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "model",
+                      "canned",
+                      "fixture",
+                      "unknown"
+                    ]
+                  },
+                  "engine": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "Which adapter produced the result, e.g. bastion-fixture, verdict-cli, verdict-http."
+                  },
+                  "model": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 128,
+                    "description": "The judge model, when one was called; null on every other path."
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "model_backed",
+                  "source",
+                  "engine",
+                  "model",
+                  "detail"
+                ]
               }
             },
             "required": [
@@ -767,7 +872,8 @@
               "before_fingerprint",
               "after_fingerprint",
               "capture_scope",
-              "outcomes"
+              "outcomes",
+              "provenance"
             ]
           },
           "budget": {
@@ -866,7 +972,7 @@
     {
       "name": "design_review_panel_action",
       "title": "Act on a review panel finding",
-      "description": "Route an interaction from the interactive review panel: return a grounded finding's fix for the coding agent to apply, or the refs to re-verify. This tool never edits code \u2014 an advisory finding returns human_only, never an automatic fix. Reads only; consumes no review units.",
+      "description": "Route an interaction from the interactive review panel: return a grounded finding's fix for the coding agent to apply, or the refs to re-verify. This tool never edits code. An advisory finding returns human_only, never an automatic fix, and a review nothing judged returns unjudged with no fix at all. Reads only; consumes no review units.",
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
@@ -923,17 +1029,67 @@
           "review_id": {
             "type": "string"
           },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Where the review this action was routed from came from. A routed fix is a string the caller is expected to act on, so the payload says in-band whether anything judged the review that produced it. When model_backed is false, response.type is \"unjudged\" and no fix is returned.",
+            "properties": {
+              "model_backed": {
+                "type": [
+                  "boolean",
+                  "null"
+                ],
+                "description": "true only when a vision model was called on a capture of the requested target; false when the server knows nothing judged the page; null when it cannot tell, which is the honest answer for a remote engine deployment. Treat anything other than true as not judged."
+              },
+              "source": {
+                "type": "string",
+                "enum": [
+                  "model",
+                  "canned",
+                  "fixture",
+                  "unknown"
+                ]
+              },
+              "engine": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128,
+                "description": "Which adapter produced the result, e.g. bastion-fixture, verdict-cli, verdict-http."
+              },
+              "model": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 128,
+                "description": "The judge model, when one was called; null on every other path."
+              },
+              "detail": {
+                "type": "string",
+                "maxLength": 1000
+              }
+            },
+            "required": [
+              "model_backed",
+              "source",
+              "engine",
+              "model",
+              "detail"
+            ]
+          },
           "response": {
             "type": "object",
-            "description": "The panel reducer's routed response: a grounded fix for the coding agent, a human_only referral, or the recheck refs.",
+            "description": "The panel reducer's routed response: a grounded fix for the coding agent, a human_only referral, an unjudged refusal when nothing judged the review, or the recheck refs.",
             "properties": {
               "type": {
                 "type": "string",
                 "enum": [
                   "fix",
                   "human_only",
+                  "unjudged",
                   "recheck"
-                ]
+                ],
+                "description": "\"unjudged\" is returned for apply_fix whenever provenance.model_backed is false: there is no fix to hand over and no advisory judgment to refer to a human, so neither is invented."
               },
               "finding_id": {
                 "type": "string"
@@ -957,6 +1113,7 @@
           "schema_version",
           "job_id",
           "review_id",
+          "provenance",
           "response"
         ]
       }

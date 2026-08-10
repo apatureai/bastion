@@ -1,7 +1,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
+import type { EngineRecheckResult, EngineReviewResult } from "@apature/mcp-types";
+import { loadGoldenEngineResult } from "@apature/mcp-types";
 import { createMcpReviewServer } from "../src/index.js";
+import type { EngineClient, EngineRecheckRequest } from "../src/engine-client.js";
+import type { NormalizedReviewRequest } from "../src/normalize.js";
+import { stampProvenance, verdictCliProvenance } from "../src/provenance.js";
 
 /**
  * `design_review_panel_action`: the live call site for the panel producer and the
@@ -10,19 +15,34 @@ import { createMcpReviewServer } from "../src/index.js";
  *
  * Load-bearing (the product boundary): apply_fix RETURNS a fix for the coding agent
  * and never edits; a finding the projection judged advisory can only come back
- * human_only; recheck returns refs that are valid design_recheck arguments; and the
- * tool is metered-free and readOnly, because it creates no job.
+ * human_only; a review NOTHING judged comes back unjudged with no fix string at
+ * all, because a fixture-derived instruction handed to a coding agent is the
+ * failure this surface exists to prevent; recheck returns refs that are valid
+ * design_recheck arguments; and the tool is metered-free and readOnly, because it
+ * creates no job.
  */
+
+/** A backend standing in for a real, live, model-backed verdict run. */
+class LiveModelEngine implements EngineClient {
+  async review(_request: NormalizedReviewRequest): Promise<EngineReviewResult> {
+    const result = loadGoldenEngineResult();
+    return stampProvenance(result, verdictCliProvenance("live", result));
+  }
+  async recheck(_request: EngineRecheckRequest): Promise<EngineRecheckResult> {
+    throw new Error("not used");
+  }
+}
 
 type ToolResult = {
   isError?: boolean;
   structuredContent?: Record<string, unknown>;
 };
 
-async function connect() {
+async function connect(engine?: EngineClient) {
   const server = createMcpReviewServer({
     allowlist: { tenantId: "tenant-test", targets: [{ kind: "host", host: "preview.example.com" }] },
     resolver: { resolve: async () => ["93.184.216.34"] },
+    ...(engine ? { engine } : {}),
   });
   const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
   const client = new Client({ name: "panel-tool-test", version: "0.0.0" });
@@ -59,7 +79,7 @@ describe("design_review_panel_action", () => {
   });
 
   it("apply_fix returns a grounded finding's fix for the coding agent to apply", async () => {
-    const client = await connect();
+    const client = await connect(new LiveModelEngine());
     const jobId = await completedJob(client);
     const result = await act(client, { job_id: jobId, action: "apply_fix", finding_id: "f_001" });
 
@@ -71,6 +91,30 @@ describe("design_review_panel_action", () => {
     });
     expect(result.structuredContent?.job_id).toBe(jobId);
     expect(String(result.structuredContent?.review_id)).toMatch(/^rev_/);
+    // The routed fix is a string the caller acts on, so the payload says where
+    // the judgment behind it came from without a second call.
+    expect(result.structuredContent?.provenance).toMatchObject({
+      model_backed: true,
+      source: "model",
+    });
+  });
+
+  it("apply_fix on a review nothing judged returns unjudged and no fix string", async () => {
+    // Default server = fixture engine. The suggestion on f_001 is invented, so
+    // the one thing this tool must never do is hand it to a coding agent.
+    const client = await connect();
+    const jobId = await completedJob(client);
+    const result = await act(client, { job_id: jobId, action: "apply_fix", finding_id: "f_001" });
+
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent?.response).toEqual({ type: "unjudged", finding_id: "f_001" });
+    expect(result.structuredContent?.provenance).toMatchObject({
+      model_backed: false,
+      source: "fixture",
+      engine: "bastion-fixture",
+    });
+    // Decidable from the serialized payload alone, which is all an agent has.
+    expect(JSON.stringify(result.structuredContent)).not.toContain("--color-accent");
   });
 
   it("recheck returns every finding's ref, and one finding's ref when scoped", async () => {

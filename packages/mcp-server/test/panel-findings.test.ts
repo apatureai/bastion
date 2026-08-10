@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { toPanelFinding, buildPanelFindings, type ReviewFixItem } from "../src/panel-findings.js";
 import { handlePanelAction } from "../src/panel-interaction.js";
+import { verdictCliProvenance } from "../src/provenance.js";
+
+/** These fixtures stand in for a review a model actually judged. */
+const JUDGED = verdictCliProvenance("live");
 
 /**
  * Panel findings producer (#64): the review-side half of the panel contract.
@@ -44,17 +48,17 @@ describe("buildPanelFindings — an ordered worklist that drives the reducer", (
 
   it("the produced findings drive handlePanelAction end-to-end (grounded→fix, advisory→human)", () => {
     const findings = buildPanelFindings([{ ...grounded, axis: "drift" }, { ...advisory, axis: "rendered-review" }]);
-    expect(handlePanelAction({ type: "apply_fix", finding_id: "drift:color.brand" }, findings)).toEqual({
+    expect(handlePanelAction({ type: "apply_fix", finding_id: "drift:color.brand" }, findings, JUDGED)).toEqual({
       type: "fix",
       finding_id: "drift:color.brand",
       fix: "Use token color.brand",
     });
-    expect(handlePanelAction({ type: "apply_fix", finding_id: "rendered-review:hero" }, findings)).toEqual({
+    expect(handlePanelAction({ type: "apply_fix", finding_id: "rendered-review:hero" }, findings, JUDGED)).toEqual({
       type: "human_only",
       finding_id: "rendered-review:hero",
     });
     // recheck (whole review) gathers each finding's ref.
-    expect(handlePanelAction({ type: "recheck" }, findings)).toEqual({
+    expect(handlePanelAction({ type: "recheck" }, findings, JUDGED)).toEqual({
       type: "recheck",
       refs: ["color.brand", "hero"],
     });

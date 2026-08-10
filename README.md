@@ -54,13 +54,13 @@ connected to apature-mcp-review v1.2.0 over stdio
     review rev_60ed3a95-21cd-4188-8660-51a5727bf1fa -> grade unjudged
     provenance: model_backed=false source=fixture engine=bastion-fixture
     No model judged this page, so there is no assessment of it: the offline fixture engine replayed the golden result in @apature/mcp-types; it describes a fictional pricing page and not the target that was requested. Any findings below are not observations of the target.
-    f_001  should_fix Primary CTA uses an off-brand color on mobile
+    f_001  should_fix [unjudged] Primary CTA uses an off-brand color on mobile
              /pricing (mobile) button[data-testid='cta-primary']
              fix: Apply the `--color-accent` token (or the `btn-primary` class) so the CTA matches the brand accent used elsewhere.
-    f_002  should_fix Pricing card grid overflows the mobile viewport
+    f_002  should_fix [unjudged] Pricing card grid overflows the mobile viewport
              /pricing (mobile) .pricing-grid
              fix: Switch the grid to a single column under the `sm` breakpoint.
-    f_003  nit        Inconsistent vertical rhythm between feature rows
+    f_003  nit        [unjudged] Inconsistent vertical rhythm between feature rows
              /pricing (desktop) .feature-row
              fix: Use a single spacing token for consistent vertical rhythm.
     not reviewed: [bastion] no model judged this page: the offline fixture engine replayed the golden result in @apature/mcp-types; it describes a fictional pricing page and not the target that was requested. The grade is reported as "unjudged" and nothing in this result is a judgment of the target. See the README section "Getting real judgments" to configure a critique backend.
@@ -76,13 +76,15 @@ connected to apature-mcp-review v1.2.0 over stdio
     wrote out/review.json and out/panel.html
 
 [7] design_review_panel_action  apply_fix  (eyes, not hands)
-    f_001 -> fix
-    hand to the coding agent: Apply the `--color-accent` token (or the `btn-primary` class) so the CTA matches the brand accent used elsewhere.
+    f_001 -> unjudged
+    nothing to hand over: no model judged this review, so its fix text is fixture text
 
 [8] design_recheck  after the agent claims a fix
-    f_001  passed       The flagged issue is no longer observed at the target.
-    f_002  failed       The flagged issue is still present after the change.
-    f_003  passed       The flagged issue is no longer observed at the target.
+    provenance: model_backed=false source=fixture engine=bastion-fixture
+    f_001  unjudged     confidence=null
+    f_002  unjudged     confidence=null
+    f_003  unjudged     confidence=null
+    reason on every outcome: [bastion] no model judged this page: the offline fixture engine derived each outcome from a hash of the finding id; nothing captured, compared or observed the target before or after the change. The outcome is reported as "unjudged": whether this finding is resolved at the target is unknown, and nothing here is an observation of it. See the README section "Getting real judgments" to configure a critique backend.
 
 [9] design_review  https://evil.example.org/  (SSRF boundary)
     rejected: DOMAIN_UNVERIFIED (next_action: verify_domain)
@@ -121,17 +123,42 @@ The rule an agent can code against, in one line: **trust the result only when `p
 
 | `model_backed` | when | what the payload does |
 | --- | --- | --- |
-| `false` | the fixture engine; verdict run with `--model mock` or `--model canned` | `grade` is `"unjudged"`, `confidence` is `null`, `overall` says no model judged the page instead of describing one, and `not_reviewed[0]` starts `[bastion] no model judged this page` |
+| `false` | the fixture engine; verdict run with `--model mock` or `--model canned` | `grade` is `"unjudged"`, `confidence` is `null`, `overall` says no model judged the page instead of describing one, `not_reviewed[0]` starts `[bastion] no model judged this page`, and every finding carries `"unjudged": true` |
 | `true` | verdict run with `--model live`: Chromium captured your target and a vision model judged the capture | the engine's grade, narrative, confidence and findings pass through untouched, and `provenance.model` names the judge |
 | `null` | a remote verdict deployment over its job API | the grade passes through, because a real judgment may well be behind it, but this process cannot see how that deployment's model is configured and does not claim to |
+
+#### Every payload an agent acts on, not only the review
+
+A stamp on the review body alone is not enough, because the review body is not the only thing an agent reads and acts on. Three other payloads carry it, each for its own reason.
+
+**The recheck.** `design_recheck` is the payload an agent reads to decide its fix landed and it can stop working, which makes it the most consequential one in the surface. Against the fixture engine nothing captures, compares, or observes anything: each outcome comes from a hash of the finding id. So the recheck is stamped like the review, and on an unjudged path the outcome is `"unjudged"`, the confidence is `null`, and the reason is replaced rather than annotated:
+
+```json
+"outcomes": [
+  {
+    "finding_id": "f_001",
+    "outcome": "unjudged",
+    "confidence": null,
+    "reason": "[bastion] no model judged this page: the offline fixture engine derived each outcome from a hash of the finding id; nothing captured, compared or observed the target before or after the change. ..."
+  }
+],
+"provenance": { "model_backed": false, "source": "fixture", "engine": "bastion-fixture", "model": null, "detail": "..." }
+```
+
+`"unjudged"` is deliberately not `"inconclusive"`. Inconclusive means something looked at the target and could not tell, which is a real observation and a far stronger claim than the truth here.
+
+**The panel action.** `design_review_panel_action` returns a `fix` string the caller is expected to hand to a coding agent. When nothing judged the review that string is invented, so it is not returned at all: the response is `{ "type": "unjudged", "finding_id": "..." }` and the payload carries the review's `provenance` alongside it. It is not `human_only` either, because there is no advisory judgment to refer to a person.
+
+**Each finding.** An agent iterating `findings[]` and applying each `suggestion` never reads the envelope; it holds one array element at a time. Every finding in an unjudged payload therefore carries `"unjudged": true` itself. The field is absent otherwise, so its absence claims nothing and `provenance` stays the authority.
 
 Three details that make the claim checkable rather than decorative:
 
 - **`unjudged` is not an engine value.** No backend emits it. Bastion substitutes it, and only when `model_backed` is `false`. It is an explicit value rather than a null or a dropped key because a missing field reads as an older payload and invites a default, and because it sits outside the `ship`..`blocked` ordering, so a consumer comparing against a threshold gets no answer instead of a flattering one.
 - **The narrative is replaced, not annotated.** The fixture's prose is about a pricing page that does not exist. Presenting it as a description of your page would be the same lie as the grade, just in longer form, so on an unjudged path it does not appear at all.
 - **A backend cannot certify itself.** `provenance` is Bastion's statement, not the engine's. `parseEngineReviewResult` strips any `provenance` that arrives on the wire, and the adapter that fetched the result stamps its own immediately afterwards.
+- **The contract is enforced by a validator, not by a key check.** `packages/mcp-server/test/schema-conformance.test.ts` validates the structured content of every tool result, on both the judged and the unjudged path, against `schemas/mcp-tools.json` with Ajv in Draft 2020-12 mode. A presence check cannot see a field the payload emits and the schema does not declare; a validator can, and every output schema in the catalog sets `additionalProperties: false`.
 
-Where to verify each of these in the source: the stamps are minted in `packages/mcp-server/src/provenance.ts`, applied by `MockEngineClient` (`engine-client.ts`), `VerdictCliEngineClient` (`verdict-cli-engine.ts`), `VerdictJobEngineClient` (`verdict-job-engine.ts`) and `JudgmentEngineHttpClient` (`engine-http-client.ts`); the suppression rule is enforced in one place, `mapEngineResultToCritique` (`critique-map.ts`), through which every path into a `Critique` runs; the wire strip is in `parseEngineReviewResult` (`engine-result.ts`); the field is required by `schemas/mcp-tools.json`; and `packages/mcp-server/test/provenance.test.ts` asserts, over the real MCP transport and against the round-tripped JSON only, that a fixture-path payload is distinguishable from a model-backed one.
+Where to verify each of these in the source: the stamps are minted in `packages/mcp-server/src/provenance.ts`, applied by `MockEngineClient` (`engine-client.ts`), `VerdictCliEngineClient` (`verdict-cli-engine.ts`), `VerdictJobEngineClient` (`verdict-job-engine.ts`) and `JudgmentEngineHttpClient` (`engine-http-client.ts`); the suppression rule is enforced in one place per payload, `mapEngineResultToCritique` (`critique-map.ts`) for reviews and `mapEngineRecheckToRecheck` (`recheck-map.ts`) for rechecks, through which every path into a `Critique` or a `Recheck` runs, plus `handlePanelAction` (`panel-interaction.ts`) for the routed fix; the wire strip is in `parseEngineReviewResult` (`engine-result.ts`); the field is required by `schemas/mcp-tools.json`; and `packages/mcp-server/test/provenance.test.ts` asserts, over the real MCP transport and against the round-tripped JSON only, that a fixture-path payload is distinguishable from a model-backed one.
 
 ### Connect your own MCP client
 
@@ -279,7 +306,7 @@ That is also why there is no way to review `http://localhost:3000` through this 
 | Grade in the payload | `"unjudged"` | `"unjudged"` | the engine's grade |
 | `provenance.model_backed` | `false` | `false` | `true` |
 | Cost | none | none | your endpoint's per-call price |
-| `design_recheck` | yes, fixture outcomes | no, see below | no, see below |
+| `design_recheck` | yes, but every outcome is `"unjudged"` | no, see below | no, see below |
 
 ### Configuring the backend
 
@@ -298,6 +325,8 @@ That is also why there is no way to review `http://localhost:3000` through this 
 Half-configured states fail at startup rather than degrading to fixtures: a base URL with no signing secret, a live model with no endpoint, an unbuilt verdict checkout, and an unknown mode name each stop the server with the reason.
 
 ### What is not wired yet
+
+**`design_recheck` reports `"unjudged"` on the fixture path, and does not work against either verdict backend.** The fixture engine derives each outcome from a hash of the finding id, so the recheck payload says so: `outcome` is `"unjudged"`, `confidence` is `null`, and `provenance.model_backed` is `false`. It exercises the recheck protocol, the budgets and the rate limits; it tells you nothing about your page.
 
 **`design_recheck` does not work against either verdict backend.** Verdict exposes no per-finding recheck, over the CLI or over its job API. Bastion could re-review the target and guess which findings matched, but a guess presented as a per-finding verdict is worse than an error, so both adapters refuse with that reason and `design_recheck` stays usable only against the fixture engine. The seam to fill is `EngineClient.recheck` in `src/engine-client.ts`, and the honest implementation needs a recheck surface upstream.
 
@@ -355,9 +384,9 @@ Most MCP servers are thin wrappers: one tool call maps to one function call, ret
 |---|---|---|
 | `design_review` | yes | Submit an async review of an authorized HTTPS preview (routes, viewports, `triage`/`deep` depth). Returns a job. |
 | `design_review_get` | no | Poll job status or read the result in one of five views. |
-| `design_recheck` | yes | Re-judge 1 to 20 findings from a completed review after the agent changed the UI. Rejects a host change or an unchanged target. Available against the fixture engine only; see [What is not wired yet](#what-is-not-wired-yet). |
+| `design_recheck` | yes | Re-judge 1 to 20 findings from a completed review after the agent changed the UI. Rejects a host change or an unchanged target. Runs against the fixture engine only, where every outcome comes back `"unjudged"`; see [What is not wired yet](#what-is-not-wired-yet). |
 | `design_review_cancel` | no | Best-effort cancel of a queued or running job; requires the `reviews:cancel` scope. |
-| `design_review_panel_action` | no | Route a review-panel interaction: return a grounded finding's fix for the agent, or the refs to re-verify. |
+| `design_review_panel_action` | no | Route a review-panel interaction: return a grounded finding's fix for the agent, or the refs to re-verify. Returns `unjudged`, and no fix, when nothing judged the review. |
 
 MCP annotations are set from the truth rather than from the marketing: only `design_review_get` and `design_review_panel_action` carry `readOnlyHint: true`, because submit and recheck create metered jobs and cancel terminates one. "Read-only" describes the customer's code, not every tool.
 
@@ -369,7 +398,7 @@ MCP annotations are set from the truth rather than from the marketing: only `des
 | `summary` (default) | Job plus the full `Critique`, including its `provenance`. |
 | `findings` | Same body as `summary`; the `Critique` already carries every finding inline. |
 | `focus` | Job plus the `Critique` narrowed to actionable findings: `blocker` and `should_fix`, with nits dropped. |
-| `evidence` | Job, `Critique`, MCP content blocks (panel, text, images), and a `presentation` object naming what the host could not render. |
+| `evidence` | Job, `Critique`, MCP content blocks (panel, text, images), and a `presentation` object naming what the host could not render. `presentation` is declared in the catalog's output schema, so a strict client validating against it accepts this view. |
 
 ### The eyes-not-hands boundary, in code
 
@@ -379,7 +408,7 @@ MCP annotations are set from the truth rather than from the marketing: only `des
 2. projects it into fix items (`reviewFixItemsFromCritique`), where a finding is **grounded** only if it is localizable (`element_ref`) *and* carries a concrete repair constraint (`suggestion`); anything else is **advisory**;
 3. runs the pure reducer (`handlePanelAction`).
 
-A grounded finding comes back as `{ "type": "fix", "fix": "..." }`, and that fix is *for the host to hand to the coding agent*. An advisory finding comes back `{ "type": "human_only" }`, never an auto-fix. "Resolved" is a recheck verdict the service earns, not a status the panel can set.
+A grounded finding comes back as `{ "type": "fix", "fix": "..." }`, and that fix is *for the host to hand to the coding agent*. An advisory finding comes back `{ "type": "human_only" }`, never an auto-fix. A finding from a review nothing judged comes back `{ "type": "unjudged" }` with no fix string in the payload at all, because on that path the instruction is fixture text and handing fixture text to a coding agent is precisely the failure this boundary exists to prevent. "Resolved" is a recheck verdict the service earns, not a status the panel can set.
 
 ## How it works
 
@@ -401,7 +430,7 @@ A recheck adds: the prior review must exist and be completed; every requested fi
 
 ### What is real and what is synthetic offline
 
-This is the unconfigured server, the one `pnpm demo` drives. [Getting real judgments](#getting-real-judgments) changes the last three rows.
+This is the unconfigured server, the one `pnpm demo` drives. [Getting real judgments](#getting-real-judgments) replaces the fixture findings and the withheld panel fix; the rows below say what each part does until then, and which of them a verdict backend does not change.
 
 | Part | Offline behaviour |
 |---|---|
@@ -409,7 +438,9 @@ This is the unconfigured server, the one `pnpm demo` drives. [Getting real judgm
 | Target authorization, egress classification, DNS-rebind rejection | Real (runs on every submit) |
 | Job lifecycle, idempotency, budgets, recheck rejection and throttling | Real |
 | Views, content blocks, panel projection and reducer | Real |
-| The findings themselves | **Fixture, and the payload says so.** A golden engine result about a fictional pricing page, not a judgment of the URL you passed: `provenance.model_backed` is `false`, the grade is `"unjudged"`, and `not_reviewed[0]` discloses it. Set `VERDICT_CLI` and they are a real critique of your page. See [Provenance](#provenance-did-anything-judge-this-page) |
+| The findings themselves | **Fixture, and the payload says so.** A golden engine result about a fictional pricing page, not a judgment of the URL you passed: `provenance.model_backed` is `false`, the grade is `"unjudged"`, every finding carries `"unjudged": true`, and `not_reviewed[0]` discloses it. Set `VERDICT_CLI` and they are a real critique of your page. See [Provenance](#provenance-did-anything-judge-this-page) |
+| Recheck outcomes | **Fixture, and the payload says so.** Derived from a hash of the finding id, so every outcome is `"unjudged"` with a `null` confidence and a reason that claims no observation of your target. Not available against a verdict backend at all; see [What is not wired yet](#what-is-not-wired-yet) |
+| A routed panel fix | **Withheld.** `design_review_panel_action` returns `unjudged` rather than handing fixture text to a coding agent |
 | DNS | **Stub for the demo host only.** `preview.example.com` is answered from a constant so the demo makes no network call; every other host, including any you add, goes to the system resolver and is then classified for real |
 | Evidence crops | **Placeholder.** Deterministic generated PNGs where the engine's annotated screenshots would be. Verdict's own screenshots are written to `out/verdict/<run>/screenshots` when a backend is configured |
 
@@ -470,11 +501,12 @@ packages/mcp-server/
   src/egress.ts                    pure IP classification (private/loopback/metadata/reserved)
   src/rate-limit.ts                recheck budgets, per-finding windows, backoff
   src/critique-map.ts              engine result -> agent-facing Critique, and the unjudged rule
+  src/recheck-map.ts               engine recheck -> agent-facing Recheck, same unjudged rule
   src/provenance.ts                where every provenance stamp is minted, one module
   src/multimedia-content.ts        content-block shaping with capability downgrade
   src/panel-html.ts                the MCP-Apps panel document (escaped, self-contained)
   src/panel-findings.ts            Critique -> fix items -> PanelFindings
-  src/panel-interaction.ts         the pure panel reducer (grounded -> agent, advisory -> human)
+  src/panel-interaction.ts         the pure panel reducer (grounded -> agent, advisory -> human, unjudged -> nobody)
   src/evidence.ts                  EvidenceProvider seam, where annotated crops come from
   src/synthetic-evidence.ts        deterministic placeholder PNG encoder (offline evidence)
   src/http-server.ts               Streamable HTTP edge: PRM discovery, auth, limits, health
@@ -502,8 +534,8 @@ $ pnpm test
 
  RUN  v4.1.10
 
- Test Files  33 passed | 1 skipped (34)
-      Tests  302 passed | 2 skipped (304)
+ Test Files  35 passed | 1 skipped (36)
+      Tests  328 passed | 2 skipped (330)
 ```
 
 ```bash
@@ -515,7 +547,7 @@ pnpm review <https url>                                    # one review through 
 pnpm clean                                                 # remove build output
 ```
 
-The skipped file is `packages/mcp-server/test/production-postgres.test.ts`, which exercises migration arbitration against a real database and only runs when `MCP_TEST_DATABASE_URL` is set. With one supplied the suite is 34 files / 304 tests, all passing:
+The skipped file is `packages/mcp-server/test/production-postgres.test.ts`, which exercises migration arbitration against a real database and only runs when `MCP_TEST_DATABASE_URL` is set. With one supplied the suite is 36 files / 330 tests, all passing:
 
 ```bash
 docker run --rm -d -p 5432:5432 \

@@ -13,6 +13,7 @@ import type {
 } from "@apature/mcp-types";
 import { SCHEMA_VERSION } from "@apature/mcp-types";
 import { mapEngineResultToCritique } from "./critique-map.js";
+import { mapEngineRecheckToRecheck } from "./recheck-map.js";
 import { isTerminalStatus, mapEngineStatusToMcp } from "./engine-cancel.js";
 import type { EngineClient, EngineJobClient, EngineJobPoll } from "./engine-client.js";
 import { MockEngineClient } from "./engine-client.js";
@@ -456,19 +457,9 @@ export class ReviewService {
       now: nowMs,
     });
 
-    const recheck: Recheck = {
-      recheck_id: recheckId,
-      review_id: review.reviewId,
-      before_fingerprint: engineResult.beforeFingerprint,
-      after_fingerprint: engineResult.afterFingerprint,
-      capture_scope: engineResult.captureScope,
-      outcomes: engineResult.outcomes.map((o) => ({
-        finding_id: o.findingId,
-        outcome: o.outcome,
-        confidence: o.confidence,
-        reason: o.reason,
-      })),
-    };
+    // One mapper for every backend, so the fixture path cannot quietly skip the
+    // "nothing judged this target" rule that a real backend would be held to.
+    const recheck: Recheck = mapEngineRecheckToRecheck(recheckId, review.reviewId, engineResult);
 
     const completedAt = this.now();
     const job: Job = {

@@ -100,7 +100,13 @@ describe("createLocalReviewServer", () => {
       action: "apply_fix",
       finding_id: "f_001",
     });
-    expect((applied.structuredContent?.response as { type: string }).type).toBe("fix");
+    // The local server judges from a fixture, so no fix is handed over: the
+    // panel action reports `unjudged` and the payload says why.
+    expect((applied.structuredContent?.response as { type: string }).type).toBe("unjudged");
+    expect(applied.structuredContent?.provenance).toMatchObject({
+      model_backed: false,
+      source: "fixture",
+    });
 
     const recheck = await call(client, "design_recheck", {
       review_id: review.review_id,
@@ -108,10 +114,18 @@ describe("createLocalReviewServer", () => {
       expected_revision: "deploy-2",
       client_request_id: "local-e2e-0002",
     });
-    const outcomes = (recheck.structuredContent?.recheck as { outcomes: Array<{ outcome: string }> })
-      .outcomes;
+    const outcomes = (
+      recheck.structuredContent?.recheck as {
+        outcomes: Array<{ outcome: string; confidence: number | null }>;
+      }
+    ).outcomes;
     expect(outcomes).toHaveLength(3);
-    expect(outcomes.every((o) => ["passed", "failed", "inconclusive"].includes(o.outcome))).toBe(true);
+    // Nothing captured or compared anything, so no outcome claims an
+    // observation of the target and none carries a confidence.
+    expect(outcomes.every((o) => o.outcome === "unjudged")).toBe(true);
+    expect(outcomes.every((o) => o.confidence === null)).toBe(true);
+    expect((recheck.structuredContent?.recheck as { provenance: { source: string } }).provenance)
+      .toMatchObject({ model_backed: false, source: "fixture" });
   });
 
   it("still enforces the SSRF boundary: an unverified host is rejected", async () => {

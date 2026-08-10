@@ -197,10 +197,18 @@ export type EngineRecheckOutcome = {
  * The engine's recheck result: a re-judgment of selected prior findings after
  * the target changed. `captureScope` discloses whether the engine could focus
  * capture on the flagged elements or had to fall back to a broader capture.
+ *
+ * `provenance` is Bastion's attestation, stamped by the adapter that produced
+ * the result, exactly as on `EngineReviewResult`. A recheck is the payload an
+ * agent reads to decide its fix landed and that it can stop, so "did anything
+ * look at the target" has to be answerable here too. It is optional only so a
+ * custom adapter that does not attest still compiles; an unstamped result is
+ * read as `unknown`, never as judged.
  */
 export type EngineRecheckResult = {
   beforeFingerprint: string;
   afterFingerprint: string;
   captureScope: "focused" | "broad_fallback";
   outcomes: EngineRecheckOutcome[];
+  provenance?: JudgmentProvenance;
 };

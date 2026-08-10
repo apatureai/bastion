@@ -1,4 +1,8 @@
-import type { EngineReviewResult, JudgmentProvenance } from "@apature/mcp-types";
+import type {
+  EngineRecheckResult,
+  EngineReviewResult,
+  JudgmentProvenance,
+} from "@apature/mcp-types";
 
 /**
  * Where every judgment-provenance stamp in this server is minted.
@@ -29,6 +33,26 @@ export const FIXTURE_PROVENANCE: JudgmentProvenance = {
   detail:
     "the offline fixture engine replayed the golden result in @apature/mcp-types; " +
     "it describes a fictional pricing page and not the target that was requested",
+};
+
+/**
+ * Provenance for the offline fixture engine's RECHECK stand-in.
+ *
+ * Separate from `FIXTURE_PROVENANCE` because the two lie in different ways and
+ * a reader deserves the specific one. A fixture review replays a stored result
+ * about a fictional page; a fixture recheck replays nothing at all, it derives
+ * each outcome from a hash of the finding id. No capture, no comparison, no
+ * before and after. The detail says exactly that, because this is the payload
+ * an agent reads to decide its fix landed and it can stop working.
+ */
+export const FIXTURE_RECHECK_PROVENANCE: JudgmentProvenance = {
+  model_backed: false,
+  source: "fixture",
+  engine: "bastion-fixture",
+  model: null,
+  detail:
+    "the offline fixture engine derived each outcome from a hash of the finding id; " +
+    "nothing captured, compared or observed the target before or after the change",
 };
 
 /**
@@ -109,6 +133,25 @@ export function noModelDisclosure(provenance: JudgmentProvenance): string {
 }
 
 /**
+ * The `reason` put on every outcome of a recheck nothing judged.
+ *
+ * The fixture stand-in's own reasons are the dangerous kind of sentence: "the
+ * flagged issue is no longer observed at the target" asserts an observation of
+ * a specific place at a specific time, and an agent reading it stops working.
+ * So the reason is replaced, not annotated, exactly as the review narrative is,
+ * and it starts with the same greppable prefix as the `not_reviewed`
+ * disclosure so one string finds every unjudged claim in the surface.
+ */
+export function unjudgedRecheckReason(provenance: JudgmentProvenance): string {
+  return (
+    `${NO_MODEL_DISCLOSURE_PREFIX}: ${provenance.detail}. ` +
+    `The outcome is reported as "unjudged": whether this finding is resolved at the target is ` +
+    "unknown, and nothing here is an observation of it. " +
+    "See the README section \"Getting real judgments\" to configure a critique backend."
+  );
+}
+
+/**
  * Attach Bastion's attestation to an engine result, replacing anything that
  * arrived under that name. Overwriting rather than merging is the point: the
  * stamp must be this process's statement, never a backend's claim about itself.
@@ -117,5 +160,16 @@ export function stampProvenance(
   result: EngineReviewResult,
   provenance: JudgmentProvenance,
 ): EngineReviewResult {
+  return { ...result, provenance };
+}
+
+/**
+ * The recheck twin of `stampProvenance`, and overwriting for the same reason: a
+ * backend must not be able to certify its own recheck as model-backed.
+ */
+export function stampRecheckProvenance(
+  result: EngineRecheckResult,
+  provenance: JudgmentProvenance,
+): EngineRecheckResult {
   return { ...result, provenance };
 }

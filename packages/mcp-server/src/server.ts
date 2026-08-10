@@ -350,7 +350,9 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
       description:
         "Submit a metered recheck for findings from a completed review after the customer's agent " +
         "changes the UI. This tool never edits code. Unchanged targets and exhausted recheck loops " +
-        "are rejected without running judgment. Reuse client_request_id on retries.",
+        "are rejected without running judgment. Check recheck.provenance before acting: when nothing " +
+        "judged the target every outcome is unjudged with a null confidence. Reuse client_request_id " +
+        "on retries.",
       inputSchema: designRecheckInputShape,
       annotations: {
         readOnlyHint: false,
@@ -463,8 +465,9 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
       title: "Act on a review panel finding",
       description:
         "Route an interaction from the interactive review panel: return a grounded finding's fix for " +
-        "the coding agent to apply, or the refs to re-verify. This tool never edits code — an advisory " +
-        "finding returns human_only, never an automatic fix. Reads only; consumes no review units.",
+        "the coding agent to apply, or the refs to re-verify. This tool never edits code. An advisory " +
+        "finding returns human_only, never an automatic fix, and a review nothing judged returns " +
+        "unjudged with no fix at all. Reads only; consumes no review units.",
       inputSchema: designReviewPanelActionInputShape,
       annotations: {
         // Routes work by reading a completed review. It creates no job, spends no
@@ -496,7 +499,7 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
             ? { type: "apply_fix", finding_id: input.finding_id! }
             : { type: "recheck", ...(input.finding_id ? { finding_id: input.finding_id } : {}) };
         const panelFindings = buildPanelFindings(reviewFixItemsFromCritique(result.review));
-        const response = handlePanelAction(action, panelFindings);
+        const response = handlePanelAction(action, panelFindings, result.review.provenance);
         if (response.type === "unknown_finding") {
           return errorResult(
             "FINDING_NOT_FOUND",
@@ -508,6 +511,10 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
           schema_version: SCHEMA_VERSION,
           job_id: input.job_id,
           review_id: result.review.review_id,
+          // A routed `fix` is a string the caller is expected to act on, so this
+          // payload answers "did anything judge the review it came from?" on its
+          // own, without a second call back into design_review_get.
+          provenance: result.review.provenance,
           response,
         });
       } catch (err) {

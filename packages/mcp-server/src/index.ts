@@ -32,13 +32,16 @@ export type {
 export { VerdictJobEngineClient } from "./verdict-job-engine.js";
 export type { VerdictJobEngineOptions } from "./verdict-job-engine.js";
 // Judgment provenance: the stamp every backend applies at the engine boundary
-// and `critique-map.ts` enforces, so a payload states in-band whether anything
-// actually judged the page.
+// and `critique-map.ts` / `recheck-map.ts` enforce, so a payload states in-band
+// whether anything actually judged the page.
 export {
   FIXTURE_PROVENANCE,
+  FIXTURE_RECHECK_PROVENANCE,
   NO_MODEL_DISCLOSURE_PREFIX,
   stampProvenance,
+  stampRecheckProvenance,
   UNATTESTED_PROVENANCE,
+  unjudgedRecheckReason,
   verdictCliProvenance,
   verdictHttpProvenance,
 } from "./provenance.js";
@@ -115,6 +118,7 @@ export type { AllowlistResolver, ProductionHttpConfig } from "./http-server.js";
 export { createJwtVerifier } from "./jwt-verifier.js";
 export type { JwtVerifierConfig } from "./jwt-verifier.js";
 export { mapEngineResultToCritique } from "./critique-map.js";
+export { mapEngineRecheckToRecheck } from "./recheck-map.js";
 export {
   NormalizationError,
   normalizePreviewUrl,

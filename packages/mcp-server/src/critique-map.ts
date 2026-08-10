@@ -42,7 +42,20 @@ function mapSeverity(severity: EngineSeverity): CritiqueSeverity {
   }
 }
 
-function mapFinding(finding: EngineFinding, confidenceIsDisplayable: boolean): CritiqueFinding {
+/**
+ * `unjudged` is stamped on the ITEM, not only on the envelope, because the
+ * envelope is not what gets read. An agent that iterates `findings[]` and
+ * applies each `suggestion` never looks at `grade`, `overall` or `provenance`:
+ * it holds one array element at a time, and at that scope byte-identical
+ * fiction with no per-item marker is indistinguishable from a real finding. The
+ * marker is the envelope's own word rather than a second scheme, and it appears
+ * only on unjudged payloads, so its absence claims nothing on its own.
+ */
+function mapFinding(
+  finding: EngineFinding,
+  confidenceIsDisplayable: boolean,
+  unjudged: boolean,
+): CritiqueFinding {
   return {
     finding_id: finding.id,
     severity: mapSeverity(finding.severity),
@@ -58,6 +71,7 @@ function mapFinding(finding: EngineFinding, confidenceIsDisplayable: boolean): C
     suggestion: finding.suggestion,
     evidence_id: finding.screenshotId,
     confidence: confidenceIsDisplayable ? (finding.confidence ?? null) : null,
+    ...(unjudged ? { unjudged: true as const } : {}),
   };
 }
 
@@ -101,7 +115,9 @@ export function mapEngineResultToCritique(reviewId: string, result: EngineReview
     grade: unjudged ? "unjudged" : result.grade,
     confidence: confidenceIsDisplayable ? result.confidence : null,
     overall: unjudged ? unjudgedOverall(provenance) : result.overall,
-    findings: result.findings.map((finding) => mapFinding(finding, confidenceIsDisplayable)),
+    findings: result.findings.map((finding) =>
+      mapFinding(finding, confidenceIsDisplayable, unjudged),
+    ),
     not_reviewed: unjudged ? withDisclosure(result.notReviewed, provenance) : result.notReviewed,
     provenance,
   };
