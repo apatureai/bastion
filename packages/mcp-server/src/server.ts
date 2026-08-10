@@ -37,6 +37,8 @@ import {
   designReviewInputShape,
   designReviewPanelActionInputShape,
 } from "./tools.js";
+import { advertiseCatalogSchemas } from "./tool-catalog.js";
+import type { ToolListingMetadata } from "./tool-catalog.js";
 
 const SERVER_NAME = "apature-mcp-review";
 // Locked to directory/server.json `version` and schemas/mcp-tools.json
@@ -174,6 +176,95 @@ export interface McpReviewServerDeps extends ReviewServiceDeps {
 /** The `design_review_get` result views, narrowed to what this repo can produce. */
 type ReviewView = "status" | "summary" | "findings" | "focus" | "evidence";
 
+/**
+ * The listing metadata for the five v1 tools: what a client is told each tool is
+ * and how it behaves.
+ *
+ * The schemas are deliberately absent. `advertiseCatalogSchemas` serves those
+ * from schemas/mcp-tools.json, so the published catalog and the wire cannot
+ * drift apart. Prose and behavior hints stay here, in code, and the same object
+ * feeds both `registerTool` and the listing, so one edit reaches both.
+ */
+const DESIGN_REVIEW_LISTING: ToolListingMetadata = {
+  title: "Submit design review",
+  description:
+    "Submit an asynchronous, metered design review for a tenant-authorized HTTPS preview. " +
+    "This tool never edits code. Reuse client_request_id on retries, then poll design_review_get " +
+    "no faster than poll_after_ms.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  _meta: { "com.apature/metered": true, "com.apature/product": "mcp-review" },
+};
+
+const DESIGN_REVIEW_GET_LISTING: ToolListingMetadata = {
+  title: "Get design review",
+  description:
+    "Get status or a compact, focused, or evidence view for an existing review job. Poll no " +
+    "faster than the returned poll_after_ms. Result reads do not consume review units.",
+  annotations: {
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  _meta: { "com.apature/metered": false, "com.apature/product": "mcp-review" },
+};
+
+const DESIGN_RECHECK_LISTING: ToolListingMetadata = {
+  title: "Submit design recheck",
+  description:
+    "Submit a metered recheck for findings from a completed review after the customer's agent " +
+    "changes the UI. This tool never edits code. Unchanged targets and exhausted recheck loops " +
+    "are rejected without running judgment. Check recheck.provenance before acting: when nothing " +
+    "judged the target every outcome is unjudged with a null confidence. Reuse client_request_id " +
+    "on retries.",
+  annotations: {
+    readOnlyHint: false,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: true,
+  },
+  _meta: { "com.apature/metered": true, "com.apature/product": "mcp-review" },
+};
+
+const DESIGN_REVIEW_CANCEL_LISTING: ToolListingMetadata = {
+  title: "Cancel design review",
+  description:
+    "Request best-effort cancellation of a queued or running review job. Terminal jobs keep their " +
+    "existing state. Cancellation does not edit customer systems and consumes no review units.",
+  annotations: {
+    // Mutates Apature service job state (not customer systems), and an
+    // exact retry returns the same terminal state, so it is idempotent.
+    readOnlyHint: false,
+    destructiveHint: true,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  _meta: { "com.apature/metered": false, "com.apature/product": "mcp-review" },
+};
+
+const DESIGN_REVIEW_PANEL_ACTION_LISTING: ToolListingMetadata = {
+  title: "Act on a review panel finding",
+  description:
+    "Route an interaction from the interactive review panel: return a grounded finding's fix for " +
+    "the coding agent to apply, or the refs to re-verify. This tool never edits code. An advisory " +
+    "finding returns human_only, never an automatic fix, and a review nothing judged returns " +
+    "unjudged with no fix at all. Reads only; consumes no review units.",
+  annotations: {
+    // Routes work by reading a completed review. It creates no job, spends no
+    // units, and changes nothing on either side of the boundary.
+    readOnlyHint: true,
+    destructiveHint: false,
+    idempotentHint: true,
+    openWorldHint: false,
+  },
+  _meta: { "com.apature/metered": false, "com.apature/product": "mcp-review" },
+};
+
 /** `focus` = the actionable subset: blockers and should-fixes, nits dropped. */
 function narrowToFocus(critique: Critique): Critique {
   return { ...critique, findings: critique.findings.filter((f) => f.severity !== "nit") };
@@ -244,21 +335,7 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
 
   server.registerTool(
     "design_review",
-    {
-      title: "Submit design review",
-      description:
-        "Submit an asynchronous, metered design review for a tenant-authorized HTTPS preview. " +
-        "This tool never edits code. Reuse client_request_id on retries, then poll design_review_get " +
-        "no faster than poll_after_ms.",
-      inputSchema: designReviewInputShape,
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-      _meta: { "com.apature/metered": true, "com.apature/product": "mcp-review" },
-    },
+    { ...DESIGN_REVIEW_LISTING, inputSchema: designReviewInputShape },
     async (input): Promise<CallToolResult> => {
       try {
         const result = await service.submitReview(input);
@@ -294,20 +371,7 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
 
   server.registerTool(
     "design_review_get",
-    {
-      title: "Get design review",
-      description:
-        "Get status or a compact, focused, or evidence view for an existing review job. Poll no " +
-        "faster than the returned poll_after_ms. Result reads do not consume review units.",
-      inputSchema: designReviewGetInputShape,
-      annotations: {
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-      _meta: { "com.apature/metered": false, "com.apature/product": "mcp-review" },
-    },
+    { ...DESIGN_REVIEW_GET_LISTING, inputSchema: designReviewGetInputShape },
     async (input): Promise<CallToolResult> => {
       try {
         const result = await service.getReview(input.job_id);
@@ -345,23 +409,7 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
 
   server.registerTool(
     "design_recheck",
-    {
-      title: "Submit design recheck",
-      description:
-        "Submit a metered recheck for findings from a completed review after the customer's agent " +
-        "changes the UI. This tool never edits code. Unchanged targets and exhausted recheck loops " +
-        "are rejected without running judgment. Check recheck.provenance before acting: when nothing " +
-        "judged the target every outcome is unjudged with a null confidence. Reuse client_request_id " +
-        "on retries.",
-      inputSchema: designRecheckInputShape,
-      annotations: {
-        readOnlyHint: false,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: true,
-      },
-      _meta: { "com.apature/metered": true, "com.apature/product": "mcp-review" },
-    },
+    { ...DESIGN_RECHECK_LISTING, inputSchema: designRecheckInputShape },
     async (input): Promise<CallToolResult> => {
       try {
         const result = await service.submitRecheck(input);
@@ -411,22 +459,7 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
 
   server.registerTool(
     "design_review_cancel",
-    {
-      title: "Cancel design review",
-      description:
-        "Request best-effort cancellation of a queued or running review job. Terminal jobs keep their " +
-        "existing state. Cancellation does not edit customer systems and consumes no review units.",
-      inputSchema: designReviewCancelInputShape,
-      annotations: {
-        // Mutates Apature service job state (not customer systems), and an
-        // exact retry returns the same terminal state, so it is idempotent.
-        readOnlyHint: false,
-        destructiveHint: true,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-      _meta: { "com.apature/metered": false, "com.apature/product": "mcp-review" },
-    },
+    { ...DESIGN_REVIEW_CANCEL_LISTING, inputSchema: designReviewCancelInputShape },
     async (input): Promise<CallToolResult> => {
       try {
         const result = await service.cancelReview(input.job_id, input.reason);
@@ -461,24 +494,7 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
 
   server.registerTool(
     "design_review_panel_action",
-    {
-      title: "Act on a review panel finding",
-      description:
-        "Route an interaction from the interactive review panel: return a grounded finding's fix for " +
-        "the coding agent to apply, or the refs to re-verify. This tool never edits code. An advisory " +
-        "finding returns human_only, never an automatic fix, and a review nothing judged returns " +
-        "unjudged with no fix at all. Reads only; consumes no review units.",
-      inputSchema: designReviewPanelActionInputShape,
-      annotations: {
-        // Routes work by reading a completed review. It creates no job, spends no
-        // units, and changes nothing on either side of the boundary.
-        readOnlyHint: true,
-        destructiveHint: false,
-        idempotentHint: true,
-        openWorldHint: false,
-      },
-      _meta: { "com.apature/metered": false, "com.apature/product": "mcp-review" },
-    },
+    { ...DESIGN_REVIEW_PANEL_ACTION_LISTING, inputSchema: designReviewPanelActionInputShape },
     async (input): Promise<CallToolResult> => {
       try {
         if (input.action === "apply_fix" && input.finding_id === undefined) {
@@ -537,6 +553,19 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
       }
     },
   );
+
+  // Advertise the published contract, not a second one derived from Zod: every
+  // tool now carries the catalog's own inputSchema AND an outputSchema, so a
+  // strict client can validate structured content for itself instead of taking
+  // the repo's word for it. Throws here, at construction, if the registered set
+  // and the catalog disagree in either direction.
+  advertiseCatalogSchemas(server, [
+    { name: "design_review", ...DESIGN_REVIEW_LISTING },
+    { name: "design_review_get", ...DESIGN_REVIEW_GET_LISTING },
+    { name: "design_recheck", ...DESIGN_RECHECK_LISTING },
+    { name: "design_review_cancel", ...DESIGN_REVIEW_CANCEL_LISTING },
+    { name: "design_review_panel_action", ...DESIGN_REVIEW_PANEL_ACTION_LISTING },
+  ]);
 
   return server;
 }

@@ -33,6 +33,7 @@ interface CatalogTool {
     required?: string[];
     properties: Record<string, { enum?: string[]; items?: { enum?: string[] } }>;
   };
+  outputSchema: Record<string, unknown>;
 }
 
 const catalog = readJson("schemas/mcp-tools.json") as unknown as {
@@ -96,9 +97,7 @@ describe("live catalog drift gate (#29)", () => {
       expect([...(schema.required ?? [])].sort(), `${spec.name} required`).toEqual(
         [...(spec.inputSchema.required ?? [])].sort(),
       );
-      // The SDK's zod-derived schema omits `additionalProperties` (zod strips
-      // unknown keys; normalize.ts re-validates server-side). The gate forbids
-      // an explicitly OPEN schema from ever being advertised.
+      // The gate forbids an explicitly OPEN schema from ever being advertised.
       expect(schema.additionalProperties, `${spec.name} additionalProperties`).not.toBe(true);
 
       // Closed vocabularies must not drift (a widened enum silently widens the API).
@@ -109,6 +108,24 @@ describe("live catalog drift gate (#29)", () => {
         const liveEnum = liveProp?.enum ?? liveProp?.items?.enum;
         expect(liveEnum, `${spec.name}.${prop} enum`).toEqual(catalogEnum);
       }
+    }
+  });
+
+  it("serves the catalog's schemas verbatim, on both sides of every tool", async () => {
+    // The wire used to advertise a zod-derived draft-07 input schema that
+    // differed from the catalog, and no output schema at all. There is one
+    // published contract now, so the listing must BE the catalog rather than a
+    // lookalike: an edit to either has to move both.
+    const client = await connect();
+    const { tools } = await client.listTools();
+    const live = new Map(tools.map((t) => [t.name, t]));
+
+    for (const spec of catalog.tools) {
+      const tool = live.get(spec.name);
+      expect(tool?.inputSchema, `${spec.name} inputSchema`).toEqual(spec.inputSchema);
+      // Without an advertised output schema a strict MCP client cannot validate
+      // structured content at all, and the contract is enforced repo-side only.
+      expect(tool?.outputSchema, `${spec.name} outputSchema`).toEqual(spec.outputSchema);
     }
   });
 

@@ -19,7 +19,7 @@ import { SyntheticEvidenceProvider } from "../src/synthetic-evidence.js";
 
 type ToolResult = {
   isError?: boolean;
-  content?: Array<{ type: string; resource?: { mimeType?: string; text?: string } }>;
+  content?: Array<{ type: string; text?: string; resource?: { mimeType?: string; text?: string } }>;
   structuredContent?: Record<string, unknown>;
 };
 
@@ -109,6 +109,27 @@ describe("design_review_get views", () => {
       multimedia: true,
       images_withheld: [],
     });
+  });
+
+  it("marks every evidence content block, not only the structured findings", async () => {
+    // The fixture path judges nothing, so each finding block is advice about a
+    // page nothing looked at. A client that renders content[] and never reads
+    // structuredContent sees one block at a time, so each has to disclose.
+    const client = await connect({ hostMedia: { images: true, appsPanel: true } });
+    const result = await get(client, await completedJob(client), "evidence");
+    const findings = (result.structuredContent?.review as { findings: Array<{ title: string }> }).findings;
+
+    const texts = (result.content ?? []).filter((b) => b.type === "text").map((b) => b.text ?? "");
+    for (const finding of findings) {
+      const block = texts.find((t) => t.includes(finding.title));
+      expect(block, finding.title).toBeDefined();
+      expect(block, finding.title).toContain("[unjudged]");
+    }
+    // And the panel, which is also a content block, marks each card.
+    const panel = (result.content ?? []).find((b) => b.type === "resource")?.resource?.text ?? "";
+    expect(panel.match(/class="tag tag-unjudged">unjudged<\/span>/g) ?? []).toHaveLength(
+      findings.length,
+    );
   });
 
   it("a text-only host is told what was withheld instead of being sent a broken block", async () => {

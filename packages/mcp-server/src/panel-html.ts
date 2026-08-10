@@ -49,9 +49,13 @@ function findingSection(
   const routing = appliable
     ? `<span class="tag tag-agent">agent-appliable</span>`
     : `<span class="tag tag-human">needs a human</span>`;
+  // Per item, like the structured finding and its text block: a reader scrolling
+  // the panel takes in one card at a time and never re-reads the header.
+  const unjudged =
+    finding.unjudged === true ? ` <span class="tag tag-unjudged">unjudged</span>` : "";
   const suggestion = finding.suggestion
     ? `<p class="fix"><strong>Suggested fix:</strong> ${escapeHtml(finding.suggestion)}</p>`
-    : `<p class="fix"><strong>Suggested fix:</strong> none — advisory judgment.</p>`;
+    : `<p class="fix"><strong>Suggested fix:</strong> none: advisory judgment.</p>`;
   const element = finding.element_ref
     ? `<code>${escapeHtml(finding.element_ref)}</code>`
     : `<span class="muted">not localizable</span>`;
@@ -62,7 +66,7 @@ function findingSection(
   return `      <section class="finding">
         <h3>
           <span class="sev" style="color:${SEVERITY_COLOR[finding.severity]}">${escapeHtml(finding.severity)}</span>
-          ${escapeHtml(finding.title)} ${routing}
+          ${escapeHtml(finding.title)} ${routing}${unjudged}
         </h3>
         <p class="where">${escapeHtml(finding.route)} &middot; ${escapeHtml(finding.viewport)} &middot; ${element}</p>
         <p>${escapeHtml(finding.description)}</p>
@@ -120,6 +124,7 @@ export function renderReviewPanel(
       .tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; margin-left: 6px; white-space: nowrap; }
       .tag-agent { background: #e6f4ea; color: #14532d; }
       .tag-human { background: #fdeceb; color: #7f1d1d; }
+      .tag-unjudged { background: #fff4d6; color: #6b4b00; }
       .where, .muted { color: #5c6773; font-size: 13px; }
       .fix { background: #f7f9fc; border-left: 3px solid #c7d2e0; padding: 8px 12px; }
       .evidence { display: block; max-width: 100%; border-radius: 6px; margin: 10px 0; }

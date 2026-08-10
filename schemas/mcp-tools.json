@@ -35,7 +35,6 @@
             "type": "array",
             "minItems": 1,
             "maxItems": 5,
-            "uniqueItems": true,
             "items": {
               "type": "string",
               "minLength": 1,
@@ -44,13 +43,13 @@
             },
             "default": [
               "/"
-            ]
+            ],
+            "description": "Duplicates are accepted and canonicalized by the server, so uniqueness is not required."
           },
           "viewports": {
             "type": "array",
             "minItems": 1,
             "maxItems": 3,
-            "uniqueItems": true,
             "items": {
               "type": "string",
               "enum": [
@@ -62,7 +61,8 @@
             "default": [
               "mobile",
               "desktop"
-            ]
+            ],
+            "description": "Duplicates are accepted and canonicalized by the server, so uniqueness is not required."
           },
           "depth": {
             "type": "string",
@@ -192,12 +192,73 @@
               "units_reserved",
               "tenant_units_remaining"
             ]
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "retriable": {
+                "type": "boolean"
+              },
+              "retry_after_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "correlation_id": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 128
+              },
+              "next_action": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "schema_version",
+              "code",
+              "message",
+              "retriable",
+              "correlation_id",
+              "next_action"
+            ]
           }
         },
-        "required": [
-          "schema_version",
-          "job",
-          "budget"
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "error"
+              ]
+            },
+            "then": {
+              "required": [
+                "error"
+              ],
+              "maxProperties": 1
+            },
+            "else": {
+              "required": [
+                "schema_version",
+                "job",
+                "budget"
+              ]
+            }
+          }
         ]
       }
     },
@@ -243,42 +304,6 @@
         },
         "required": [
           "job_id"
-        ],
-        "allOf": [
-          {
-            "if": {
-              "properties": {
-                "view": {
-                  "const": "focus"
-                }
-              },
-              "required": [
-                "view"
-              ]
-            },
-            "then": {
-              "required": [
-                "finding_ids"
-              ]
-            }
-          },
-          {
-            "if": {
-              "properties": {
-                "view": {
-                  "const": "evidence"
-                }
-              },
-              "required": [
-                "view"
-              ]
-            },
-            "then": {
-              "required": [
-                "evidence_ids"
-              ]
-            }
-          }
         ]
       },
       "outputSchema": {
@@ -427,78 +452,6 @@
                 "maxLength": 4000,
                 "description": "The narrative assessment. When provenance.model_backed is false this is replaced, not annotated: prose describing a page nothing looked at is never presented as a description of the target."
               },
-              "finding_index": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": true,
-                  "properties": {
-                    "finding_id": {
-                      "type": "string",
-                      "minLength": 8,
-                      "maxLength": 128
-                    },
-                    "severity": {
-                      "type": "string",
-                      "enum": [
-                        "blocker",
-                        "should_fix",
-                        "nit"
-                      ]
-                    },
-                    "dimension": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 128
-                    },
-                    "title": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 500
-                    },
-                    "route": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 512
-                    },
-                    "viewport": {
-                      "type": "string",
-                      "enum": [
-                        "mobile",
-                        "tablet",
-                        "desktop"
-                      ]
-                    },
-                    "element_ref": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 256
-                    },
-                    "confidence": {
-                      "type": [
-                        "number",
-                        "null"
-                      ],
-                      "minimum": 0,
-                      "maximum": 1,
-                      "description": "Report-backed engine finding confidence, or null when calibration provenance is unavailable."
-                    },
-                    "unjudged": {
-                      "const": true,
-                      "description": "Present, and always true, when nothing judged the page this finding claims to describe."
-                    }
-                  },
-                  "required": [
-                    "finding_id",
-                    "severity",
-                    "dimension",
-                    "title",
-                    "route",
-                    "viewport",
-                    "confidence"
-                  ]
-                }
-              },
               "findings": {
                 "type": "array",
                 "description": "The agent-facing findings. Each item is self-describing: an agent iterating this array and applying suggestion never reads the envelope, so an item from a payload nothing judged carries its own marker.",
@@ -619,11 +572,72 @@
           "budget": {
             "type": "object",
             "additionalProperties": true
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "retriable": {
+                "type": "boolean"
+              },
+              "retry_after_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "correlation_id": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 128
+              },
+              "next_action": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "schema_version",
+              "code",
+              "message",
+              "retriable",
+              "correlation_id",
+              "next_action"
+            ]
           }
         },
-        "required": [
-          "schema_version",
-          "job"
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "error"
+              ]
+            },
+            "then": {
+              "required": [
+                "error"
+              ],
+              "maxProperties": 1
+            },
+            "else": {
+              "required": [
+                "schema_version",
+                "job"
+              ]
+            }
+          }
         ]
       }
     },
@@ -658,12 +672,13 @@
             "type": "array",
             "minItems": 1,
             "maxItems": 20,
-            "uniqueItems": true,
             "items": {
               "type": "string",
-              "minLength": 8,
-              "maxLength": 128
-            }
+              "minLength": 3,
+              "maxLength": 128,
+              "description": "A finding_id from the review being rechecked. The floor is 3, not 8: ids come from the engine's own review result and are as short as \"f_001\"."
+            },
+            "description": "Duplicates are accepted and canonicalized by the server, so uniqueness is not required."
           },
           "url": {
             "type": "string",
@@ -879,12 +894,73 @@
           "budget": {
             "type": "object",
             "additionalProperties": true
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "retriable": {
+                "type": "boolean"
+              },
+              "retry_after_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "correlation_id": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 128
+              },
+              "next_action": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "schema_version",
+              "code",
+              "message",
+              "retriable",
+              "correlation_id",
+              "next_action"
+            ]
           }
         },
-        "required": [
-          "schema_version",
-          "job",
-          "budget"
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "error"
+              ]
+            },
+            "then": {
+              "required": [
+                "error"
+              ],
+              "maxProperties": 1
+            },
+            "else": {
+              "required": [
+                "schema_version",
+                "job",
+                "budget"
+              ]
+            }
+          }
         ]
       }
     },
@@ -958,14 +1034,75 @@
               "not_supported",
               "already_terminal"
             ]
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "retriable": {
+                "type": "boolean"
+              },
+              "retry_after_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "correlation_id": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 128
+              },
+              "next_action": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "schema_version",
+              "code",
+              "message",
+              "retriable",
+              "correlation_id",
+              "next_action"
+            ]
           }
         },
-        "required": [
-          "schema_version",
-          "job_id",
-          "status",
-          "cancellation_requested_at",
-          "upstream_cancellation"
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "error"
+              ]
+            },
+            "then": {
+              "required": [
+                "error"
+              ],
+              "maxProperties": 1
+            },
+            "else": {
+              "required": [
+                "schema_version",
+                "job_id",
+                "status",
+                "cancellation_requested_at",
+                "upstream_cancellation"
+              ]
+            }
+          }
         ]
       }
     },
@@ -1107,14 +1244,75 @@
             "required": [
               "type"
             ]
+          },
+          "error": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "1.0.0"
+              },
+              "code": {
+                "type": "string",
+                "minLength": 1
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4000
+              },
+              "retriable": {
+                "type": "boolean"
+              },
+              "retry_after_ms": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "correlation_id": {
+                "type": "string",
+                "minLength": 8,
+                "maxLength": 128
+              },
+              "next_action": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": [
+              "schema_version",
+              "code",
+              "message",
+              "retriable",
+              "correlation_id",
+              "next_action"
+            ]
           }
         },
-        "required": [
-          "schema_version",
-          "job_id",
-          "review_id",
-          "provenance",
-          "response"
+        "allOf": [
+          {
+            "if": {
+              "required": [
+                "error"
+              ]
+            },
+            "then": {
+              "required": [
+                "error"
+              ],
+              "maxProperties": 1
+            },
+            "else": {
+              "required": [
+                "schema_version",
+                "job_id",
+                "review_id",
+                "provenance",
+                "response"
+              ]
+            }
+          }
         ]
       }
     }

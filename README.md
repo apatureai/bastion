@@ -151,12 +151,21 @@ A stamp on the review body alone is not enough, because the review body is not t
 
 **Each finding.** An agent iterating `findings[]` and applying each `suggestion` never reads the envelope; it holds one array element at a time. Every finding in an unjudged payload therefore carries `"unjudged": true` itself. The field is absent otherwise, so its absence claims nothing and `provenance` stays the authority.
 
+**Each content block.** `structuredContent` is not the only rendering of a result. The `evidence` view also returns MCP `content[]` blocks, and a client that renders those instead of reading the JSON sees them one at a time. So the same marker, in the same vocabulary, is on each block, and the panel tags each card the same way:
+
+```text
+1 text  "Design review (unjudged): No model judged this page, so there is no assessment of it: ..."
+2 text  "[should_fix] [unjudged] Primary CTA uses an off-brand color on mobile @ /pricing (mobile, `button[data-testid='cta-primary']`). Fix: Apply the `--color-accent` token ... Nothing judged this page, so this is not an observation of the target."
+```
+
+Before this, blocks like block 2 were bare: confident, specific advice about a page nothing had looked at, with the disclosure only in the envelope block above it and in the JSON beside it.
+
 Three details that make the claim checkable rather than decorative:
 
 - **`unjudged` is not an engine value.** No backend emits it. Bastion substitutes it, and only when `model_backed` is `false`. It is an explicit value rather than a null or a dropped key because a missing field reads as an older payload and invites a default, and because it sits outside the `ship`..`blocked` ordering, so a consumer comparing against a threshold gets no answer instead of a flattering one.
 - **The narrative is replaced, not annotated.** The fixture's prose is about a pricing page that does not exist. Presenting it as a description of your page would be the same lie as the grade, just in longer form, so on an unjudged path it does not appear at all.
 - **A backend cannot certify itself.** `provenance` is Bastion's statement, not the engine's. `parseEngineReviewResult` strips any `provenance` that arrives on the wire, and the adapter that fetched the result stamps its own immediately afterwards.
-- **The contract is enforced by a validator, not by a key check.** `packages/mcp-server/test/schema-conformance.test.ts` validates the structured content of every tool result, on both the judged and the unjudged path, against `schemas/mcp-tools.json` with Ajv in Draft 2020-12 mode. A presence check cannot see a field the payload emits and the schema does not declare; a validator can, and every output schema in the catalog sets `additionalProperties: false`.
+- **The contract is enforced by a validator, not by a key check.** `packages/mcp-server/test/schema-conformance.test.ts` validates every tool call and every tool result, on both the judged and the unjudged path, against the schemas `tools/list` actually advertises, with Ajv in Draft 2020-12 mode. A presence check cannot see a field the payload emits and the schema does not declare; a validator can, and every output schema in the catalog sets `additionalProperties: false`. Validating the calls too is what catches the opposite failure, a published schema that rejects a call the server accepts.
 
 Where to verify each of these in the source: the stamps are minted in `packages/mcp-server/src/provenance.ts`, applied by `MockEngineClient` (`engine-client.ts`), `VerdictCliEngineClient` (`verdict-cli-engine.ts`), `VerdictJobEngineClient` (`verdict-job-engine.ts`) and `JudgmentEngineHttpClient` (`engine-http-client.ts`); the suppression rule is enforced in one place per payload, `mapEngineResultToCritique` (`critique-map.ts`) for reviews and `mapEngineRecheckToRecheck` (`recheck-map.ts`) for rechecks, through which every path into a `Critique` or a `Recheck` runs, plus `handlePanelAction` (`panel-interaction.ts`) for the routed fix; the wire strip is in `parseEngineReviewResult` (`engine-result.ts`); the field is required by `schemas/mcp-tools.json`; and `packages/mcp-server/test/provenance.test.ts` asserts, over the real MCP transport and against the round-tripped JSON only, that a fixture-path payload is distinguishable from a model-backed one.
 
@@ -376,7 +385,7 @@ Most MCP servers are thin wrappers: one tool call maps to one function call, ret
 
 **Multimodal results with an honest downgrade.** A design review's most useful output is a picture. `multimedia-content.ts` shapes a critique into ordered MCP content blocks: the interactive panel first where the host supports MCP-Apps, then per-finding text, then annotated crops as image blocks. A host that cannot render images gets the identical text and structured findings plus an explicit `images_withheld` list of the evidence it is not seeing, never a broken block and never a silent drop. Image blocks are only emitted for evidence that actually exists with a real `image/*` MIME type; evidence is never fabricated to fill a slot.
 
-**The catalog cannot drift.** The tool set is declared in three places: the Zod input schemas the SDK advertises, `schemas/mcp-tools.json`, and the `directory/server.json` registry listing. A test performs a `tools/list` against a real server instance over an in-process transport, failing the build if they disagree, including the version string.
+**One published contract, served verbatim.** `tools/list` advertises `schemas/mcp-tools.json` itself: the catalog's own `inputSchema` and `outputSchema` per tool, read from that file and handed to the client unchanged. Previously the SDK derived a laxer input schema from the Zod shapes and advertised no output schema at all, so there were two published contracts and a client could not validate structured content for itself. Now the Zod shapes are only what the server *parses*, the catalog is only what a client is *told*, and `schema-conformance.test.ts` drives real calls through both and fails if they disagree. A test also performs a `tools/list` against a real server instance over an in-process transport and compares it to the catalog and to the `directory/server.json` registry listing, failing the build if any of the three disagree, including the version string.
 
 ## Tool surface
 
@@ -485,7 +494,8 @@ packages/mcp-types/                boundary contracts, no runtime dependencies
   fixtures/                        golden engine result, the offline judgment
 
 packages/mcp-server/
-  src/tools.ts                     Zod input schemas, source of the advertised JSON Schema
+  src/tools.ts                     Zod input schemas: what the server parses
+  src/tool-catalog.ts              schemas/mcp-tools.json served verbatim: what tools/list advertises
   src/server.ts                    the five MCP tools, views, and typed error mapping
   src/local-server.ts              local composition root (fixture engine unless one is configured)
   src/local-stdio.ts               `mcp-review-local` process entrypoint (stdio transport)
@@ -535,7 +545,7 @@ $ pnpm test
  RUN  v4.1.10
 
  Test Files  35 passed | 1 skipped (36)
-      Tests  328 passed | 2 skipped (330)
+      Tests  337 passed | 2 skipped (339)
 ```
 
 ```bash

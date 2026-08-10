@@ -101,6 +101,65 @@ describe("buildMultimediaCritiqueContent", () => {
     expect((r.content.at(-1) as { text: string }).text).toContain("/checkout");
   });
 
+  /**
+   * The per-item disclosure. `structuredContent.findings[]` marks each item
+   * `unjudged`; the parallel `content[]` blocks did not, so a client that
+   * renders content rather than reading structured content showed confident,
+   * specific advice about a page nothing looked at. A block is read on its own,
+   * so it has to say what it is on its own.
+   */
+  describe("per-item unjudged marking", () => {
+    const unjudgedCritique = (): Critique =>
+      critique([finding({ unjudged: true }), finding({ finding_id: "f2", evidence_id: null, unjudged: true })], {
+        grade: "unjudged",
+        confidence: null,
+        overall: "No model judged this page.",
+        provenance: {
+          model_backed: false,
+          source: "fixture",
+          engine: "bastion-fixture",
+          model: null,
+          detail: "the offline fixture engine replayed the golden result",
+        },
+      });
+
+    it("marks every finding block, not only the envelope block", () => {
+      const r = buildMultimediaCritiqueContent(unjudgedCritique(), [], { images: true });
+      const texts = r.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text);
+      // Block 0 is the envelope. Every block after it is a finding, and each one
+      // carries the marker by itself.
+      expect(texts.length).toBe(3);
+      for (const text of texts.slice(1)) {
+        expect(text).toContain("[unjudged]");
+        expect(text).toContain("not an observation of the target");
+      }
+    });
+
+    it("uses the structured field's own vocabulary, not a second scheme", () => {
+      const [, first] = buildMultimediaCritiqueContent(unjudgedCritique(), [], { images: true }).content;
+      expect((first as { text: string }).text.startsWith("[blocker] [unjudged] ")).toBe(true);
+    });
+
+    it("says nothing on a judged finding, so the marker's absence is not a claim", () => {
+      const r = buildMultimediaCritiqueContent(critique([finding()]), [], { images: true });
+      const text = (r.content[1] as { text: string }).text;
+      expect(text).not.toContain("unjudged");
+      expect(text).toContain("[blocker] Off-token color");
+    });
+
+    it("emits no em dash in any block, because block text is program output", () => {
+      const blocks = [
+        ...buildMultimediaCritiqueContent(unjudgedCritique(), [], { images: true }).content,
+        ...buildMultimediaCritiqueContent(critique([finding()], { not_reviewed: ["/checkout"] }), [], {
+          images: true,
+        }).content,
+      ];
+      for (const block of blocks) {
+        if (block.type === "text") expect((block as { text: string }).text).not.toContain("—");
+      }
+    });
+  });
+
   it("is deterministic", () => {
     const build = () => buildMultimediaCritiqueContent(critique([finding()]), [png("ev-1")], { images: true });
     expect(build()).toEqual(build());

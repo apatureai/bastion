@@ -36,11 +36,27 @@ function isImageMime(mimeType: string): boolean {
   return /^image\/[a-z0-9.+-]+$/i.test(mimeType);
 }
 
-/** One finding rendered as agent-readable text (severity, where, and the fix). */
+/**
+ * One finding rendered as agent-readable text (severity, where, and the fix).
+ *
+ * The `unjudged` marker is per item for the same reason it is per item on
+ * `structuredContent.findings[]`: a client that renders `content[]` shows these
+ * blocks one at a time, and at that scope confident, specific advice about a
+ * page nothing looked at is indistinguishable from a real finding. The envelope
+ * block says the review is unjudged; this block has to say it too, because
+ * nothing guarantees the two are read together. It is the envelope's own word,
+ * `unjudged`, not a second vocabulary, and it is emitted only on payloads that
+ * carry the field, so its absence claims nothing on its own.
+ */
 function findingText(f: CritiqueFinding): string {
   const where = f.element_ref ? `${f.route} (${f.viewport}, \`${f.element_ref}\`)` : `${f.route} (${f.viewport})`;
-  const fix = f.suggestion ? ` — ${f.suggestion}` : "";
-  return `[${f.severity}] ${f.title} @ ${where}${fix}`;
+  const marker = f.unjudged === true ? "[unjudged] " : "";
+  const fix = f.suggestion ? ` Fix: ${f.suggestion}` : "";
+  const disclosure =
+    f.unjudged === true
+      ? " Nothing judged this page, so this is not an observation of the target."
+      : "";
+  return `[${f.severity}] ${marker}${f.title} @ ${where}.${fix}${disclosure}`;
 }
 
 /**
@@ -63,7 +79,7 @@ export function buildMultimediaCritiqueContent(
   }
 
   const content: McpContentBlock[] = [
-    { type: "text", text: `Design review — ${critique.grade}: ${critique.overall}` },
+    { type: "text", text: `Design review (${critique.grade}): ${critique.overall}` },
   ];
   const imagesWithheld: string[] = [];
   let emittedImage = false;

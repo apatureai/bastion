@@ -6,6 +6,10 @@ WORKDIR /app
 RUN corepack enable
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.json tsconfig.base.json ./
 COPY packages ./packages
+# The published tool contract. tool-catalog.ts reads it at RUNTIME to serve the
+# inputSchema/outputSchema in tools/list, so the image needs the file itself, not
+# just its contents at build time.
+COPY schemas ./schemas
 RUN pnpm install --frozen-lockfile && pnpm build
 
 FROM node:24-slim AS run

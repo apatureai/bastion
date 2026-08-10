@@ -32,10 +32,22 @@ import {
  * because nothing here ever ran a validator.
  *
  * So this file runs one: Ajv in Draft 2020-12 mode, the dialect the catalog
- * declares, over the structured content of every tool result the server can
- * produce, on both the judged and the unjudged path. It is deliberately written
- * to fail on an UNDECLARED field as loudly as on a missing one, because that is
- * the class of drift the presence checks let through.
+ * declares, over every tool result the server can produce, on both the judged
+ * and the unjudged path. It is deliberately written to fail on an UNDECLARED
+ * field as loudly as on a missing one, because that is the class of drift the
+ * presence checks let through.
+ *
+ * It validates INPUTS too, and validates both against what `tools/list`
+ * ADVERTISES rather than against the catalog file directly. Three defects
+ * survived three passes because of the gap between those two: the wire served a
+ * Zod-derived input schema while the catalog served a different one, no
+ * `outputSchema` reached the wire at all, and the catalog's own input schemas
+ * rejected calls the server happily accepted (`design_review_get`'s `allOf`
+ * required `finding_ids`/`evidence_ids` it never declared under
+ * `additionalProperties: false`; `design_recheck` floored finding ids at 8
+ * characters while the engine's own fixture ids are five). Validating live calls
+ * against the live listing is what makes that class of defect impossible to
+ * merge.
  */
 
 const CATALOG_PATH = fileURLToPath(new URL("../../../schemas/mcp-tools.json", import.meta.url));
@@ -43,8 +55,10 @@ const ERROR_SCHEMA_PATH = fileURLToPath(
   new URL("../../../schemas/review-error.schema.json", import.meta.url),
 );
 
+type JsonSchema = Record<string, unknown>;
+
 type ToolCatalog = {
-  tools: Array<{ name: string; outputSchema?: Record<string, unknown> }>;
+  tools: Array<{ name: string; inputSchema?: JsonSchema; outputSchema?: JsonSchema }>;
 };
 
 type ToolResult = {
@@ -52,11 +66,12 @@ type ToolResult = {
   structuredContent?: Record<string, unknown>;
 };
 
-/** One tool payload the server actually produced, and the tool it came from. */
-type CapturedPayload = {
+/** One tool call the server actually served: what went in, and what came out. */
+type CapturedCall = {
   /** A stable label naming the call, e.g. `design_review_get[evidence]`. */
   label: string;
   tool: string;
+  args: Record<string, unknown>;
   payload: Record<string, unknown>;
 };
 
@@ -84,18 +99,43 @@ function explain(errors: readonly ErrorObject[] | null | undefined): string {
     .join("\n");
 }
 
+async function connect(engine?: EngineClient): Promise<Client> {
+  const server = createLocalReviewServer(engine ? { engine } : {});
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  const client = new Client({ name: "schema-conformance-test", version: "0.0.0" });
+  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+  return client;
+}
+
+/** What `tools/list` advertises, as a client receives it over the transport. */
+async function wireListing(): Promise<Map<string, { inputSchema?: JsonSchema; outputSchema?: JsonSchema }>> {
+  const client = await connect();
+  const { tools } = await client.listTools();
+  await client.close();
+  return new Map(
+    tools.map((tool) => [
+      tool.name,
+      JSON.parse(JSON.stringify({ inputSchema: tool.inputSchema, outputSchema: tool.outputSchema })) as {
+        inputSchema?: JsonSchema;
+        outputSchema?: JsonSchema;
+      },
+    ]),
+  );
+}
+
 /**
  * Drive one server through every payload-producing call it has. Both engines go
  * through the identical script, so the judged and the unjudged shape of each
  * payload are held to the same contract.
+ *
+ * The script mirrors what `pnpm demo` does, call for call, including the two
+ * views and the recheck whose arguments the published input schemas used to
+ * reject.
  */
-async function capturePayloads(engine: EngineClient, tag: string): Promise<CapturedPayload[]> {
-  const server = createLocalReviewServer({ engine });
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "schema-conformance-test", version: "0.0.0" });
-  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
+async function captureCalls(engine: EngineClient, tag: string): Promise<CapturedCall[]> {
+  const client = await connect(engine);
 
-  const captured: CapturedPayload[] = [];
+  const captured: CapturedCall[] = [];
   const call = async (
     label: string,
     tool: string,
@@ -104,7 +144,7 @@ async function capturePayloads(engine: EngineClient, tag: string): Promise<Captu
     const result = (await client.callTool({ name: tool, arguments: args })) as ToolResult;
     expect(result.isError, `${label} unexpectedly errored`).toBeFalsy();
     expect(result.structuredContent, `${label} returned no structured content`).toBeDefined();
-    captured.push({ label: `${label} (${tag})`, tool, payload: result.structuredContent! });
+    captured.push({ label: `${label} (${tag})`, tool, args, payload: result.structuredContent! });
     return result;
   };
 
@@ -137,6 +177,8 @@ async function capturePayloads(engine: EngineClient, tag: string): Promise<Captu
 
   await call("design_recheck", "design_recheck", {
     review_id: review.review_id,
+    // The engine's own ids, "f_001" and friends: five characters, which the
+    // published schema used to reject.
     finding_ids: review.findings.map((f) => f.finding_id),
     expected_revision: "deploy-2",
     client_request_id: `conformance-${tag}-recheck`,
@@ -148,65 +190,112 @@ async function capturePayloads(engine: EngineClient, tag: string): Promise<Captu
   return captured;
 }
 
-/** The one error payload every deployment can produce: an unverified host. */
-async function captureError(): Promise<Record<string, unknown>> {
-  const server = createLocalReviewServer();
-  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
-  const client = new Client({ name: "schema-conformance-test", version: "0.0.0" });
-  await Promise.all([client.connect(clientTransport), server.connect(serverTransport)]);
-  const denied = (await client.callTool({
-    name: "design_review",
-    arguments: { url: "https://evil.example.org/", client_request_id: "conformance-ssrf" },
-  })) as ToolResult;
+/** The one error every deployment can produce: an unverified host. */
+async function captureError(): Promise<{ args: Record<string, unknown>; payload: Record<string, unknown> }> {
+  const client = await connect();
+  const args = { url: "https://evil.example.org/", client_request_id: "conformance-ssrf" };
+  const denied = (await client.callTool({ name: "design_review", arguments: args })) as ToolResult;
   expect(denied.isError).toBe(true);
   await client.close();
-  return (denied.structuredContent as { error: Record<string, unknown> }).error;
+  return { args, payload: denied.structuredContent as Record<string, unknown> };
 }
 
-describe("every tool payload validates against schemas/mcp-tools.json", () => {
+describe("every tool call and payload validates against what tools/list advertises", () => {
   const catalog = JSON.parse(readFileSync(CATALOG_PATH, "utf8")) as ToolCatalog;
-  const validators = new Map<string, ValidateFunction>();
-  let payloads: CapturedPayload[] = [];
+  const inputValidators = new Map<string, ValidateFunction>();
+  const outputValidators = new Map<string, ValidateFunction>();
+  let advertised: Map<string, { inputSchema?: JsonSchema; outputSchema?: JsonSchema }> = new Map();
+  let calls: CapturedCall[] = [];
+  let denied: { args: Record<string, unknown>; payload: Record<string, unknown> };
 
   beforeAll(async () => {
-    // Draft 2020-12, the dialect every outputSchema in the catalog declares.
+    advertised = await wireListing();
+    // Draft 2020-12, the dialect every schema in the catalog declares.
     // `strict: false` only silences Ajv's own style warnings; `allErrors` makes
     // a failure report every violation rather than the first.
     const ajv = new Ajv2020({ strict: false, allErrors: true });
     addFormats(ajv);
-    for (const tool of catalog.tools) {
-      if (tool.outputSchema) validators.set(tool.name, ajv.compile(tool.outputSchema));
+    for (const [name, schemas] of advertised) {
+      if (schemas.inputSchema) inputValidators.set(name, ajv.compile(schemas.inputSchema));
+      if (schemas.outputSchema) outputValidators.set(name, ajv.compile(schemas.outputSchema));
     }
-    payloads = [
-      ...(await capturePayloads(new MockEngineClient(), "unjudged")),
-      ...(await capturePayloads(new LiveModelEngine(), "judged")),
+    calls = [
+      ...(await captureCalls(new MockEngineClient(), "unjudged")),
+      ...(await captureCalls(new LiveModelEngine(), "judged")),
     ];
+    denied = await captureError();
   });
 
-  it("declares an outputSchema for every tool, so nothing can opt out of the gate", () => {
-    expect(catalog.tools.map((t) => t.name).sort()).toEqual([
+  it("advertises an inputSchema and an outputSchema for every tool", () => {
+    expect([...advertised.keys()].sort()).toEqual([
       "design_recheck",
       "design_review",
       "design_review_cancel",
       "design_review_get",
       "design_review_panel_action",
     ]);
-    for (const tool of catalog.tools) {
-      expect(tool.outputSchema, tool.name).toBeDefined();
+    for (const [name, schemas] of advertised) {
+      // Without an advertised outputSchema a strict client cannot validate
+      // structured content at all, and the contract is enforced repo-side only.
+      expect(schemas.outputSchema, `${name} outputSchema`).toBeDefined();
+      expect(schemas.inputSchema, `${name} inputSchema`).toBeDefined();
     }
   });
 
-  it("exercises every tool in the catalog", () => {
-    const exercised = new Set(payloads.map((p) => p.tool));
+  it("advertises the catalog's own schemas, so the wire and the catalog cannot drift", () => {
     for (const tool of catalog.tools) {
-      expect(exercised.has(tool.name), `${tool.name} produced no payload to validate`).toBe(true);
+      const wire = advertised.get(tool.name);
+      expect(wire?.inputSchema, `${tool.name} inputSchema`).toEqual(tool.inputSchema);
+      expect(wire?.outputSchema, `${tool.name} outputSchema`).toEqual(tool.outputSchema);
     }
   });
 
-  it("validates every captured payload with a real Draft 2020-12 validator", () => {
+  it("exercises every advertised tool", () => {
+    const exercised = new Set(calls.map((c) => c.tool));
+    for (const name of advertised.keys()) {
+      expect(exercised.has(name), `${name} produced no call to validate`).toBe(true);
+    }
+  });
+
+  it("validates every call's arguments against the advertised inputSchema", () => {
     const failures: string[] = [];
-    for (const { label, tool, payload } of payloads) {
-      const validate = validators.get(tool);
+    for (const { label, tool, args } of [...calls, { label: "design_review[denied]", tool: "design_review", args: denied.args }]) {
+      const validate = inputValidators.get(tool);
+      if (!validate) continue;
+      if (!validate(JSON.parse(JSON.stringify(args)))) {
+        failures.push(`${label} vs ${tool} -> INVALID\n${explain(validate.errors)}`);
+      }
+    }
+    expect(failures.join("\n"), failures.join("\n")).toBe("");
+  });
+
+  it("accepts the three calls the published input schemas used to reject", () => {
+    // Regression cases, named as the validator reported them:
+    //   06-get-focus    additionalProperty "finding_ids"
+    //   07-get-evidence additionalProperty "evidence_ids"
+    //   10-recheck      finding_ids[0] "f_001" fewer than 8 characters
+    const get = inputValidators.get("design_review_get")!;
+    const recheck = inputValidators.get("design_recheck")!;
+    const jobId = "job_00000000-0000-4000-8000-000000000000";
+
+    expect(get({ job_id: jobId, view: "focus" }) || explain(get.errors)).toBe(true);
+    expect(get({ job_id: jobId, view: "evidence" }) || explain(get.errors)).toBe(true);
+    expect(
+      recheck({
+        review_id: "rev_00000000-0000-4000-8000-000000000000",
+        finding_ids: ["f_001", "f_002", "f_003"],
+        client_request_id: "conformance-regression",
+      }) || explain(recheck.errors),
+    ).toBe(true);
+
+    // And the schema is still closed: an undeclared argument is still rejected.
+    expect(get({ job_id: jobId, view: "focus", finding_ids: ["f_001"] })).toBe(false);
+  });
+
+  it("validates every captured payload against the advertised outputSchema", () => {
+    const failures: string[] = [];
+    for (const { label, tool, payload } of calls) {
+      const validate = outputValidators.get(tool);
       if (!validate) continue;
       // Validate what crosses the wire, not the in-process object: a serializer
       // that drops an undefined or narrows a number is part of the contract.
@@ -221,17 +310,25 @@ describe("every tool payload validates against schemas/mcp-tools.json", () => {
     // The guard on the guard. `additionalProperties: false` is what makes the
     // undeclared-field class detectable at all, so prove it is still in force:
     // if this stopped failing, the test above would stop being a gate.
-    const validate = validators.get("design_review_get")!;
-    const evidence = payloads.find((p) => p.label.startsWith("design_review_get[evidence]"))!;
+    const validate = outputValidators.get("design_review_get")!;
+    const evidence = calls.find((c) => c.label.startsWith("design_review_get[evidence]"))!;
     expect(validate(JSON.parse(JSON.stringify(evidence.payload)))).toBe(true);
     expect(validate({ ...evidence.payload, undeclared_extra: true })).toBe(false);
   });
 
-  it("validates a tool error against schemas/review-error.schema.json", async () => {
+  it("validates a tool error against the advertised outputSchema and the error schema", async () => {
+    // An error result carries structuredContent too, and a strict client
+    // validates it against the same advertised outputSchema, so the contract has
+    // to declare the error envelope rather than pretend it is never emitted.
+    const validate = outputValidators.get("design_review")!;
+    expect(validate(JSON.parse(JSON.stringify(denied.payload))) || explain(validate.errors)).toBe(true);
+    // A result envelope and an error envelope are never both present.
+    expect(validate({ ...denied.payload, schema_version: "1.0.0" })).toBe(false);
+
     const ajv = new Ajv2020({ strict: false, allErrors: true });
     addFormats(ajv);
-    const validate = ajv.compile(JSON.parse(readFileSync(ERROR_SCHEMA_PATH, "utf8")));
-    const error = await captureError();
-    expect(validate(error) || explain(validate.errors)).toBe(true);
+    const errorSchema = ajv.compile(JSON.parse(readFileSync(ERROR_SCHEMA_PATH, "utf8")));
+    const error = (denied.payload as { error: Record<string, unknown> }).error;
+    expect(errorSchema(error) || explain(errorSchema.errors)).toBe(true);
   });
 });

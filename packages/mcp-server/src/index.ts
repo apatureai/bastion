@@ -166,6 +166,16 @@ export type {
   DesignRecheckToolInput,
   DesignReviewPanelActionToolInput,
 } from "./tools.js";
+// The published contract: schemas/mcp-tools.json served verbatim on the wire, so
+// tools/list carries the catalog's own inputSchema and outputSchema per tool.
+export {
+  advertiseCatalogSchemas,
+  catalogInputSchema,
+  catalogOutputSchema,
+  TOOL_CATALOG_PATH,
+  TOOL_CATALOG_VERSION,
+} from "./tool-catalog.js";
+export type { JsonSchemaDocument, ToolListing, ToolListingMetadata } from "./tool-catalog.js";
 export { PgPoolConnectionFactory, runMcpMigrations, MCP_MIGRATIONS_DIR } from "./pg.js";
 export { PostgresAllowlistResolver, SystemDnsResolver } from "./production-adapters.js";
 export { bootProduction } from "./production.js";

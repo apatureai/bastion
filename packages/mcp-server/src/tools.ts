@@ -1,9 +1,14 @@
 import { z } from "zod";
 
 /**
- * Zod input schemas for the v1 tools, kept in lockstep with
- * schemas/mcp-tools.json. The SDK derives the JSON Schema advertised to clients
- * from these, so this is the single in-code source of the tool inputs.
+ * Zod input schemas for the v1 tools: what the server PARSES.
+ *
+ * What clients are TOLD is a separate artifact, `schemas/mcp-tools.json`, served
+ * verbatim by `tool-catalog.ts`. The SDK used to derive the advertised schema
+ * from these shapes, which meant two published contracts, only one of them
+ * checked, and a catalog free to reject calls the server accepted. Now there is
+ * one advertised contract and the schema-conformance test drives real calls
+ * through both, so a shape here that disagrees with the catalog fails CI.
  */
 
 const httpsUrl = z
@@ -56,10 +61,11 @@ export const designReviewGetInputShape = {
 export const designRecheckInputShape = {
   review_id: z.string().min(8).max(128).describe("review_id of the completed review to recheck."),
   finding_ids: z
-    // schemas/mcp-tools.json floors finding-id length at 8, but the engine's
-    // review result (mirrored byte-for-byte from apatureai/gate's golden
-    // fixture) uses short ids like "f_001". The fixture is the source of truth
-    // for what ids actually exist, so the floor is relaxed to 3 here.
+    // The floor is 3, not 8: the engine's review result (mirrored byte-for-byte
+    // from apatureai/gate's golden fixture) uses short ids like "f_001", and the
+    // ids that exist are the ids the tool has to accept. The catalog floored
+    // them at 8, so the published contract rejected the server's own fixture;
+    // it now says 3 as well.
     .array(z.string().min(3).max(128))
     .min(1)
     .max(20)

@@ -92,9 +92,14 @@ README has a file-by-file map.
   edits code, commits, pushes, opens pull requests, or drives the customer's application. It is the
   eyes; the agent is the hands. Most of the type and tool design only makes sense with that
   constraint held, and `panel-interaction.ts` is where it is easiest to break by accident.
-- **The tool catalog is contract-tested.** `schemas/mcp-tools.json`, `directory/server.json`, and
-  the live server's `tools/list` are cross-checked by `directory.test.ts` and
-  `catalog-drift.test.ts`, including the version string. Change one, change all three.
+- **The tool catalog is the published contract, served verbatim.** `tools/list` advertises the
+  `inputSchema` and `outputSchema` straight out of `schemas/mcp-tools.json` (`tool-catalog.ts`), so
+  editing that file changes what every client is told. The Zod shapes in `tools.ts` are what the
+  server parses, not what it advertises; `schema-conformance.test.ts` validates every call against
+  the advertised input schema and every payload against the advertised output schema, so a shape
+  that disagrees with the catalog fails CI in either direction. `schemas/mcp-tools.json`,
+  `directory/server.json`, and the live `tools/list` are also cross-checked by `directory.test.ts`
+  and `catalog-drift.test.ts`, including the version string. Change one, change all three.
 - **Contracts live in `mcp-types`**, with golden fixtures under `packages/mcp-types/fixtures`.
   Changing a result shape means updating the golden file deliberately, not regenerating it to make
   tests pass. If a shape change is the point of your PR, say so in the description.
