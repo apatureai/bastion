@@ -20,7 +20,7 @@ import type {
  * Two invariants make it honest rather than flashy:
  *   1. **Capability downgrade.** A host that cannot render images
  *      (`capability.images === false`) gets the SAME text/structured findings
- *      plus an explicit list of which images were withheld — never a broken or
+ *      plus an explicit list of which images were withheld, never a broken or
  *      silently-dropped image block. The agent always knows what it is not seeing.
  *   2. **Only real image bytes become image blocks.** A finding's
  *      `evidence_id` yields an image block only when a matching `AnnotatedImage`
@@ -45,8 +45,8 @@ function findingText(f: CritiqueFinding): string {
 
 /**
  * Build the multimedia `design_review` content for a critique. Emits one text
- * block for the overall verdict, then per finding a text block and — when the
- * host supports images and an annotated crop was supplied for that finding — an
+ * block for the overall verdict, then per finding a text block and, when the
+ * host supports images and an annotated crop was supplied for that finding, an
  * image block. For a non-multimedia host, image blocks are omitted and their
  * `evidence_id`s are reported in `images_withheld`. Deterministic; preserves
  * `critique.findings` order.
@@ -78,7 +78,7 @@ export function buildMultimediaCritiqueContent(
       content.push({ type: "image", data: img.data, mimeType: img.mimeType });
       emittedImage = true;
     } else {
-      // Honest downgrade: the crop exists but the host can't render it — say so.
+      // Honest downgrade: the crop exists but the host can't render it, so say so.
       imagesWithheld.push(img.evidenceId);
     }
   }
@@ -138,7 +138,7 @@ export function buildDesignReviewContent(
       content.unshift(block); // panel first; text/image blocks are the fallback
       panel = true;
     } else {
-      panelWithheld = true; // honest downgrade — the panel exists, the host can't show it
+      panelWithheld = true; // honest downgrade: the panel exists, the host can't show it
     }
   }
 

@@ -2,7 +2,7 @@
  * Judgment Engine review-result boundary (the upstream contract MCP Review
  * consumes). This mirrors the proven `apatureai/gate` GateReviewResult shape so
  * the two repos share one boundary artifact and the mock engine cannot drift
- * from the live contract. MCP Review never owns capture, inference, or storage —
+ * from the live contract. MCP Review never owns capture, inference, or storage;
  * it only maps this result into the agent-facing Critique (see `critique.ts`).
  *
  * Nothing here may hard-code a specific judge model; the default is Qwen3-VL via
@@ -59,7 +59,7 @@ export type EngineFinding = {
    * Rubric dimension the engine selected (judgment-engine#159). Additive on
    * schema v1: newly produced results always carry it; optional only because
    * results produced before the field existed exist. When absent, consumers
-   * surface the dimension as unavailable — never synthesizing one from severity.
+   * surface the dimension as unavailable, never synthesizing one from severity.
    */
   dimension?: EngineDimension;
   title: string;
@@ -76,7 +76,7 @@ export type EngineFinding = {
    * Engine-produced confidence 0..1, capped upstream by the capture
    * confidence-ceiling (judgment-engine#150, additive on schema v1). Optional
    * only because results produced before the engine emitted it exist; when
-   * absent, consumers surface confidence as unavailable — they never compute
+   * absent, consumers surface confidence as unavailable; they never compute
    * or synthesize a numeric value locally.
    */
   confidence?: number;

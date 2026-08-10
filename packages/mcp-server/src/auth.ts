@@ -10,7 +10,7 @@ import type { AuthInfo } from "@modelcontextprotocol/sdk/server/auth/types.js";
  *
  * The verified `AuthInfo.extra.tenantId` scopes the per-session review service.
  * Durable review state lives in the application store keyed by product job ids,
- * NEVER in the MCP transport session — a session is only a routing handle.
+ * NEVER in the MCP transport session; a session is only a routing handle.
  */
 
 /** The scope a token must carry to use the cancel tool (least privilege). */
@@ -21,7 +21,7 @@ export interface TokenVerifier {
   /**
    * Resolve a raw bearer token to its `AuthInfo`, or throw `TokenInvalidError`
    * / return `null` when the token is missing/expired/invalid/wrong-audience.
-   * The verifier MUST populate `extra.tenantId` — the tenant the token is for.
+   * The verifier MUST populate `extra.tenantId`, the tenant the token is for.
    */
   verify(token: string): Promise<AuthInfo | null>;
 }
@@ -59,7 +59,7 @@ export function bearerToken(headerValue: string | undefined): string | null {
 
 /**
  * Authenticate a request from its Authorization header. Returns the verified
- * `Principal`, or `null` when the token is absent or invalid — the caller then
+ * `Principal`, or `null` when the token is absent or invalid. The caller then
  * answers 401 with a `WWW-Authenticate` challenge pointing at the
  * protected-resource metadata. Non-enumerating: absent and invalid tokens are
  * indistinguishable to the client.

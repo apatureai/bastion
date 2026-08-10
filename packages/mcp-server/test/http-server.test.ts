@@ -47,7 +47,7 @@ async function start(options: {
   dnsReady?: boolean;
   httpLimits?: Partial<HttpResourceLimits>;
 } = {}) {
-  // The SDK validates the Host header (incl. port) against allowedHosts — the
+  // The SDK validates the Host header (incl. port) against allowedHosts: the
   // DNS-rebinding defense. The bound port is only known after listen, so pass a
   // mutable array and register 127.0.0.1:<port> once it is known (in production
   // this is the fixed public origin, e.g. mcp.apature.ai).

@@ -139,7 +139,7 @@ type ReviewRecord = {
   url: string;
   /** Canonical host the review targeted; a recheck on a different host is rejected. */
   host: string;
-  /** Target fingerprint at review time — the "before" of a recheck. */
+  /** Target fingerprint at review time: the "before" of a recheck. */
   beforeFingerprint: string;
   critique: Critique;
 };
@@ -338,8 +338,8 @@ export class ReviewService {
    * Ordering is deliberate so no unit is ever double-spent or spent on a no-op:
    *   1. idempotency short-circuit (an exact retry returns the original job);
    *   2. validate review ownership, completion, and finding membership;
-   *   3. SSRF-authorize the (possibly new) URL — must stay on the prior host;
-   *   4. reject `TARGET_UNCHANGED` and any finding over its recheck ceiling —
+   *   3. SSRF-authorize the (possibly new) URL, which must stay on the prior host;
+   *   4. reject `TARGET_UNCHANGED` and any finding over its recheck ceiling,
    *      all of which consume ZERO units (§582);
    *   5. only then reserve units, run the engine, and record counts.
    */
@@ -351,7 +351,7 @@ export class ReviewService {
     const fingerprint = recheckRequestFingerprint(input, requestedUrl);
 
     // (1) Idempotency: an exact retry returns the prior recheck job, no charge.
-    // A reused client_request_id whose normalized body differs is a conflict —
+    // A reused client_request_id whose normalized body differs is a conflict, and
     // it must NOT silently replay the original result (issue #10). This is a
     // pre-reservation check, so a conflict still bills nothing.
     const existing = await this.findByClientRequestId(input.client_request_id);
@@ -888,7 +888,7 @@ function targetFingerprint(url: string, expectedRevision?: string): string {
  * set of findings (order-independent), and the normalized URL. Two retries with
  * the same fingerprint are the "same request"; a reused client_request_id with
  * a different fingerprint is an IDEMPOTENCY_CONFLICT. The idempotency key and
- * expected_revision are intentionally excluded — the URL already carries the
+ * expected_revision are intentionally excluded: the URL already carries the
  * target, and the revision only affects the after-fingerprint, not request
  * identity.
  */

@@ -3,15 +3,15 @@ import type { AnnotatedImage, Critique, CritiqueFinding, PanelFinding } from "@a
 /**
  * Renderer for the interactive MCP-Apps review panel's HTML.
  *
- * `buildDesignReviewContent` takes the panel markup as a caller-supplied string —
+ * `buildDesignReviewContent` takes the panel markup as a caller-supplied string:
  * dependency inversion, because the original renderer lived outside this repo. That
  * left the panel branch unreachable from any live tool. This is a renderer for it:
  * a self-contained, offline HTML document (no scripts, no external stylesheets, no
  * remote URLs) that presents the same worklist the reducer acts on.
  *
  * Two properties matter more than the styling:
- *   1. **Everything is escaped.** Findings quote a page the customer's users — or
- *      an attacker — control. Page-derived text is data, never markup and never
+ *   1. **Everything is escaped.** Findings quote a page the customer's users, or
+ *      an attacker, control. Page-derived text is data, never markup and never
  *      instruction; every interpolation goes through `escapeHtml`, and evidence is
  *      embedded as a `data:` URI so the panel never fetches anything.
  *   2. **The panel shows the routing, it does not perform it.** Each finding is
@@ -77,7 +77,7 @@ function findingSection(
  *
  * `panelFindings` is the reducer's own worklist (from `buildPanelFindings`), so the
  * agent-appliable / needs-a-human label on screen is the same decision
- * `handlePanelAction` makes — the panel cannot claim a fix the reducer would refuse.
+ * `handlePanelAction` makes, so the panel cannot claim a fix the reducer would refuse.
  * `images` are matched to findings by `evidence_id`; a finding with no image renders
  * text-only.
  */

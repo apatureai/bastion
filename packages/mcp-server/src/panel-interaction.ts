@@ -8,15 +8,15 @@ import type { PanelAction, PanelFinding, PanelResponse } from "@apature/mcp-type
  *
  * Eyes-not-hands invariant, enforced here:
  *   - `apply_fix` on a grounded (`appliable`) finding returns its fix for the host
- *     to hand to the CODING AGENT — this module never edits code;
+ *     to hand to the CODING AGENT; this module never edits code;
  *   - `apply_fix` on an advisory finding (or one with no fix) returns `human_only`,
- *     never an auto-fix — advisory is model judgment that needs a person;
+ *     never an auto-fix, because advisory is model judgment that needs a person;
  *   - `recheck` returns the recheck refs (the graph cycle-back handle), scoped to
  *     one finding or the whole review; a resolution is a recheck verdict Apature
  *     earns, never a status the panel sets.
  *
  * Pure and deterministic; no I/O. The panel HTML/JS and the live host round-trip
- * are the MCP-Apps runtime — this is the contract they exchange.
+ * are the MCP-Apps runtime, and this is the contract they exchange.
  */
 export function handlePanelAction(action: PanelAction, findings: readonly PanelFinding[]): PanelResponse {
   if (action.type === "apply_fix") {
@@ -29,7 +29,7 @@ export function handlePanelAction(action: PanelAction, findings: readonly PanelF
     return { type: "fix", finding_id: action.finding_id, fix: finding.fix };
   }
 
-  // recheck: gather the refs to re-verify — one finding's, or the whole review's.
+  // recheck: gather the refs to re-verify: one finding's, or the whole review's.
   const scoped =
     action.finding_id === undefined
       ? findings

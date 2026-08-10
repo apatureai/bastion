@@ -1,7 +1,7 @@
 export { createMcpReviewServer } from "./server.js";
 export type { McpReviewServerDeps } from "./server.js";
 // The offline composition root: the same five tools with fixture judgments, a stub
-// resolver, and placeholder evidence — no credentials, database, network, or engine.
+// resolver, and placeholder evidence. No credentials, database, network, or engine.
 export {
   createLocalReviewServer,
   LOCAL_ALLOWED_HOST,
@@ -11,7 +11,7 @@ export type { LocalReviewServerOptions } from "./local-server.js";
 export type { EvidenceProvider } from "./evidence.js";
 export { SyntheticEvidenceProvider, renderPlaceholderPng } from "./synthetic-evidence.js";
 export { renderReviewPanel, escapeHtml } from "./panel-html.js";
-// D3 (#58): multimedia-native design_review result shaping — annotated screenshot
+// D3 (#58): multimedia-native design_review result shaping: annotated screenshot
 // image blocks + the interactive MCP-Apps HTML panel, each with an honest
 // capability downgrade for hosts that can't render them.
 export {
@@ -131,10 +131,10 @@ export { PgPoolConnectionFactory, runMcpMigrations, MCP_MIGRATIONS_DIR } from ".
 export { PostgresAllowlistResolver, SystemDnsResolver } from "./production-adapters.js";
 export { bootProduction } from "./production.js";
 export type { ProductionOverrides, ProductionHandle } from "./production.js";
-// Idea #64: pure reducer for the interactive MCP-Apps review panel — maps a panel
+// Idea #64: pure reducer for the interactive MCP-Apps review panel. It maps a panel
 // action (apply-fix / recheck) to the host response, eyes-not-hands preserved.
 export { handlePanelAction } from "./panel-interaction.js";
-// Idea #64: the review-side producer — projects a review's fix plan (structural
+// Idea #64: the review-side producer, which projects a review's fix plan (structural
 // AxisFixItems) into the PanelFindings the panel renders and the reducer consumes.
 export {
   toPanelFinding,

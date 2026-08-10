@@ -13,7 +13,7 @@ import { SyntheticEvidenceProvider } from "../src/synthetic-evidence.js";
  *
  * Load-bearing: `status` never carries a result body (a polling loop stays cheap);
  * `focus` drops nits; `evidence` returns MCP content blocks; and the capability
- * downgrade a host sees is honest — a host that cannot render images or an MCP-Apps
+ * downgrade a host sees is honest: a host that cannot render images or an MCP-Apps
  * panel is TOLD what was withheld rather than being handed a broken block.
  */
 

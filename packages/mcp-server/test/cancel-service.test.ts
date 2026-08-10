@@ -42,7 +42,7 @@ describe("ReviewService.cancelReview (#32)", () => {
     });
     expect(typeof first.cancellation_requested_at).toBe("string");
 
-    // A duplicate cancel returns the identical result — same status AND the same
+    // A duplicate cancel returns the identical result: same status AND the same
     // cancellation_requested_at (set once on first cancel, not a moving clock).
     const second = await svc.cancelReview(submitted.job.job_id);
     expect(second).toEqual(first);
@@ -56,7 +56,7 @@ describe("ReviewService.cancelReview (#32)", () => {
     const submitted = await svc.submitReview(reviewInput("req-units-0001"));
     const before = submitted.budget.tenant_units_remaining;
     await svc.cancelReview(submitted.job.job_id);
-    // A second review drops the balance by exactly one review's unit — the
+    // A second review drops the balance by exactly one review's unit, so the
     // cancel in between spent nothing (§ ledger truth preserved).
     const next = await svc.submitReview(reviewInput("req-units-0002"));
     expect(next.budget.tenant_units_remaining).toBe(before - 1);

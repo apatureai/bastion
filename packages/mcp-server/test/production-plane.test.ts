@@ -134,12 +134,12 @@ describe("PostgresReviewApplicationStore (durable plane, #36)", () => {
     const created = await store.reserve(record());
     expect(created.kind).toBe("created");
 
-    // Same request replayed (reconnect/restart/second replica) — reused, no new work.
+    // Same request replayed (reconnect/restart/second replica): reused, no new work.
     const reused = await store.reserve(record({ job: { job_id: "mcp_job_other", status: "queued" } as ApplicationJobRecord["job"] }));
     expect(reused.kind).toBe("reused");
     expect(reused.record.job.job_id).toBe("mcp_job_1");
 
-    // Same client_request_id with a different normalized request — conflict.
+    // Same client_request_id with a different normalized request: conflict.
     const conflict = await store.reserve(record({ normalizedRequestHash: "hash-2", job: { job_id: "mcp_job_2", status: "queued" } as ApplicationJobRecord["job"] }));
     expect(conflict.kind).toBe("conflict");
   });

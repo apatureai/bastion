@@ -166,7 +166,7 @@ export interface McpReviewServerDeps extends ReviewServiceDeps {
   /**
    * Supplies annotated screenshot bytes for `design_review_get` with
    * `view: "evidence"`. With no provider the evidence view still returns the
-   * findings and the panel — just no image blocks.
+   * findings and the panel, just with no image blocks.
    */
   evidence?: EvidenceProvider;
 }
@@ -182,7 +182,7 @@ function narrowToFocus(critique: Critique): Critique {
 /**
  * Shape a completed review as the multimedia `evidence` view: the MCP-Apps panel
  * (when the host renders one) followed by per-finding text and the annotated
- * evidence crops. This is the live call site for `multimedia-content.ts` — the
+ * evidence crops. This is the live call site for `multimedia-content.ts`. The
  * capability downgrade it implements is what a host that cannot render images or
  * panels actually receives, with `presentation` naming exactly what was withheld.
  */
@@ -221,11 +221,11 @@ async function evidenceResult(
 
 /**
  * Build the MCP Review server with the v1 tool surface. All five catalog tools
- * — `design_review`, `design_review_get`, `design_recheck`,
- * `design_review_cancel`, and `design_review_panel_action` — are wired, so the
+ * (`design_review`, `design_review_get`, `design_recheck`,
+ * `design_review_cancel`, and `design_review_panel_action`) are wired, so the
  * registered surface matches schemas/mcp-tools.json exactly (no
  * advertised-but-missing tool). Pass `deps` (mock engine, fixed clock/ids) to make
- * the server deterministic under test — tests MUST never reach a real engine.
+ * the server deterministic under test; tests MUST never reach a real engine.
  *
  * The P0 SSRF guard (issue #4) is enforced whenever `deps.allowlist` and
  * `deps.resolver` are supplied. If they are omitted the server FAILS CLOSED: an
@@ -270,8 +270,8 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
         if (err instanceof NormalizationError) {
           // Align the URL-violation taxonomy with design_recheck (issue #14): a
           // disallowed URL is URL_NOT_ALLOWED on BOTH tools; only a non-URL
-          // argument violation (bad route prefix, too many routes/viewports) —
-          // which design_recheck cannot produce — is INVALID_ARGUMENT.
+          // argument violation (bad route prefix, too many routes/viewports),
+          // which design_recheck cannot produce, is INVALID_ARGUMENT.
           const code = err.kind === "url" ? "URL_NOT_ALLOWED" : "INVALID_ARGUMENT";
           return errorResult(code, err.message, {
             retriable: false,
@@ -370,7 +370,7 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
         }
         if (err instanceof NormalizationError) {
           // A userinfo/non-https recheck url is a precise, non-retriable
-          // URL_NOT_ALLOWED — not a generic INTERNAL_ERROR (issue #11).
+          // URL_NOT_ALLOWED, not a generic INTERNAL_ERROR (issue #11).
           // design_recheck only normalizes a URL, so every NormalizationError
           // here is necessarily err.kind === "url" (see issue #14); this stays
           // URL_NOT_ALLOWED and now matches the design_review URL path exactly.
@@ -417,7 +417,7 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
       inputSchema: designReviewCancelInputShape,
       annotations: {
         // Mutates Apature service job state (not customer systems), and an
-        // exact retry returns the same terminal state — idempotent.
+        // exact retry returns the same terminal state, so it is idempotent.
         readOnlyHint: false,
         destructiveHint: true,
         idempotentHint: true,

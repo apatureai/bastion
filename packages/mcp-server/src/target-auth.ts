@@ -13,7 +13,7 @@ import { classifyAddress } from "./egress.js";
  *
  * MCP Review owns this policy. The pinned connection + capture stay in
  * judgment-engine; the `DnsResolver` here is a seam so policy can be evaluated
- * (and tested) WITHOUT real DNS or network — tests inject a stub resolver.
+ * (and tested) WITHOUT real DNS or network; tests inject a stub resolver.
  */
 
 /** A pre-registered, ownership-verified target for a tenant (§7.2). */
@@ -28,7 +28,7 @@ export type TenantAllowlist = {
   targets: VerifiedTarget[];
 };
 
-/** Resolves a hostname to its A/AAAA addresses. A seam — never real net in tests. */
+/** Resolves a hostname to its A/AAAA addresses. A seam, so never real net in tests. */
 export interface DnsResolver {
   resolve(host: string): Promise<string[]>;
 }

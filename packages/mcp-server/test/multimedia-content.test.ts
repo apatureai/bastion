@@ -109,7 +109,7 @@ describe("buildDesignReviewContent — MCP-Apps panel + multimedia", () => {
       type: "resource",
       resource: { uri: "ui://apature/design-review/r1", mimeType: MCP_APP_PANEL_MIME, text: PANEL },
     });
-    // The MCP-Apps profile marker — not plain text/html — is what makes the host
+    // The MCP-Apps profile marker, not plain text/html, is what makes the host
     // render it as an interactive panel.
     expect(MCP_APP_PANEL_MIME).toBe("text/html;profile=mcp-app");
     // panel first, then the multimedia blocks (overall, finding, image)

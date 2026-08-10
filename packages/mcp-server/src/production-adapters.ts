@@ -6,7 +6,7 @@ import type { DnsResolver, TenantAllowlist, VerifiedTarget } from "./target-auth
 /**
  * Production target-allowlist adapter (#36): reads the ownership-verified
  * registry (migrations/002_review_targets.sql). Only rows whose verification
- * completed are served — an unverified registration never authorizes capture
+ * completed are served; an unverified registration never authorizes capture
  * (TRD §7.2). Every read binds `app.tenant_id` for RLS, matching the
  * application store's transaction discipline.
  */
@@ -55,7 +55,7 @@ export class PostgresAllowlistResolver implements AllowlistResolver {
  * Production DNS adapter (#36): resolves A + AAAA records through the host's
  * configured resolver. Target authorization then classifies every returned
  * address against the egress denylist (target-auth.ts), so a poisoned or
- * rebinding answer is rejected there — this adapter only observes.
+ * rebinding answer is rejected there, and this adapter only observes.
  */
 export class SystemDnsResolver implements DnsResolver {
   async resolve(host: string): Promise<string[]> {

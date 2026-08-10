@@ -74,7 +74,7 @@ describe("classifyAddress — IPv6 denylist", () => {
   it("denies the ALL-HEX IPv4-mapped form (regression: hex bypass)", () => {
     // Same addresses as above, spelled with hex hextets instead of a dotted
     // tail. These previously slipped past the dotted-tail regex and returned
-    // ALLOW — a real cloud-metadata / loopback / RFC-1918 SSRF bypass.
+    // ALLOW, a real cloud-metadata / loopback / RFC-1918 SSRF bypass.
     const mapped: Array<[string, string]> = [
       ["::ffff:a9fe:a9fe", "metadata"], // 169.254.169.254
       ["::ffff:7f00:1", "loopback"], // 127.0.0.1
@@ -106,7 +106,7 @@ describe("classifyAddress — IPv6 denylist", () => {
   it("denies NAT64 (64:ff9b::/96) wrapping internal addresses", () => {
     // A DNS64/NAT64 resolver synthesizes these for v4-only hosts; the embedded
     // v4 lives in the last two hextets (RFC 6052). Same embedded-v4 SSRF class
-    // as the ::ffff:/6to4 forms above — must be classified by the v4 denylist.
+    // as the ::ffff:/6to4 forms above, so they must be classified by the v4 denylist.
     const denied: Array<[string, string]> = [
       ["64:ff9b::a9fe:a9fe", "metadata"], // 169.254.169.254
       ["64:ff9b::7f00:1", "loopback"], // 127.0.0.1

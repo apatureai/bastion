@@ -35,7 +35,7 @@ function mapFinding(finding: EngineFinding, confidenceIsDisplayable: boolean): C
     finding_id: finding.id,
     severity: mapSeverity(finding.severity),
     // The engine's rubric dimension (judgment-engine#159), passed through
-    // verbatim. Legacy results without it surface `null` — an explicit
+    // verbatim. Legacy results without it surface `null`: an explicit
     // "unavailable", never a dimension synthesized from severity.
     dimension: finding.dimension ?? null,
     title: finding.title,

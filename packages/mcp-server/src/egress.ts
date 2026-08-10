@@ -6,7 +6,7 @@
  * MCP Review owns this *policy*; the actual DNS resolution + pinned connection
  * lives in `judgment-engine`. This module is the shared predicate both sides
  * agree on, so it must be exhaustive and easy to audit. It NEVER touches the
- * network — it classifies an address string a resolver already produced.
+ * network; it classifies an address string a resolver already produced.
  */
 
 /** Why an address is prohibited (surfaced in errors and tests). */
@@ -72,7 +72,7 @@ function classifyIpv4(addr: string): EgressVerdict {
 /** Expand an IPv6 string to eight 16-bit groups, or null if malformed. */
 function expandIpv6(input: string): number[] | null {
   let addr = input;
-  // Strip zone id (e.g. fe80::1%eth0) — never trusted for policy.
+  // Strip zone id (e.g. fe80::1%eth0), never trusted for policy.
   const zone = addr.indexOf("%");
   if (zone !== -1) addr = addr.slice(0, zone);
 
@@ -151,7 +151,7 @@ function classifyIpv6(addr: string): EgressVerdict {
 
   // NAT64 well-known prefix 64:ff9b::/96 (RFC 6052): the embedded v4 is the last
   // two hextets. A DNS64/NAT64 resolver synthesizes these for v4-only hosts, so
-  // 64:ff9b::a9fe:a9fe is really 169.254.169.254 — the same embedded-v4 bypass
+  // 64:ff9b::a9fe:a9fe is really 169.254.169.254, the same embedded-v4 bypass
   // class as ::ffff:/6to4 above, and it must be classified by the v4 denylist.
   if (g0 === 0x0064 && g1 === 0xff9b && g2 === 0 && g3 === 0 && g4 === 0 && g5 === 0) {
     return classifyIpv4(embeddedV4(g6, g7));

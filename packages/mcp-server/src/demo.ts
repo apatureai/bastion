@@ -11,7 +11,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
  *
  * It spawns the server as a child process rather than importing it, so what runs
  * here is exactly what a coding agent would run when it launches this repo as a
- * local MCP server — same binary, same transport, same handshake.
+ * local MCP server: same binary, same transport, same handshake.
  */
 
 const OUT_DIR = resolve(process.cwd(), "out");

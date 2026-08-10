@@ -13,11 +13,11 @@ import { TokenInvalidError, type TokenVerifier } from "./auth.js";
  * which the auth layer turns into a non-enumerating 401.
  */
 export interface JwtVerifierConfig {
-  /** jose key resolver — a remote JWKS in prod, a local key in tests. */
+  /** jose key resolver: a remote JWKS in prod, a local key in tests. */
   keySource: JWTVerifyGetKey | KeyObject | Uint8Array;
   /** Expected token issuer (`iss`). */
   issuer: string;
-  /** Expected audience (`aud`) — this server's resource identifier. */
+  /** Expected audience (`aud`), this server's resource identifier. */
   audience: string;
   /**
    * Claim carrying the tenant id (default `tenant_id`). The tenant scopes every

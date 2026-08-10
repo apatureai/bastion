@@ -12,7 +12,7 @@ import {
 /**
  * Cross-repo cancel-state mapping (#32) against the pinned golden. Any change
  * to Judgment Engine's public cancel surfacing must update the golden AND the
- * mapping together, or this test fails — which is the whole point of pinning a
+ * mapping together, or this test fails, which is the whole point of pinning a
  * contract instead of inferring cancellation from transport timing.
  */
 const golden = JSON.parse(
@@ -38,7 +38,7 @@ describe("engine cancel-state mapping (#32 cross-repo golden)", () => {
 
   it("only the canceled sentinel makes a failed job map to cancelled", () => {
     expect(mapEngineStatusToMcp({ state: "failed", error: ENGINE_CANCELED_ERROR }).status).toBe("cancelled");
-    // Any other failure — including a lookalike — stays failed, never cancelled.
+    // Any other failure, including a lookalike, stays failed, never cancelled.
     for (const error of ["capture_timeout", "model_error", "CANCELED", "cancelled", null, undefined]) {
       expect(mapEngineStatusToMcp({ state: "failed", error }).status).toBe("failed");
     }

@@ -8,12 +8,12 @@
  * The load-bearing invariant is **eyes-not-hands**: the panel can REQUEST that a
  * finding's grounded fix be handed to the coding agent, but it never edits. And a
  * finding whose fix is model JUDGMENT (advisory), not a rule-cited grounded fix,
- * can never be auto-applied — the response is `human_only`. So the panel routes
+ * can never be auto-applied; the response is `human_only`. So the panel routes
  * work (grounded → agent, advisory → human) exactly like `routeGateNode`; it does
  * not perform it.
  */
 
-/** One finding as the interactive panel needs it — supplied by the review side. */
+/** One finding as the interactive panel needs it, supplied by the review side. */
 export type PanelFinding = {
   finding_id: string;
   /**
@@ -34,14 +34,14 @@ export type PanelFinding = {
 export type PanelAction =
   /** The reviewer/agent asks to apply a finding's grounded fix. */
   | { type: "apply_fix"; finding_id: string }
-  /** Re-run the review to confirm fixes — optionally scoped to one finding. */
+  /** Re-run the review to confirm fixes, optionally scoped to one finding. */
   | { type: "recheck"; finding_id?: string };
 
 /** The host's response to a `PanelAction`. */
 export type PanelResponse =
   /** The finding's grounded fix, to be handed to the coding agent (not applied here). */
   | { type: "fix"; finding_id: string; fix: string }
-  /** The finding is advisory (model judgment) — it needs a human, not an auto-fix. */
+  /** The finding is advisory (model judgment): it needs a human, not an auto-fix. */
   | { type: "human_only"; finding_id: string }
   /** The recheck refs to re-verify (drives the graph cycle-back). */
   | { type: "recheck"; refs: string[] }

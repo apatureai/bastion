@@ -6,14 +6,14 @@
  * the bottom of `main.ts` as `await import("./production.js")`, but
  * `production.ts` statically imports `startFromEnv` from `main.ts`. When
  * `main.js` was the process entry, its top-level await blocked on evaluating
- * `production.js`, which was waiting on the still-evaluating `main.js` — an ESM
+ * `production.js`, which was waiting on the still-evaluating `main.js`, an ESM
  * cycle whose top-level await never settled, so `node dist/main.js` exited 13
  * with "Detected unsettled top-level await" and never reached the intended
  * fail-fast error message.
  *
  * With the guard here the import graph is acyclic (boot -> production -> main),
  * so missing config or an unusable database exits non-zero with a readable
- * reason — never a green-but-unusable listener, and never an opaque Node
+ * reason, never a green-but-unusable listener, and never an opaque Node
  * internals warning.
  */
 

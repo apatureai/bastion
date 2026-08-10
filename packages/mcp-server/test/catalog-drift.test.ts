@@ -1,11 +1,11 @@
 /**
  * Catalog drift gate (#29 acceptance: "Listing metadata matches the live
- * tools/list — CI-checked").
+ * tools/list, CI-checked").
  *
  * directory.test.ts checks the registry manifest against schemas/mcp-tools.json
  * (static ↔ static). This suite closes the remaining leg: a real server
- * instance, driven over an in-process transport by a real MCP client — what a
- * client actually receives from tools/list and initialize — must match that
+ * instance, driven over an in-process transport by a real MCP client. What a
+ * client actually receives from tools/list and initialize must match that
  * same catalog. tools.ts claims it is "kept in lockstep with
  * schemas/mcp-tools.json"; this is the test that makes the claim enforceable.
  * Any tool rename, description edit, annotation flip, input-schema field

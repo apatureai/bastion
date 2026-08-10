@@ -53,7 +53,7 @@ export type CritiqueFinding = {
   /**
    * The engine's rubric dimension (judgment-engine#159), passed through verbatim
    * so the agent can group findings by reason category. `null` when the engine
-   * result predates the field — an explicit "unavailable", never a value
+   * result predates the field, an explicit "unavailable", never a value
    * synthesized from severity.
    */
   dimension: EngineDimension | null;
@@ -97,7 +97,7 @@ export type DesignReviewGetResult = {
   review?: Critique;
 };
 
-/** Per-finding verdict after a recheck (TRD §4.3 — never a forced boolean). */
+/** Per-finding verdict after a recheck (TRD §4.3, never a forced boolean). */
 export type RecheckOutcomeKind = "passed" | "failed" | "inconclusive";
 
 /**
@@ -139,15 +139,15 @@ export type DesignRecheckResult = {
 /**
  * What cancellation asked of the upstream engine (schemas/mcp-tools.json
  * design_review_cancel outputSchema):
- *  - `not_needed`        — the job was still queued; MCP Review made it terminal
+ *  - `not_needed`:         the job was still queued; MCP Review made it terminal
  *                          `cancelled` itself, no engine work was ever started.
- *  - `requested`         — the job was running; MCP Review asked the engine to
+ *  - `requested`:          the job was running; MCP Review asked the engine to
  *                          cancel and the job stays `running` until a terminal
  *                          engine acknowledgement proves no late result can
  *                          publish.
- *  - `already_terminal`  — the job was already `completed`/`failed`/`cancelled`;
+ *  - `already_terminal`:   the job was already `completed`/`failed`/`cancelled`;
  *                          cancel is a no-op that returns the existing state.
- *  - `not_supported`     — the engine could not accept a cancel for this job.
+ *  - `not_supported`:      the engine could not accept a cancel for this job.
  */
 export type UpstreamCancellation = "not_needed" | "requested" | "not_supported" | "already_terminal";
 
@@ -155,7 +155,7 @@ export type UpstreamCancellation = "not_needed" | "requested" | "not_supported" 
  * `design_review_cancel` response (schemas/mcp-tools.json outputSchema).
  * Best-effort cancellation of a queued or running review job; terminal jobs
  * keep their state. `status` is the job's externally-visible state AFTER the
- * cancel is applied — a running job whose engine cancel is in flight stays
+ * cancel is applied. A running job whose engine cancel is in flight stays
  * `running` (never a synthetic `cancelling`), disclosing progress only through
  * `upstream_cancellation`. Cancellation consumes no review units.
  */
@@ -168,7 +168,7 @@ export type DesignReviewCancelResult = {
 };
 
 // --- D3: multimedia-native design_review result (issue #58) --------------
-// Apature is inherently visual — a design-review tool that returns ANNOTATED
+// Apature is inherently visual: a design-review tool that returns ANNOTATED
 // SCREENSHOTS an agent can see has no text-only code-review equivalent. Aligned
 // to the 2026-07-28 MCP spec's image content, with an HONEST capability
 // downgrade: a host that cannot render images gets the text/structured result
@@ -178,13 +178,13 @@ export type DesignReviewCancelResult = {
 export type TextContentBlock = { type: "text"; text: string };
 
 /**
- * An MCP `image` content block — base64-encoded image bytes + MIME type, per the
+ * An MCP `image` content block: base64-encoded image bytes + MIME type, per the
  * MCP multimedia content shape. Used for annotated screenshot crops.
  */
 export type ImageContentBlock = { type: "image"; data: string; mimeType: string };
 
 /**
- * An MCP `resource` content block carrying an embedded resource — used to deliver
+ * An MCP `resource` content block carrying an embedded resource, used to deliver
  * the interactive MCP-Apps HTML review panel in-host (a `text/html` resource the
  * host renders in a sandboxed iframe): an annotated, in-host review surface
  * rather than a bare image.
@@ -241,7 +241,7 @@ export type DesignReviewContent = {
 
 /**
  * A multimedia `design_review` result: the content blocks to return, whether any
- * image was actually emitted, and — for the honest downgrade — which annotated
+ * image was actually emitted, and, for the honest downgrade, which annotated
  * images were withheld because the host cannot render them.
  */
 export type MultimediaCritiqueContent = {

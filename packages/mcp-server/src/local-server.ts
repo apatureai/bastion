@@ -11,7 +11,7 @@ import type { EvidenceProvider } from "./evidence.js";
  * no database, no network, and no judgment engine.
  *
  * It exists because the production root (`production.ts`) deliberately has no mock
- * fallback — it must never boot a server that answers with fixture judgments. This
+ * fallback; it must never boot a server that answers with fixture judgments. This
  * one is explicit about being the opposite: every dependency is a local stand-in,
  * so the PROTOCOL surface (tools, views, errors, the panel round trip, the SSRF
  * boundary, idempotency, rechecks) can be exercised exactly as a real client would,
@@ -19,7 +19,7 @@ import type { EvidenceProvider } from "./evidence.js";
  *
  * What is real here:
  *   - the MCP server, its tool catalog, input validation, and error taxonomy;
- *   - target authorization — canonicalization, verified-host lookup, and the full
+ *   - target authorization: canonicalization, verified-host lookup, and the full
  *     egress classification, all running on the synthetic host below;
  *   - job lifecycle, idempotency, budgets, recheck rejection and throttling;
  *   - result shaping: views, multimedia content blocks, and the panel reducer.
@@ -37,7 +37,7 @@ import type { EvidenceProvider } from "./evidence.js";
 export const LOCAL_ALLOWED_HOST = "preview.example.com";
 
 /**
- * The address the stub resolver returns for the allowed host — the same one the
+ * The address the stub resolver returns for the allowed host, the same one the
  * test suite uses. It is an ordinary public unicast address, which is the point:
  * `egress.ts` classifies it for real on every submit, and swapping it for a
  * loopback, RFC 1918, or IANA-reserved address makes the local server reject its

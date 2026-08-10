@@ -12,7 +12,7 @@ import { requiredEnv } from "./env.js";
  * (Postgres store + migrations), the signed Judgment Engine async client, the
  * ownership-verified target registry, and the system DNS resolver, then starts
  * the Streamable HTTP transport via `startFromEnv`. Missing configuration or an
- * unusable database fails startup — never a green-but-unusable listener;
+ * unusable database fails startup, never a green-but-unusable listener;
  * engine/target/DNS health degrade through /readyz instead (they can recover
  * without a restart).
  *
@@ -22,7 +22,7 @@ import { requiredEnv } from "./env.js";
  *   ENGINE_HMAC_SECRET   shared secret for signed service-to-service calls
  *
  * `overrides` exist for black-box tests (PGlite-backed factory, stubbed engine
- * fetch, stubbed DNS) — production callers pass nothing.
+ * fetch, stubbed DNS). Production callers pass nothing.
  */
 export interface ProductionOverrides {
   connectionFactory?: SqlConnectionFactory & { end?(): Promise<void> };
@@ -63,7 +63,7 @@ export async function bootProduction(overrides: ProductionOverrides = {}): Promi
   });
 
   // The probe asks: is the resolver itself usable? A definitive "name absent"
-  // answer (ENOTFOUND/ENODATA — e.g. an internal engine hostname not in public
+  // answer (ENOTFOUND/ENODATA, e.g. an internal engine hostname not in public
   // DNS) still proves the resolver works; only resolver failure reads not-ready.
   const engineHost = new URL(engineBaseUrl).hostname;
   const dnsReady = async (): Promise<boolean> => {

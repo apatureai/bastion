@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createLocalReviewServer, LOCAL_ALLOWED_HOST } from "../src/local-server.js";
 
 /**
- * The offline composition root — the server a stranger runs with no credentials.
+ * The offline composition root: the server a stranger runs with no credentials.
  * This is the same path `pnpm demo` drives, asserted end to end.
  *
  * Load-bearing: it exposes the WHOLE catalog (not a demo subset); the SSRF boundary

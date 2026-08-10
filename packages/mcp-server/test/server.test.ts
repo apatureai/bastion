@@ -191,7 +191,7 @@ describe("MCP Review server", () => {
     const { client } = await connectClient();
     // Userinfo passes the input-schema https check but is rejected by URL
     // normalization. This must surface as URL_NOT_ALLOWED on design_review, the
-    // same code design_recheck already returns for the identical case — not the
+    // same code design_recheck already returns for the identical case, not the
     // older, less precise INVALID_ARGUMENT.
     const out = (await client.callTool({
       name: "design_review",

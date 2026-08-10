@@ -5,7 +5,7 @@
 Apature has been wound down. This repository is published as a historical
 snapshot of the MCP Review server. It receives **no security support**:
 
-- no supported versions, and no patch releases — not even for critical issues;
+- no supported versions, and no patch releases, not even for critical issues;
 - no security advisories will be published, and no CVEs will be requested;
 - no bug bounty, and no reward or acknowledgement program of any kind;
 - no guaranteed response time, and no guarantee of any response at all.
@@ -49,8 +49,8 @@ inside an operated environment. Read it before you trust it:
   review preview hosts a tenant has ownership-verified, with egress controls in
   `packages/mcp-server/src/egress.ts`. Weakening that turns the server into an
   SSRF vector against your own network. Note that the ownership *proofs*
-  themselves were issued outside this repository — see the Limitations section
-  of the README.
+  themselves were issued outside this repository (see the Limitations section
+  of the README).
 - **Audit dependencies first**: `pnpm install && pnpm audit`, then upgrade
   before exposing anything to a network.
 

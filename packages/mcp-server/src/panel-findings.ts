@@ -1,8 +1,8 @@
 /**
- * Panel findings producer — the review-side half of the interactive
+ * Panel findings producer: the review-side half of the interactive
  * MCP-Apps panel contract. `PanelFinding` is documented as "supplied by the review
  * side", and `handlePanelAction` consumes it, but nothing built it: the panel had
- * to be fed by hand. This is that producer — it projects a review's fix plan into
+ * to be fed by hand. This is that producer, and it projects a review's fix plan into
  * the `PanelFinding[]` the panel renders and the reducer acts on.
  *
  * It is dependency-inverted: the input is a STRUCTURAL `ReviewFixItem` (the shape
@@ -13,7 +13,7 @@
  * `appliable: false`, so the reducer can only ever route it to a human.
  *
  * The cited anchor (`ref`) is the finding identity and the per-finding recheck
- * handle — after a fix at `ref`, the panel re-verifies `ref`. When the item is
+ * handle; after a fix at `ref`, the panel re-verifies `ref`. When the item is
  * cross-axis (`axis` set), the id is namespaced `axis:ref` so two axes citing the
  * same anchor stay distinct. Pure and deterministic.
  */
@@ -21,19 +21,19 @@
 import type { Critique, PanelFinding } from "@apature/mcp-types";
 
 /**
- * A review-side fix item the panel is built from — structurally the combined
+ * A review-side fix item the panel is built from, structurally the combined
  * review's fix-plan item (an axis-tagged combined fix item).
  * Declared HERE, not imported, so mcp-review stays dependency-free
  * of the review engine (structural typing / dependency inversion).
  */
 export interface ReviewFixItem {
-  /** The cited anchor (token / element / frame ref) — the finding identity. */
+  /** The cited anchor (token / element / frame ref), the finding identity. */
   ref: string;
   /** The agent-actionable fix instruction. */
   instruction: string;
   /** Grounded (agent-appliable) vs advisory (human sign-off). */
   grounded: boolean;
-  /** The axis that produced it, when cross-axis — namespaces the finding id. */
+  /** The axis that produced it, when cross-axis. Namespaces the finding id. */
   axis?: string;
 }
 
@@ -68,16 +68,16 @@ export function buildPanelFindings(items: readonly ReviewFixItem[]): PanelFindin
  *
  * The groundedness rule is the eyes-not-hands boundary expressed in the Critique's
  * own vocabulary: a finding is agent-appliable only when it is BOTH localizable
- * (`element_ref` — the agent knows what to change) and carries a concrete repair
- * constraint (`suggestion` — the agent knows what to change it to). A finding
+ * (`element_ref`, so the agent knows what to change) and carries a concrete repair
+ * constraint (`suggestion`, so the agent knows what to change it to). A finding
  * missing either is advisory model judgment: it keeps its description as the
  * instruction a human reads, but `grounded: false` means the reducer can only ever
  * return `human_only` for it.
  *
  * Grounded items are ordered first, each group keeping the engine's severity order,
  * so the panel renders an actionable worklist ahead of the judgment calls. The
- * `finding_id` is preserved verbatim (no axis namespacing — a Critique is a single
- * axis), which is what makes each `recheck_ref` a valid `design_recheck` argument.
+ * `finding_id` is preserved verbatim (no axis namespacing, since a Critique is a
+ * single axis), which is what makes each `recheck_ref` a valid `design_recheck` argument.
  * Pure and deterministic.
  */
 export function reviewFixItemsFromCritique(critique: Critique): ReviewFixItem[] {

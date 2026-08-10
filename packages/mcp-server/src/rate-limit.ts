@@ -5,8 +5,8 @@
  * the recheck path enforces several rolling-window limits plus exponential
  * backoff. Everything here is pure and clock-injected (no timers, no wall
  * clock), so windows are deterministic under test. The limiter only RECORDS
- * usage after a caller has committed to spending — see `RecheckLimiter.commit`
- * — so a rejected or zero-unit recheck never consumes a window slot.
+ * usage after a caller has committed to spending (see `RecheckLimiter.commit`),
+ * so a rejected or zero-unit recheck never consumes a window slot.
  */
 
 /** Beta defaults (TRD §9.2). Defaults are configuration, not schema constants. */

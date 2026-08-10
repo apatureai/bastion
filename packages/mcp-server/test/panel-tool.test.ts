@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { createMcpReviewServer } from "../src/index.js";
 
 /**
- * `design_review_panel_action` — the live call site for the panel producer and the
+ * `design_review_panel_action`: the live call site for the panel producer and the
  * pure reducer. The panel rendered into the evidence view is inert markup; this is
  * the tool the host calls when a reviewer acts on a finding.
  *

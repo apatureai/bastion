@@ -39,7 +39,7 @@ export interface ProductionHttpConfig {
   /** MCP endpoint path. Default `/mcp`. */
   mcpPath?: string;
   /**
-   * Hostnames permitted in the Host header — the SDK's DNS-rebinding defense
+   * Hostnames permitted in the Host header, the SDK's DNS-rebinding defense
    * (MCP security guidance). Default: derived from `resourceUrl`'s host.
    */
   allowedHosts?: readonly string[];
@@ -99,20 +99,20 @@ const PRM_PATH = "/.well-known/oauth-protected-resource";
 /**
  * Production remote MCP composition root (#28). Serves Streamable HTTP with:
  *
- *  - **Per-client transport isolation** — every session gets its OWN
+ *  - **Per-client transport isolation.** Every session gets its OWN
  *    `McpServer` + `StreamableHTTPServerTransport`, keyed by the session id and
  *    torn down on close. Instances are NEVER shared across clients, which is
  *    the direct mitigation for CVE-2026-25536 (cross-client response leakage
  *    from shared server/transport instances).
- *  - **Bearer auth as a protected resource** — no token, or an invalid one, is
+ *  - **Bearer auth as a protected resource.** No token, or an invalid one, is
  *    401 with a `WWW-Authenticate` challenge pointing at the RFC 9728
  *    protected-resource metadata; the verified tenant scopes the session's
  *    review service.
- *  - **No product state in sessions** — durable reviews live in the per-tenant
+ *  - **No product state in sessions.** Durable reviews live in the per-tenant
  *    `ReviewService` (application store), keyed by product job ids; the MCP
  *    session is only transport routing, so a dropped/reconnected session never
  *    loses or crosses a review.
- *  - **DNS-rebinding protection** — the SDK validates the Host header against
+ *  - **DNS-rebinding protection.** The SDK validates the Host header against
  *    `allowedHosts`.
  *
  * Every infra dependency (token verifier, allowlist resolver, DNS resolver) is
@@ -301,7 +301,7 @@ export function createProductionHttpServer(config: ProductionHttpConfig): {
     const sessionId = headerValue(req.headers[SESSION_HEADER]);
 
     // Existing session: route to its OWN transport, but only if the token's
-    // tenant matches the session's tenant — a token can never drive another
+    // tenant matches the session's tenant, so a token can never drive another
     // tenant's session.
     if (sessionId) {
       const session = sessions.get(sessionId);

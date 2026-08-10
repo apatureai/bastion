@@ -7,7 +7,7 @@ import type { NormalizedReviewRequest } from "./normalize.js";
  * The engine's acknowledgement of a cancel request (#32/#66). `accepted` is
  * false when the engine cannot cancel this job (unknown to the engine, or a
  * transport failure); the service maps that to `upstream_cancellation:
- * not_supported`. `poll` is the engine's post-cancel job status — usually
+ * not_supported`. `poll` is the engine's post-cancel job status, usually
  * `cancelling` (non-terminal) or a terminal `failed`+`error:"canceled"`.
  */
 export interface EngineCancelAck {
@@ -82,7 +82,7 @@ export interface EngineClient {
 
 /**
  * Mock engine backed by the golden fixture. Tests and local development MUST use
- * this — it NEVER performs capture, calls a model, or reaches the network. It is
+ * this, and it NEVER performs capture, calls a model, or reaches the network. It is
  * the only engine the test suite is allowed to touch.
  */
 export class MockEngineClient implements EngineClient {

@@ -5,7 +5,7 @@ import { createJwtVerifier, TokenInvalidError } from "../src/index.js";
 const ISSUER = "https://auth.apature.ai";
 const AUDIENCE = "https://mcp.apature.ai";
 
-/** Sign a token locally (no network) — the verifier is tested against the public key. */
+/** Sign a token locally (no network); the verifier is tested against the public key. */
 async function signed(
   privateKey: CryptoKey,
   claims: Record<string, unknown>,

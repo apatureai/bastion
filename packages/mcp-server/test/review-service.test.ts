@@ -133,7 +133,7 @@ describe("ReviewService SSRF guard (issue #4)", () => {
     const service = new ReviewService({
       engine: new MockEngineClient(),
       allowlist: { tenantId: "t1", targets: [{ kind: "host", host: "preview.example.com" }] },
-      // resolver deliberately omitted — a partial config must not skip the guard.
+      // resolver deliberately omitted; a partial config must not skip the guard.
     });
     await expect(service.submitReview(base)).rejects.toMatchObject({ reason: "domain_unverified" });
   });

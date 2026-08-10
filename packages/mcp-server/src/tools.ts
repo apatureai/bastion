@@ -89,7 +89,7 @@ export const designReviewCancelInputShape = {
  * Input for the interactive MCP-Apps panel's callback tool. The panel rendered by
  * `design_review_get` with `view: "evidence"` is inert markup; when the reviewer
  * acts on a finding the HOST calls this tool, and the pure reducer in
- * `panel-interaction.ts` decides what happens. `apply_fix` never edits anything —
+ * `panel-interaction.ts` decides what happens. `apply_fix` never edits anything:
  * it returns a grounded finding's fix for the host to hand to the coding agent, or
  * `human_only` for advisory judgment.
  */

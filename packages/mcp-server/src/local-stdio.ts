@@ -10,7 +10,7 @@ import { createLocalReviewServer, LOCAL_ALLOWED_HOST } from "./local-server.js";
  * from `main.ts`: the factory stays importable (tests drive it over an in-memory
  * transport) without a module-load side effect that starts talking on stdout.
  *
- * stdout is the JSON-RPC channel and must carry nothing else — the banner goes to
+ * stdout is the JSON-RPC channel and must carry nothing else, so the banner goes to
  * stderr, where a host shows it as server log output.
  */
 

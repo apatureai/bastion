@@ -5,7 +5,7 @@ import type { JobStatus } from "@apature/mcp-types";
  * cancellation (#66): `DELETE /jobs/:id` accepts a cancel and the job passes
  * through a NON-terminal `cancelling` state before finalizing. Its current
  * PUBLIC poll contract surfaces the terminal internal `canceled` as
- * `{ state: "failed", error: "canceled" }` — so MCP Review must map that exact
+ * `{ state: "failed", error: "canceled" }`, so MCP Review must map that exact
  * shape rather than infer cancellation from transport timing (which would race
  * a late ordinary failure into a false `cancelled`).
  *
@@ -37,7 +37,7 @@ export interface MappedEngineStatus {
   status: JobStatus;
   /**
    * Whether this is a terminal state. A running job whose cancel is in flight
-   * (`cancelling`) is NON-terminal and stays externally `running` — MCP Review
+   * (`cancelling`) is NON-terminal and stays externally `running`. MCP Review
    * never invents a `cancelling` job status, and never reports terminal
    * `cancelled` until the engine proves no late result can publish.
    */

@@ -6,8 +6,8 @@ import type { EvidenceProvider } from "./evidence.js";
  * A deterministic, offline `EvidenceProvider` for the local server and the tests.
  *
  * It is NOT a screenshot and never claims to be: there is no browser in this
- * repository. It encodes a real, valid PNG — a flat placeholder swatch with a
- * border, whose colour is derived from the evidence id — so the multimedia path
+ * repository. It encodes a real, valid PNG, a flat placeholder swatch with a
+ * border whose colour is derived from the evidence id, so the multimedia path
  * (`buildMultimediaCritiqueContent` -> MCP `image` content blocks) can be exercised
  * end to end with genuine image bytes rather than a stub. What a host renders is a
  * placeholder standing exactly where the engine's annotated crop would have been.

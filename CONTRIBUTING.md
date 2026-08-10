@@ -8,7 +8,7 @@ What that means in practice:
 - Issues and pull requests may never be reviewed, and probably will not be.
 - No roadmap, no releases, no maintenance commitment.
 - **Forking is encouraged.** MIT license, no strings. If you want to carry any of this forward,
-  fork it and make it yours — that is a better use of your time than waiting on a review here.
+  fork it and make it yours; that is a better use of your time than waiting on a review here.
 
 The rest of this file exists so that a fork starts from working instructions rather than
 guesswork.
@@ -17,9 +17,9 @@ guesswork.
 
 pnpm workspace, TypeScript, two packages:
 
-- `packages/mcp-types` — boundary contracts: tool envelopes, the `Critique` result shape, and
-  golden engine fixtures. Single source of truth for the agent-facing surface.
-- `packages/mcp-server` — the Streamable HTTP MCP server: tools, auth, job store, rate limiting,
+- `packages/mcp-types` holds the boundary contracts: tool envelopes, the `Critique` result shape,
+  and golden engine fixtures. Single source of truth for the agent-facing surface.
+- `packages/mcp-server` is the Streamable HTTP MCP server: tools, auth, job store, rate limiting,
   engine client, Postgres application plane.
 
 Supporting material: `schemas/` (machine-readable MCP tool and error schemas),
@@ -33,7 +33,7 @@ by section shorthand.
 Prerequisites:
 
 - **Node 24 or newer** (`.node-version` pins `24`; CI runs that version).
-- **pnpm 9.15.0** — `corepack enable` picks it up from the `packageManager` field.
+- **pnpm 9.15.0**. `corepack enable` picks it up from the `packageManager` field.
 
 ```bash
 pnpm install --frozen-lockfile
@@ -74,7 +74,7 @@ MCP_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/mcp_review_tes
 ```
 
 With a database supplied the suite is 30 files / 256 tests, all passing. The suite creates and
-drops its own throwaway schemas — point it at a scratch database, never a real one.
+drops its own throwaway schemas, so point it at a scratch database, never a real one.
 
 ### Running the server
 
@@ -82,7 +82,7 @@ drops its own throwaway schemas — point it at a scratch database, never a real
 readable message, without `MCP_RESOURCE_URL`, `MCP_AUTHORIZATION_SERVERS`, `MCP_JWKS_URL`,
 `MCP_TOKEN_ISSUER`, `DATABASE_URL`, `ENGINE_BASE_URL`, and `ENGINE_HMAC_SECRET`. The `Dockerfile`
 builds the workspace and runs that entrypoint on port 8080 with `/livez` and `/readyz` probes. The
-README's Configuration section lists every variable the code reads — noting that the hosted service
+README's Configuration section lists every variable the code reads, noting that the hosted service
 is no longer operated, and that a real Judgment Engine to point `ENGINE_BASE_URL` at is not part of
 this release. For anything you can actually run, use `packages/mcp-server/src/local-server.ts`
 instead; the production root deliberately has no mock fallback.
@@ -94,7 +94,7 @@ cycle that never settled. Keep the entrypoint out of the cycle if you refactor t
 ## Conventions, if you fork
 
 - **The product boundary is load-bearing.** Apature is the eyes; the agent is the hands. This
-  server judges, explains, and verifies — it never edits code, commits, pushes, opens pull
+  server judges, explains, and verifies. It never edits code, commits, pushes, opens pull
   requests, or drives the customer's application. Most of the type and tool design only makes
   sense with that constraint held.
 - **The tool catalog is contract-tested.** `schemas/mcp-tools.json`, `directory/server.json`, and
@@ -107,6 +107,6 @@ cycle that never settled. Keep the entrypoint out of the cycle if you refactor t
 
 ## If you open a PR anyway
 
-That is fine — just calibrate your expectations. Keep it small, explain the change in the
+That is fine, just calibrate your expectations. Keep it small, explain the change in the
 description, and make sure `pnpm lint && pnpm typecheck && pnpm test` passes. It may sit
 unreviewed indefinitely, and a fork is the supported path.

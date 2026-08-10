@@ -6,7 +6,7 @@ import type { Viewport } from "@apature/mcp-types";
  * This is *policy* normalization only: it canonicalizes the request so that
  * idempotency keys are stable and obviously-invalid targets are rejected before
  * any billable work. It is NOT the network-layer SSRF guard (ownership-verified
- * domain allowlist, DNS-rebinding defense, redirect pinning) — that is issue #4
+ * domain allowlist, DNS-rebinding defense, redirect pinning). That is issue #4
  * (P0) and lives behind this check, just before egress in the engine boundary.
  */
 
@@ -47,9 +47,9 @@ export type NormalizedReviewRequest = {
 /**
  * What class of policy violation a `NormalizationError` represents, so callers
  * can map it to a precise MCP error code consistently across tools (issue #14):
- *  - "url"      — the preview/recheck URL itself is disallowed (not absolute,
+ *  - "url":       the preview/recheck URL itself is disallowed (not absolute,
  *                 non-https, or carries credentials) -> URL_NOT_ALLOWED.
- *  - "argument" — a non-URL request field is invalid (bad route prefix, too many
+ *  - "argument":  a non-URL request field is invalid (bad route prefix, too many
  *                 routes/viewports) -> INVALID_ARGUMENT.
  * `design_recheck` only normalizes a URL, so it can only ever produce "url";
  * `design_review` normalizes both, so it must branch on this to avoid reporting
