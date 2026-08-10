@@ -6,6 +6,11 @@ import type { EngineClient, EngineRecheckRequest } from "./engine-client.js";
 import { EngineDependencyError } from "./engine-http-client.js";
 import { parseEngineReviewResult } from "./engine-result.js";
 import type { NormalizedReviewRequest } from "./normalize.js";
+import {
+  noModelDisclosure as sharedNoModelDisclosure,
+  stampProvenance,
+  verdictCliProvenance,
+} from "./provenance.js";
 
 /**
  * Critique backend #1: a local `apatureai/verdict` checkout, driven through its
@@ -81,17 +86,13 @@ export interface VerdictCliEngineOptions {
  * The disclosure this adapter adds to `notReviewed` when verdict ran without a
  * live model. Verdict's own terminal report refuses to print a grade in that
  * state, because `review.json` still carries a `grade` field that nothing
- * judged. Bastion's agent-facing surface has no such refusal, so the fact
- * travels with the result instead: an agent reading `not_reviewed` sees, in the
- * payload itself, that no model looked at this page. It is prefixed so it is
- * unmistakably added by this adapter and not by the engine.
+ * judged. The fact therefore travels with the result: an agent reading
+ * `not_reviewed` sees, in the payload itself, that no model looked at this
+ * page. The text comes from `provenance.ts` so this backend, the fixture
+ * engine, and any future one say it identically.
  */
 export function noModelDisclosure(model: VerdictModelChoice): string {
-  return (
-    `[bastion] no model judged this page: verdict ran with --model ${model}. ` +
-    `The grade and any findings in this result are not a judgment of the target. ` +
-    `Set MODEL_BASE_URL and MODEL_API_KEY and run with VERDICT_MODEL=live for a real critique.`
-  );
+  return sharedNoModelDisclosure(verdictCliProvenance(model));
 }
 
 const DEFAULT_TIMEOUT_MS = 15 * 60_000;
@@ -237,12 +238,19 @@ export class VerdictCliEngineClient implements EngineClient {
       );
     }
 
+    // `parseEngineReviewResult` has already dropped any `provenance` the child
+    // wrote, so what is stamped here is this process's own statement about the
+    // mode it chose, not verdict's claim about itself.
     const reviewResult = parseEngineReviewResult(parsed, resultPath);
-    if (this.options.model === "live") return reviewResult;
-    return {
-      ...reviewResult,
-      notReviewed: [noModelDisclosure(this.options.model), ...reviewResult.notReviewed],
-    };
+    const provenance = verdictCliProvenance(this.options.model, reviewResult);
+    if (this.options.model === "live") return stampProvenance(reviewResult, provenance);
+    return stampProvenance(
+      {
+        ...reviewResult,
+        notReviewed: [sharedNoModelDisclosure(provenance), ...reviewResult.notReviewed],
+      },
+      provenance,
+    );
   }
 
   /**

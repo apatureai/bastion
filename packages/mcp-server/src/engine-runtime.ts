@@ -1,10 +1,12 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
+import type { JudgmentProvenance } from "@apature/mcp-types";
 import type { EngineClient } from "./engine-client.js";
 import { MockEngineClient } from "./engine-client.js";
 import { JudgmentEngineHttpClient } from "./engine-http-client.js";
 import { VerdictCliEngineClient, type VerdictModelChoice } from "./verdict-cli-engine.js";
 import { VerdictJobEngineClient } from "./verdict-job-engine.js";
+import { FIXTURE_PROVENANCE, verdictCliProvenance, verdictHttpProvenance } from "./provenance.js";
 
 /**
  * Which critique backend this process is running, resolved from the
@@ -34,10 +36,17 @@ export class EngineConfigError extends Error {
 export interface EngineRuntime {
   mode: EngineMode;
   /**
+   * The stamp this backend will attach to every result it produces. Holding it
+   * here is what keeps the banner printed at startup and the `provenance` in
+   * the payload from ever disagreeing: they are the same object.
+   */
+  provenance: JudgmentProvenance;
+  /**
    * Whether a model that actually looked at the target produced the findings.
    * `false` for the fixture engine and for verdict's mock/canned clients;
    * `null` for a remote verdict deployment, whose model configuration this
-   * process cannot see and must not claim to know.
+   * process cannot see and must not claim to know. Always
+   * `provenance.model_backed`, never computed separately.
    */
   modelBacked: boolean | null;
   /** One line, printed at startup. Says which client is live, always. */
@@ -113,7 +122,8 @@ export function resolveVerdictModel(env: NodeJS.ProcessEnv): VerdictModelChoice 
 function fixtureRuntime(): EngineRuntime {
   return {
     mode: "fixture",
-    modelBacked: false,
+    provenance: FIXTURE_PROVENANCE,
+    modelBacked: FIXTURE_PROVENANCE.model_backed,
     description:
       "FIXTURE engine: no critique backend configured. Findings are replayed from the golden " +
       "fixture and describe a fictional pricing page, NOT the URL you pass. Set VERDICT_CLI " +
@@ -150,9 +160,11 @@ function verdictCliRuntime(
         `MODEL JUDGES THE PAGE${grounding}; the grade and findings are verdict's ${model} client. ` +
         `Set MODEL_BASE_URL and MODEL_API_KEY for a real critique.`;
 
+  const provenance = verdictCliProvenance(model);
   return {
     mode: "verdict_cli",
-    modelBacked: model === "live",
+    provenance,
+    modelBacked: provenance.model_backed,
     description,
     create: () =>
       new VerdictCliEngineClient({
@@ -194,12 +206,14 @@ function verdictHttpRuntime(
   const installationId = trimmed(env.ENGINE_INSTALLATION_ID) || "local";
   const timeoutMs = positiveInt(env, "VERDICT_TIMEOUT_MS");
 
+  const provenance = verdictHttpProvenance(baseUrl);
   return {
     mode: "verdict_http",
+    provenance,
     // The deployment's model configuration is not visible from here, and
     // claiming it is live would be inventing a fact about someone else's
     // process.
-    modelBacked: null,
+    modelBacked: provenance.model_backed,
     description:
       `VERDICT SERVICE engine: HMAC-signed job API at ${baseUrl} as installation ${installationId}. ` +
       `Judgments come from that deployment; this process cannot see how its model is configured.`,
@@ -207,6 +221,7 @@ function verdictHttpRuntime(
       new VerdictJobEngineClient({
         jobs: new JudgmentEngineHttpClient({ baseUrl, hmacSecret: secret }),
         installationId,
+        describeAs: baseUrl,
         ...(timeoutMs !== undefined ? { timeoutMs } : {}),
         ...(options.log ? { log: options.log } : {}),
       }),

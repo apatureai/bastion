@@ -77,8 +77,15 @@ describe("createLocalReviewServer", () => {
       review_id: string;
       grade: string;
       findings: Array<{ finding_id: string }>;
+      not_reviewed: string[];
+      provenance: { model_backed: boolean | null; source: string };
     };
-    expect(review.grade).toBe("needs_work");
+    // The local server runs fixture judgments by default, and says so in the
+    // payload: the grade, the provenance and the not_reviewed disclosure all
+    // agree that nothing looked at the page.
+    expect(review.grade).toBe("unjudged");
+    expect(review.provenance).toMatchObject({ model_backed: false, source: "fixture" });
+    expect(review.not_reviewed[0]).toContain("[bastion] no model judged this page");
     expect(review.findings.map((f) => f.finding_id)).toEqual(["f_001", "f_002", "f_003"]);
 
     const evidence = await call(client, "design_review_get", { job_id: jobId, view: "evidence" });

@@ -268,9 +268,19 @@ describe("Bastion server", () => {
     })) as ToolResult;
 
     expect(get.isError).toBeFalsy();
-    const review = (get.structuredContent as { review: { grade: string; findings: unknown[] } })
-      .review;
-    expect(review.grade).toBe("needs_work");
+    const review = (
+      get.structuredContent as {
+        review: {
+          grade: string;
+          findings: unknown[];
+          provenance: { model_backed: boolean | null; engine: string };
+        };
+      }
+    ).review;
+    // End to end against the mock engine: the result the client receives grades
+    // itself `unjudged` and names the fixture engine that produced it.
+    expect(review.grade).toBe("unjudged");
+    expect(review.provenance).toMatchObject({ model_backed: false, engine: "bastion-fixture" });
     expect(review.findings.length).toBe(3);
   });
 

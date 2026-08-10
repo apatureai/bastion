@@ -2,6 +2,13 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { EngineReviewResult } from "@apature/mcp-types";
 import { mapEngineResultToCritique } from "../src/index.js";
+import {
+  FIXTURE_PROVENANCE,
+  NO_MODEL_DISCLOSURE_PREFIX,
+  noModelDisclosure,
+  stampProvenance,
+  verdictCliProvenance,
+} from "../src/provenance.js";
 
 /**
  * Direct coverage for the engine->Critique severity mapping (issue #14). The
@@ -57,6 +64,72 @@ describe("mapEngineResultToCritique severity mapping", () => {
     expect(critique.review_id).toBe(REVIEW_ID);
     expect(critique.grade).toBe("blocked");
     expect(critique.not_reviewed.length).toBeGreaterThan(0);
+  });
+});
+
+/**
+ * The three provenance states, at the layer that enforces them. The mapper is
+ * the single place the "nothing judged this page" rule is applied, so every
+ * path into a Critique inherits it; these pin what each state does to the
+ * grade, the narrative and the disclosure list.
+ */
+describe("mapEngineResultToCritique judgment provenance", () => {
+  const engineResult = loadBlockerEngineResult();
+
+  it("suppresses the grade and the narrative when nothing judged the page", () => {
+    const critique = mapEngineResultToCritique(
+      "review_prov_0001",
+      stampProvenance(engineResult, FIXTURE_PROVENANCE),
+    );
+    expect(critique.grade).toBe("unjudged");
+    expect(critique.confidence).toBeNull();
+    expect(critique.overall).not.toBe(engineResult.overall);
+    expect(critique.overall).toContain("No model judged this page");
+    expect(critique.not_reviewed[0]).toContain(NO_MODEL_DISCLOSURE_PREFIX);
+    expect(critique.provenance).toEqual(FIXTURE_PROVENANCE);
+  });
+
+  it("adds the disclosure once, even when the backend already added it", () => {
+    const provenance = verdictCliProvenance("canned");
+    // The verdict CLI backend prepends the disclosure at the engine boundary so
+    // it survives for a caller reading the raw EngineReviewResult; the mapper
+    // must not then repeat it.
+    const alreadyDisclosed = stampProvenance(
+      {
+        ...engineResult,
+        notReviewed: [noModelDisclosure(provenance), ...engineResult.notReviewed],
+      },
+      provenance,
+    );
+    const critique = mapEngineResultToCritique("review_prov_0002", alreadyDisclosed);
+    const disclosures = critique.not_reviewed.filter((entry) =>
+      entry.startsWith(NO_MODEL_DISCLOSURE_PREFIX),
+    );
+    expect(disclosures).toHaveLength(1);
+  });
+
+  it("keeps a real judgment intact rather than suppressing it", () => {
+    const provenance = verdictCliProvenance("live", engineResult);
+    const critique = mapEngineResultToCritique(
+      "review_prov_0003",
+      stampProvenance(engineResult, provenance),
+    );
+    expect(critique.grade).toBe(engineResult.grade);
+    expect(critique.overall).toBe(engineResult.overall);
+    expect(critique.not_reviewed).toEqual(engineResult.notReviewed);
+    expect(critique.provenance.model_backed).toBe(true);
+  });
+
+  it("treats an unattested result as unknown, never as judged and never as unjudged", () => {
+    // A custom EngineClient is free not to stamp. The honest reading is "this
+    // process cannot tell": the grade is not destroyed, because a real judgment
+    // may well be behind it, but `model_backed` is null, so a consumer that
+    // requires a real judgment still refuses it.
+    const critique = mapEngineResultToCritique("review_prov_0004", engineResult);
+    expect(critique.grade).toBe(engineResult.grade);
+    expect(critique.provenance.model_backed).toBeNull();
+    expect(critique.provenance.source).toBe("unknown");
+    expect(critique.not_reviewed).toEqual(engineResult.notReviewed);
   });
 });
 

@@ -31,6 +31,17 @@ export type {
 } from "./verdict-cli-engine.js";
 export { VerdictJobEngineClient } from "./verdict-job-engine.js";
 export type { VerdictJobEngineOptions } from "./verdict-job-engine.js";
+// Judgment provenance: the stamp every backend applies at the engine boundary
+// and `critique-map.ts` enforces, so a payload states in-band whether anything
+// actually judged the page.
+export {
+  FIXTURE_PROVENANCE,
+  NO_MODEL_DISCLOSURE_PREFIX,
+  stampProvenance,
+  UNATTESTED_PROVENANCE,
+  verdictCliProvenance,
+  verdictHttpProvenance,
+} from "./provenance.js";
 export { EngineResultError, parseEngineReviewResult } from "./engine-result.js";
 export type { EvidenceProvider } from "./evidence.js";
 export { SyntheticEvidenceProvider, renderPlaceholderPng } from "./synthetic-evidence.js";

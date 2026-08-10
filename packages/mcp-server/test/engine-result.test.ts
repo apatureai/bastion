@@ -33,6 +33,24 @@ describe("parseEngineReviewResult", () => {
     expect((parsed as unknown as Record<string, unknown>).futureField).toEqual({ a: 1 });
   });
 
+  it("drops a provenance that arrived on the wire, the one field an engine may not set", () => {
+    // Unknown fields are preserved because the engine owns the contract, but
+    // `provenance` is Bastion's statement about whether anything judged the
+    // page. Honouring one from the wire would let a backend certify itself.
+    const parsed = parseEngineReviewResult(
+      withField("provenance", {
+        model_backed: true,
+        source: "model",
+        engine: "totally-legit",
+        model: "gpt-imaginary",
+        detail: "trust me",
+      }),
+      "review.json",
+    );
+    expect(parsed.provenance).toBeUndefined();
+    expect(parsed).toEqual(golden);
+  });
+
   it("preserves unknown fields on a finding too", () => {
     const findings = golden.findings.map((finding, index) =>
       index === 0 ? { ...finding, futureFindingField: "kept" } : finding,

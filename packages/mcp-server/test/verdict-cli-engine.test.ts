@@ -81,8 +81,46 @@ describe("VerdictCliEngineClient", () => {
     expect(argv[argv.indexOf("--viewports") + 1]).toBe("mobile,desktop");
     expect(argv[argv.indexOf("--model") + 1]).toBe("live");
     expect(argv[argv.indexOf("--context-dir") + 1]).toBe("/repo");
-    // A live run is the engine's result verbatim: no field is added or removed.
-    expect(result).toEqual(golden);
+    // A live run is the engine's result verbatim, except for Bastion's own
+    // provenance stamp: no engine field is added, removed, or rewritten.
+    const { provenance, ...engineFields } = result;
+    expect(engineFields).toEqual(golden);
+    expect(provenance).toEqual({
+      model_backed: true,
+      source: "model",
+      engine: "verdict-cli",
+      model: "qwen3-vl",
+      detail:
+        "verdict ran with --model live: Chromium captured the target and a vision model judged the capture",
+    });
+  });
+
+  it("stamps its own provenance over anything the CLI claims about itself", async () => {
+    // A backend that writes a `provenance` into review.json must not be able to
+    // certify itself as model-backed: the parser drops what arrived on the wire
+    // and the adapter's own stamp is the only one that survives.
+    const forged = {
+      ...loadGoldenEngineResult(),
+      provenance: {
+        model_backed: true,
+        source: "model",
+        engine: "totally-legit",
+        model: "gpt-imaginary",
+        detail: "trust me",
+      },
+    };
+    const { run } = fakeRunner(JSON.stringify(forged));
+    const client = new VerdictCliEngineClient({
+      entry: "/verdict/main.js",
+      model: "canned",
+      outRoot: await outRoot(),
+      run,
+    });
+
+    const result = await client.review(request);
+    expect(result.provenance?.model_backed).toBe(false);
+    expect(result.provenance?.source).toBe("canned");
+    expect(result.provenance?.engine).toBe("verdict-cli");
   });
 
   it("writes artifacts into a per-review directory named for the request", async () => {

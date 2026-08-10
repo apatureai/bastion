@@ -169,14 +169,18 @@ async function run(options: Options, runtime: EngineRuntime): Promise<number> {
         suggestion: string | null;
       }>;
       not_reviewed: string[];
+      provenance: { model_backed: boolean | null; source: string; engine: string };
     };
 
-    // Verdict's own report refuses to print a grade when no model saw the page,
-    // because a grade nothing earned is worse than no grade at all. The same
-    // rule applies here, and it covers the fixture engine too.
-    const grade =
-      runtime.modelBacked === false ? "n/a (no model judged this page)" : review.grade;
-    out(`\nReview ${review.review_id}  grade ${grade}`);
+    // The grade printed here is the grade in the payload, not a decision this
+    // CLI makes about what to show: the server already reports "unjudged"
+    // whenever provenance says nothing looked at the page, so a person reading
+    // this terminal and an agent reading out/review.json see the same verdict.
+    out(`\nReview ${review.review_id}  grade ${review.grade}`);
+    out(
+      `  judged by: ${review.provenance.engine} (source ${review.provenance.source}, ` +
+        `model_backed ${String(review.provenance.model_backed)})`,
+    );
     out(`  ${review.overall}`);
     for (const finding of review.findings) {
       out(
@@ -200,10 +204,13 @@ async function run(options: Options, runtime: EngineRuntime): Promise<number> {
     out(`\nWrote ${resolve(outDir, "review.json")}`);
     if (panelHtml) out(`Wrote ${resolve(outDir, "panel.html")}`);
 
-    if (runtime.modelBacked === false) {
-      // The one sentence that must survive every future edit of this file.
+    if (review.provenance.model_backed === false) {
+      // The one sentence that must survive every future edit of this file. It
+      // is driven by the payload, so it cannot drift from what the file on disk
+      // says about itself.
       out(
         `\nNOTHING ABOVE JUDGED YOUR PAGE. ${runtime.description}\n` +
+          `The same fact is in the JSON: provenance.model_backed is false and grade is "unjudged".\n` +
           `See the README section "Getting real judgments" to configure a critique backend.`,
       );
     }

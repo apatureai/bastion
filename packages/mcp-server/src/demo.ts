@@ -102,8 +102,16 @@ async function main(): Promise<void> {
       suggestion: string | null;
     }>;
     not_reviewed: string[];
+    provenance: { model_backed: boolean | null; source: string; engine: string };
   };
   process.stdout.write(`    review ${review.review_id} -> grade ${review.grade}\n`);
+  // The point of printing this is that it is not the demo's commentary: it is a
+  // field of the tool result, which is what an agent that never sees this
+  // terminal would read.
+  process.stdout.write(
+    `    provenance: model_backed=${String(review.provenance.model_backed)}` +
+      ` source=${review.provenance.source} engine=${review.provenance.engine}\n`,
+  );
   process.stdout.write(`    ${review.overall}\n`);
   for (const f of review.findings) {
     process.stdout.write(

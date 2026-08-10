@@ -63,7 +63,12 @@ describe("ReviewService.getReview (§6.4 Critique)", () => {
     expect(review).toBeDefined();
     if (!review) throw new Error("expected a review");
 
-    expect(review.grade).toBe("needs_work");
+    // The service's default engine is the fixture engine, so the grade is the
+    // value that means "nothing judged this page", never the fixture's own
+    // `needs_work`, and the payload says why.
+    expect(review.grade).toBe("unjudged");
+    expect(review.provenance.model_backed).toBe(false);
+    expect(review.provenance.source).toBe("fixture");
     expect(review.overall.length).toBeGreaterThan(0);
     expect(review.findings.length).toBe(3);
 

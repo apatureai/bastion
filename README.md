@@ -8,7 +8,7 @@ A coding agent changes a UI, deploys a preview, and has no way to see whether th
 
 It is also, deliberately, a reference implementation. Most public MCP servers are stdio, unauthenticated, single-tenant, and return in milliseconds. This one carries the other shape: a Streamable HTTP edge with OAuth 2.1 resource-server auth, per-tenant Postgres state, submit-and-poll jobs that outlive the transport session, and a hardened boundary around the one thing an agent-supplied URL always is, which is an SSRF primitive.
 
-Everything below runs offline with no credentials, and with nothing configured the judgments come from a fixture. They do not have to stay that way. [Getting real judgments](#getting-real-judgments) is one clone and one environment variable: the critique backend, [apatureai/verdict](https://github.com/apatureai/verdict), is public and MIT, screenshots the page with headless Chromium, and returns the exact result contract this server consumes. Which engine is running is printed every time the server starts, so a fixture judgment can never be mistaken for a model's.
+Everything below runs offline with no credentials, and with nothing configured the judgments come from a fixture. They do not have to stay that way. [Getting real judgments](#getting-real-judgments) is one clone and one environment variable: the critique backend, [apatureai/verdict](https://github.com/apatureai/verdict), is public and MIT, screenshots the page with headless Chromium, and returns the exact result contract this server consumes. A fixture judgment cannot be mistaken for a model's, and not because of anything printed at startup: the distinction is inside the result. Every review carries a `provenance` object with `model_backed`, and when that is `false` the grade is the literal string `"unjudged"`, the narrative says so instead of describing a page nothing looked at, and `not_reviewed[0]` begins `[bastion] no model judged this page`. See [Provenance: did anything judge this page?](#provenance-did-anything-judge-this-page).
 
 ## Quickstart
 
@@ -35,7 +35,7 @@ $ pnpm demo
 mcp-review local server ready on stdio
   engine: FIXTURE engine: no critique backend configured. Findings are replayed from the golden fixture and describe a fictional pricing page, NOT the URL you pass. Set VERDICT_CLI (a built verdict checkout) for real judgments.
   authorized hosts: preview.example.com
-connected to apature-mcp-review v1.1.0 over stdio
+connected to apature-mcp-review v1.2.0 over stdio
 
 [1] tools/list
     design_review                metered
@@ -51,8 +51,9 @@ connected to apature-mcp-review v1.1.0 over stdio
     status=completed, review body present: false
 
 [4] design_review_get  view=summary
-    review rev_60ed3a95-21cd-4188-8660-51a5727bf1fa -> grade needs_work
-    The new pricing page reads clearly on desktop, but the mobile layout breaks the design system: the primary CTA loses its brand color and the card grid overflows the viewport. Two nits on spacing.
+    review rev_60ed3a95-21cd-4188-8660-51a5727bf1fa -> grade unjudged
+    provenance: model_backed=false source=fixture engine=bastion-fixture
+    No model judged this page, so there is no assessment of it: the offline fixture engine replayed the golden result in @apature/mcp-types; it describes a fictional pricing page and not the target that was requested. Any findings below are not observations of the target.
     f_001  should_fix Primary CTA uses an off-brand color on mobile
              /pricing (mobile) button[data-testid='cta-primary']
              fix: Apply the `--color-accent` token (or the `btn-primary` class) so the CTA matches the brand accent used elsewhere.
@@ -62,6 +63,7 @@ connected to apature-mcp-review v1.1.0 over stdio
     f_003  nit        Inconsistent vertical rhythm between feature rows
              /pricing (desktop) .feature-row
              fix: Use a single spacing token for consistent vertical rhythm.
+    not reviewed: [bastion] no model judged this page: the offline fixture engine replayed the golden result in @apature/mcp-types; it describes a fictional pricing page and not the target that was requested. The grade is reported as "unjudged" and nothing in this result is a judgment of the target. See the README section "Getting real judgments" to configure a critique backend.
     not reviewed: route /checkout (no preview deployment matched the head SHA)
     not reviewed: viewport tablet (not configured)
 
@@ -98,6 +100,38 @@ open out/panel.html      # macOS; use xdg-open on Linux
 The panel is self-contained HTML with no scripts, no external requests, and evidence embedded as `data:` URIs. The `job_*` and `rev_*` ids are freshly generated, so yours will differ from the transcript.
 
 If `pnpm demo` reports `Cannot find module`, `pnpm build` has not been run. If step 2 comes back `DNS_TARGET_PROHIBITED` instead of a job, something changed `LOCAL_RESOLVED_ADDRESS` in `packages/mcp-server/src/local-server.ts` to a non-public address, and that rejection is the SSRF guard working.
+
+### Provenance: did anything judge this page?
+
+The consumer of a review here is usually a coding agent, not a person. It never sees the startup banner or the terminal above; it sees one JSON payload and acts on it. So "which engine is running" has to be answerable from that payload alone, and it is: every `Critique` carries a `provenance` object, on every backend, including the offline fixture path.
+
+```json
+"grade": "unjudged",
+"confidence": null,
+"provenance": {
+  "model_backed": false,
+  "source": "fixture",
+  "engine": "bastion-fixture",
+  "model": null,
+  "detail": "the offline fixture engine replayed the golden result in @apature/mcp-types; it describes a fictional pricing page and not the target that was requested"
+}
+```
+
+The rule an agent can code against, in one line: **trust the result only when `provenance.model_backed === true`.**
+
+| `model_backed` | when | what the payload does |
+| --- | --- | --- |
+| `false` | the fixture engine; verdict run with `--model mock` or `--model canned` | `grade` is `"unjudged"`, `confidence` is `null`, `overall` says no model judged the page instead of describing one, and `not_reviewed[0]` starts `[bastion] no model judged this page` |
+| `true` | verdict run with `--model live`: Chromium captured your target and a vision model judged the capture | the engine's grade, narrative, confidence and findings pass through untouched, and `provenance.model` names the judge |
+| `null` | a remote verdict deployment over its job API | the grade passes through, because a real judgment may well be behind it, but this process cannot see how that deployment's model is configured and does not claim to |
+
+Three details that make the claim checkable rather than decorative:
+
+- **`unjudged` is not an engine value.** No backend emits it. Bastion substitutes it, and only when `model_backed` is `false`. It is an explicit value rather than a null or a dropped key because a missing field reads as an older payload and invites a default, and because it sits outside the `ship`..`blocked` ordering, so a consumer comparing against a threshold gets no answer instead of a flattering one.
+- **The narrative is replaced, not annotated.** The fixture's prose is about a pricing page that does not exist. Presenting it as a description of your page would be the same lie as the grade, just in longer form, so on an unjudged path it does not appear at all.
+- **A backend cannot certify itself.** `provenance` is Bastion's statement, not the engine's. `parseEngineReviewResult` strips any `provenance` that arrives on the wire, and the adapter that fetched the result stamps its own immediately afterwards.
+
+Where to verify each of these in the source: the stamps are minted in `packages/mcp-server/src/provenance.ts`, applied by `MockEngineClient` (`engine-client.ts`), `VerdictCliEngineClient` (`verdict-cli-engine.ts`), `VerdictJobEngineClient` (`verdict-job-engine.ts`) and `JudgmentEngineHttpClient` (`engine-http-client.ts`); the suppression rule is enforced in one place, `mapEngineResultToCritique` (`critique-map.ts`), through which every path into a `Critique` runs; the wire strip is in `parseEngineReviewResult` (`engine-result.ts`); the field is required by `schemas/mcp-tools.json`; and `packages/mcp-server/test/provenance.test.ts` asserts, over the real MCP transport and against the round-tripped JSON only, that a fixture-path payload is distinguishable from a model-backed one.
 
 ### Connect your own MCP client
 
@@ -205,21 +239,23 @@ verdict|       touch target 82x18px is below 44x44px
 verdict|
 verdict| Done in 1.5s.
 
-Review rev_c9c18398-faba-41c5-8361-b8b63d54453e  grade n/a (no model judged this page)
-  mock(qwen3-vl-plus)
+Review rev_c9c18398-faba-41c5-8361-b8b63d54453e  grade unjudged
+  judged by: verdict-cli (source canned, model_backed false)
+  No model judged this page, so there is no assessment of it: verdict ran with --model mock: capture and measurement were real, but the grade, the narrative and any findings came from verdict's stand-in client rather than from a model. Any findings below are not observations of the target.
 
   no findings
 
-  not reviewed: [bastion] no model judged this page: verdict ran with --model mock. The grade and any findings in this result are not a judgment of the target. Set MODEL_BASE_URL and MODEL_API_KEY and run with VERDICT_MODEL=live for a real critique.
+  not reviewed: [bastion] no model judged this page: verdict ran with --model mock: capture and measurement were real, but the grade, the narrative and any findings came from verdict's stand-in client rather than from a model. The grade is reported as "unjudged" and nothing in this result is a judgment of the target. See the README section "Getting real judgments" to configure a critique backend.
 
 Wrote /Users/you/src/bastion/out/review.json
 Wrote /Users/you/src/bastion/out/panel.html
 
 NOTHING ABOVE JUDGED YOUR PAGE. VERDICT CLI engine: ... --model mock. ...
+The same fact is in the JSON: provenance.model_backed is false and grade is "unjudged".
 See the README section "Getting real judgments" to configure a critique backend.
 ```
 
-**Success looks like** verdict's own capture report streaming past, a screenshot count that matches your routes times viewports, and a `Review` block. Swap `VERDICT_MODEL=mock` for a real `MODEL_API_KEY` and the last three lines disappear, the grade is printed, and the findings are about your page. The per-run artifact directory under `out/verdict/` keeps the screenshots, the DOM geometry map, the measured facts, and the resolved system prompt, so a finding can be checked against what the model was actually shown.
+**Success looks like** verdict's own capture report streaming past, a screenshot count that matches your routes times viewports, and a `Review` block. Swap `VERDICT_MODEL=mock` for a real `MODEL_API_KEY` and the closing warning disappears, `provenance.model_backed` becomes `true`, a real grade is printed in place of `unjudged`, and the findings are about your page. The per-run artifact directory under `out/verdict/` keeps the screenshots, the DOM geometry map, the measured facts, and the resolved system prompt, so a finding can be checked against what the model was actually shown.
 
 The SSRF boundary is not relaxed for local use. A host that resolves to a private or loopback address is refused before verdict is even started:
 
@@ -240,7 +276,8 @@ That is also why there is no way to review `http://localhost:3000` through this 
 | Screenshots of your page | no | yes | yes |
 | DOM measurements of your page | no | yes | yes |
 | Findings about your page | no | no | yes |
-| Grade printed | no | no | yes |
+| Grade in the payload | `"unjudged"` | `"unjudged"` | the engine's grade |
+| `provenance.model_backed` | `false` | `false` | `true` |
 | Cost | none | none | your endpoint's per-call price |
 | `design_recheck` | yes, fixture outcomes | no, see below | no, see below |
 
@@ -329,7 +366,7 @@ MCP annotations are set from the truth rather than from the marketing: only `des
 | `view` | Returns |
 |---|---|
 | `status` | The job envelope only. No result body, so it stays cheap while a job is still running. |
-| `summary` (default) | Job plus the full `Critique`. |
+| `summary` (default) | Job plus the full `Critique`, including its `provenance`. |
 | `findings` | Same body as `summary`; the `Critique` already carries every finding inline. |
 | `focus` | Job plus the `Critique` narrowed to actionable findings: `blocker` and `should_fix`, with nits dropped. |
 | `evidence` | Job, `Critique`, MCP content blocks (panel, text, images), and a `presentation` object naming what the host could not render. |
@@ -372,7 +409,7 @@ This is the unconfigured server, the one `pnpm demo` drives. [Getting real judgm
 | Target authorization, egress classification, DNS-rebind rejection | Real (runs on every submit) |
 | Job lifecycle, idempotency, budgets, recheck rejection and throttling | Real |
 | Views, content blocks, panel projection and reducer | Real |
-| The findings themselves | **Fixture.** A golden engine result about a fictional pricing page, not a judgment of the URL you passed. Set `VERDICT_CLI` and they are a real critique of your page |
+| The findings themselves | **Fixture, and the payload says so.** A golden engine result about a fictional pricing page, not a judgment of the URL you passed: `provenance.model_backed` is `false`, the grade is `"unjudged"`, and `not_reviewed[0]` discloses it. Set `VERDICT_CLI` and they are a real critique of your page. See [Provenance](#provenance-did-anything-judge-this-page) |
 | DNS | **Stub for the demo host only.** `preview.example.com` is answered from a constant so the demo makes no network call; every other host, including any you add, goes to the system resolver and is then classified for real |
 | Evidence crops | **Placeholder.** Deterministic generated PNGs where the engine's annotated screenshots would be. Verdict's own screenshots are written to `out/verdict/<run>/screenshots` when a backend is configured |
 
@@ -411,6 +448,7 @@ Every variable below is read by the code. None are needed by the local server, t
 packages/mcp-types/                boundary contracts, no runtime dependencies
   src/critique.ts                  agent-facing envelopes (Job, Budget, Critique, content blocks)
   src/engine.ts                    engine wire result + confidence/calibration types
+  src/provenance.ts                the judgment-provenance contract (model_backed, source, engine)
   src/error.ts                     typed ReviewError contract (code, retriable, next_action)
   src/panel.ts                     MCP-Apps panel action/response contract
   fixtures/                        golden engine result, the offline judgment
@@ -431,7 +469,8 @@ packages/mcp-server/
   src/target-auth.ts               canonicalization, verified-host check, rebind rejection
   src/egress.ts                    pure IP classification (private/loopback/metadata/reserved)
   src/rate-limit.ts                recheck budgets, per-finding windows, backoff
-  src/critique-map.ts              engine result -> agent-facing Critique
+  src/critique-map.ts              engine result -> agent-facing Critique, and the unjudged rule
+  src/provenance.ts                where every provenance stamp is minted, one module
   src/multimedia-content.ts        content-block shaping with capability downgrade
   src/panel-html.ts                the MCP-Apps panel document (escaped, self-contained)
   src/panel-findings.ts            Critique -> fix items -> PanelFindings

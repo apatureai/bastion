@@ -2,6 +2,7 @@ import { createHmac, randomUUID } from "node:crypto";
 import type { EngineReviewResult } from "@apature/mcp-types";
 import type { NormalizedReviewRequest } from "./normalize.js";
 import type { EngineJobClient, EngineJobPoll } from "./engine-client.js";
+import { stampProvenance, verdictHttpProvenance } from "./provenance.js";
 
 const INSTALLATION_HEADER = "x-gate-installation";
 const TIMESTAMP_HEADER = "x-gate-timestamp";
@@ -93,7 +94,18 @@ export class JudgmentEngineHttpClient implements EngineJobClient {
       if (!payload.result || typeof payload.result !== "object") {
         throw new EngineDependencyError("completed engine job omitted result");
       }
-      return { jobId, state, result: payload.result as EngineReviewResult, schemaVersion };
+      // Stamp this process's own provenance over whatever the deployment sent,
+      // so the durable job path in review-service.ts, which maps `poll.result`
+      // directly, cannot publish a remote engine's claim about itself.
+      return {
+        jobId,
+        state,
+        result: stampProvenance(
+          payload.result as EngineReviewResult,
+          verdictHttpProvenance(this.options.baseUrl),
+        ),
+        schemaVersion,
+      };
     }
     if (state === "failed") {
       return { jobId, state, error: String(payload.error ?? "engine job failed"), schemaVersion };

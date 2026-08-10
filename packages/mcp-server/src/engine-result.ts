@@ -126,10 +126,18 @@ function parseFinding(source: string, value: unknown, index: number): EngineFind
  *
  * Unknown extra fields are preserved: the engine owns this contract and may add
  * to it additively, and dropping what we do not recognize would silently
- * downgrade a newer backend.
+ * downgrade a newer backend. `provenance` is the one exception, and it is
+ * dropped rather than preserved: it is not the engine's field to set. It is
+ * Bastion's statement about whether anything judged the page, each adapter
+ * stamps its own immediately after parsing, and honouring a value that arrived
+ * over the wire would let a backend certify itself as model-backed.
  */
 export function parseEngineReviewResult(value: unknown, source: string): EngineReviewResult {
   if (!isRecord(value)) fail(source, "engine result must be a JSON object");
+  if ("provenance" in value) {
+    const { provenance: _wireProvenance, ...withoutProvenance } = value;
+    return parseEngineReviewResult(withoutProvenance, source);
+  }
 
   const artifacts = value.artifacts;
   if (!isRecord(artifacts)) fail(source, "artifacts must be an object");

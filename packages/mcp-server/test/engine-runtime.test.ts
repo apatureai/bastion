@@ -63,6 +63,45 @@ describe("resolveEngineRuntime", () => {
     expect(runtime.create()).toBeInstanceOf(VerdictJobEngineClient);
   });
 
+  it("resolves one provenance that the banner and the payload both come from", async () => {
+    // The startup banner and the `provenance` an agent reads must not be able
+    // to drift apart, so the runtime carries the stamp itself and derives
+    // `modelBacked` from it rather than deciding twice.
+    const cases = [
+      { env: {}, source: "fixture", engine: "bastion-fixture" },
+      { env: { VERDICT_CLI: "/verdict" }, source: "canned", engine: "verdict-cli" },
+      {
+        env: { VERDICT_CLI: "/verdict", MODEL_API_KEY: "k", MODEL_BASE_URL: "https://api.example/v1" },
+        source: "model",
+        engine: "verdict-cli",
+      },
+      {
+        env: { ENGINE_BASE_URL: "https://engine.example", ENGINE_HMAC_SECRET: "s" },
+        source: "unknown",
+        engine: "verdict-http",
+      },
+    ];
+    for (const { env, source, engine } of cases) {
+      const runtime = resolveEngineRuntime(env, { fileExists: exists });
+      expect(runtime.provenance.source, engine).toBe(source);
+      expect(runtime.provenance.engine, engine).toBe(engine);
+      expect(runtime.modelBacked, engine).toBe(runtime.provenance.model_backed);
+    }
+
+    // And the fixture runtime's client really stamps what the runtime declares.
+    const fixture = resolveEngineRuntime({}, { fileExists: exists });
+    const result = await fixture.create().review({
+      url: "https://preview.example.com/pricing",
+      routes: ["/pricing"],
+      viewports: ["mobile"],
+      depth: "deep",
+      expected_revision: null,
+      response_mode: "compact",
+      client_request_id: "runtime-prov-0001",
+    });
+    expect(result.provenance).toEqual(fixture.provenance);
+  });
+
   it("prefers the CLI backend when both are configured", () => {
     const runtime = resolveEngineRuntime(
       { VERDICT_CLI: "/verdict", ENGINE_BASE_URL: "https://engine.example", ENGINE_HMAC_SECRET: "s" },

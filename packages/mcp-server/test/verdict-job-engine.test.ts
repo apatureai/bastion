@@ -75,7 +75,13 @@ describe("VerdictJobEngineClient", () => {
       },
     });
 
-    await expect(client.review(request)).resolves.toEqual(loadGoldenEngineResult());
+    const { provenance, ...engineFields } = await client.review(request);
+    expect(engineFields).toEqual(loadGoldenEngineResult());
+    // A remote deployment's model configuration is not visible from here, so
+    // the stamp says "unknown" rather than guessing in either direction.
+    expect(provenance?.model_backed).toBeNull();
+    expect(provenance?.source).toBe("unknown");
+    expect(provenance?.engine).toBe("verdict-http");
     expect(jobs.submits).toEqual([{ installationId: "local", idempotencyKey: "job-0001" }]);
     expect(sleeps).toEqual([250, 250]);
   });

@@ -3,6 +3,7 @@ import type { EngineClient, EngineJobClient, EngineRecheckRequest } from "./engi
 import { EngineDependencyError } from "./engine-http-client.js";
 import { parseEngineReviewResult } from "./engine-result.js";
 import type { NormalizedReviewRequest } from "./normalize.js";
+import { stampProvenance, verdictHttpProvenance } from "./provenance.js";
 
 /**
  * Critique backend #2: a running `verdict` deployment, over its HMAC-signed
@@ -35,6 +36,12 @@ export interface VerdictJobEngineOptions {
   jobs: EngineJobClient;
   /** Tenant the engine scopes every job to; it is bound into the request signature. */
   installationId: string;
+  /**
+   * How the deployment is named in this backend's judgment provenance, normally
+   * its base URL. Defaults to the installation id, which is all this class is
+   * otherwise given.
+   */
+  describeAs?: string;
   /** Gap between polls. Default 2s. */
   pollIntervalMs?: number;
   /** Ceiling on one review before the job is cancelled and the call fails. Default 15m. */
@@ -70,7 +77,13 @@ export class VerdictJobEngineClient implements EngineClient {
     for (;;) {
       const poll = await jobs.get(installationId, jobId);
       if (poll.state === "completed") {
-        return parseEngineReviewResult(poll.result, `verdict job ${jobId}`);
+        // Parsing drops any provenance the deployment sent about itself; the
+        // stamp that replaces it says only what is true from here, which is
+        // that this process cannot see how that deployment's model is set up.
+        return stampProvenance(
+          parseEngineReviewResult(poll.result, `verdict job ${jobId}`),
+          verdictHttpProvenance(this.options.describeAs ?? `installation ${installationId}`),
+        );
       }
       if (poll.state === "failed") {
         throw new EngineDependencyError(`verdict job ${jobId} failed: ${poll.error}`);

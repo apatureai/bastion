@@ -9,6 +9,8 @@
  * `verdict`, carried opaquely in `metadata.model`.
  */
 
+import type { JudgmentProvenance } from "./provenance.js";
+
 /** Engine-side severity scale (richer than the agent-facing three-level scale). */
 export type EngineSeverity = "nit" | "minor" | "major" | "blocker";
 
@@ -115,6 +117,23 @@ export type EngineReviewResult = {
     rubricVersion?: string;
     uiDnaVersion: string | null;
   };
+  /**
+   * Bastion's own attestation of where this result came from, attached by the
+   * adapter that produced or fetched it. It is NOT part of the engine contract
+   * and is never read from an engine payload: `parseEngineReviewResult` strips
+   * any `provenance` that arrives on the wire, and each adapter then stamps its
+   * own, so a backend cannot assert that a model judged a page when none did.
+   *
+   * It rides here rather than only on the mapped Critique because a durable
+   * job stores the engine result and maps it later, possibly in another
+   * process; carrying the fact with the result is what keeps the fixture path
+   * and the async path from disagreeing.
+   *
+   * Optional only so a result constructed before this field existed still
+   * typechecks; an unstamped result is mapped as `unknown` provenance, never as
+   * a judgment.
+   */
+  provenance?: JudgmentProvenance;
 };
 
 const CONFIDENCE_SOURCES: readonly EngineConfidenceSource[] = [

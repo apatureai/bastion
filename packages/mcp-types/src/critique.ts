@@ -8,6 +8,7 @@
  */
 
 import type { EngineDimension } from "./engine.js";
+import type { JudgmentProvenance } from "./provenance.js";
 
 export const SCHEMA_VERSION = "1.0.0" as const;
 
@@ -40,7 +41,20 @@ export type Budget = {
 /** Three-level, agent-facing severity (collapsed from the engine scale). */
 export type CritiqueSeverity = "blocker" | "should_fix" | "nit";
 export type Viewport = "mobile" | "tablet" | "desktop";
-export type CritiqueGrade = "ship" | "ship_with_nits" | "needs_work" | "blocked";
+/**
+ * Agent-facing grade.
+ *
+ * `unjudged` is not an engine value and never comes from one: Bastion sets it,
+ * and only it, whenever `provenance.model_backed` is `false`, which is to say
+ * whenever this process can prove nothing looked at the page. It is an explicit
+ * value rather than a null or an omitted field on purpose. A missing key reads
+ * as an older payload and invites a default; a null reads as "the grade was not
+ * computed yet". `unjudged` cannot be mistaken for either, survives a lossy
+ * serializer that would drop a null, and is legible in a log line on its own.
+ * It is deliberately outside the ship/blocked ordering, so a consumer comparing
+ * against a threshold gets no answer instead of a flattering one.
+ */
+export type CritiqueGrade = "ship" | "ship_with_nits" | "needs_work" | "blocked" | "unjudged";
 
 /**
  * One agent-facing finding. Carries `element_ref` plus a concrete token/class
@@ -74,6 +88,7 @@ export type CritiqueFinding = {
 /** The §6.4 Critique object: overall verdict plus structured findings. */
 export type Critique = {
   review_id: string;
+  /** `unjudged` whenever `provenance.model_backed` is `false`. */
   grade: CritiqueGrade;
   /** Engine-produced aggregate confidence, or null when unavailable. */
   confidence: number | null;
@@ -81,6 +96,14 @@ export type Critique = {
   findings: CritiqueFinding[];
   /** Routes/viewports the engine could not review. */
   not_reviewed: string[];
+  /**
+   * Where this judgment came from. Present on EVERY critique, on every path,
+   * including the offline fixture path, and part of the tool-result contract in
+   * schemas/mcp-tools.json rather than an incidental extra. It is the field a
+   * consumer reading nothing but this JSON checks before believing anything
+   * else in it.
+   */
+  provenance: JudgmentProvenance;
 };
 
 /** `design_review` submit response (schemas/mcp-tools.json outputSchema). */

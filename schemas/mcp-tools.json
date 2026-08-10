@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.1.0",
+  "catalog_version": "1.2.0",
   "protocol_baseline": "2025-11-25",
   "tools": [
     {
@@ -360,7 +360,57 @@
                   "ship",
                   "ship_with_nits",
                   "needs_work",
-                  "blocked"
+                  "blocked",
+                  "unjudged"
+                ],
+                "description": "Overall verdict. Always \"unjudged\" when provenance.model_backed is false: no engine emits that value, the server substitutes it because nothing looked at the page, and it is deliberately outside the ship..blocked ordering so it cannot be compared against a threshold."
+              },
+              "provenance": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Where this judgment came from. Present on every review, on every backend, including the offline fixture path. A consumer reading nothing but this JSON checks it before believing anything else in the payload.",
+                "properties": {
+                  "model_backed": {
+                    "type": [
+                      "boolean",
+                      "null"
+                    ],
+                    "description": "true only when a vision model was called on a capture of the requested target; false when the server knows nothing judged the page; null when it cannot tell, which is the honest answer for a remote engine deployment. Treat anything other than true as not judged."
+                  },
+                  "source": {
+                    "type": "string",
+                    "enum": [
+                      "model",
+                      "canned",
+                      "fixture",
+                      "unknown"
+                    ]
+                  },
+                  "engine": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128,
+                    "description": "Which adapter produced the result, e.g. bastion-fixture, verdict-cli, verdict-http."
+                  },
+                  "model": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "maxLength": 128,
+                    "description": "The judge model, when one was called; null on every other path."
+                  },
+                  "detail": {
+                    "type": "string",
+                    "maxLength": 1000
+                  }
+                },
+                "required": [
+                  "model_backed",
+                  "source",
+                  "engine",
+                  "model",
+                  "detail"
                 ]
               },
               "confidence": {
@@ -370,11 +420,12 @@
                 ],
                 "minimum": 0,
                 "maximum": 1,
-                "description": "Report-backed engine confidence, or null when calibration provenance is missing, malformed, or incomplete."
+                "description": "Report-backed engine confidence, or null when calibration provenance is missing, malformed, or incomplete. Always null when provenance.model_backed is false."
               },
               "overall": {
                 "type": "string",
-                "maxLength": 4000
+                "maxLength": 4000,
+                "description": "The narrative assessment. When provenance.model_backed is false this is replaced, not annotated: prose describing a page nothing looked at is never presented as a description of the target."
               },
               "finding_index": {
                 "type": "array",
@@ -448,6 +499,7 @@
             "required": [
               "review_id",
               "grade",
+              "provenance",
               "confidence",
               "overall"
             ]

@@ -69,8 +69,15 @@ describe("design_review_get views", () => {
     const explicit = await get(client, jobId, "summary");
     const implicit = await get(client, jobId);
     expect(implicit.structuredContent).toEqual(explicit.structuredContent);
-    const review = explicit.structuredContent?.review as { findings: unknown[]; grade: string };
-    expect(review.grade).toBe("needs_work");
+    const review = explicit.structuredContent?.review as {
+      findings: unknown[];
+      grade: string;
+      provenance: { model_backed: boolean | null; source: string };
+    };
+    // These views are served by the fixture engine, so the payload grades the
+    // run `unjudged` and names the fixture as its source.
+    expect(review.grade).toBe("unjudged");
+    expect(review.provenance).toMatchObject({ model_backed: false, source: "fixture" });
     expect(review.findings).toHaveLength(3);
   });
 

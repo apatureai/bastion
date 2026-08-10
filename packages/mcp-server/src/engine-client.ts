@@ -2,6 +2,7 @@ import type { EngineRecheckResult, EngineReviewResult } from "@apature/mcp-types
 import { loadGoldenEngineResult } from "@apature/mcp-types";
 import type { EnginePollStatus } from "./engine-cancel.js";
 import type { NormalizedReviewRequest } from "./normalize.js";
+import { FIXTURE_PROVENANCE, stampProvenance } from "./provenance.js";
 
 /**
  * The engine's acknowledgement of a cancel request (#32/#66). `accepted` is
@@ -86,8 +87,15 @@ export interface EngineClient {
  * the only engine the test suite is allowed to touch.
  */
 export class MockEngineClient implements EngineClient {
+  /**
+   * The golden fixture, stamped so the payload says what it is. Without the
+   * stamp this method returns three specific, actionable, entirely invented
+   * findings with nothing in-band marking them as fiction, which for an agent
+   * consumer, the only kind of consumer that matters here, is indistinguishable
+   * from a real review.
+   */
   async review(_request: NormalizedReviewRequest): Promise<EngineReviewResult> {
-    return loadGoldenEngineResult();
+    return stampProvenance(loadGoldenEngineResult(), FIXTURE_PROVENANCE);
   }
 
   /**
@@ -146,7 +154,9 @@ export class MockEngineJobClient implements EngineJobClient {
     _request: NormalizedReviewRequest,
   ): Promise<string> {
     const jobId = `engine_mock_${++this.sequence}`;
-    this.jobs.set(jobId, loadGoldenEngineResult());
+    // Same rule as the synchronous mock: a fixture that reaches a consumer
+    // unlabelled is the defect, so the async path stamps too.
+    this.jobs.set(jobId, stampProvenance(loadGoldenEngineResult(), FIXTURE_PROVENANCE));
     return jobId;
   }
 

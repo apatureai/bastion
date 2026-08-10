@@ -44,6 +44,10 @@ export type {
   MultimediaCritiqueContent,
   DesignReviewContent,
 } from "./critique.js";
+// Judgment provenance: the in-band "did anything actually judge this page?"
+// carried by every engine result and every agent-facing Critique.
+export type { JudgmentSource, JudgmentProvenance } from "./provenance.js";
+export { isModelBacked, isUnjudged } from "./provenance.js";
 export { ERROR_CODES } from "./error.js";
 export type { ReviewErrorCode, NextAction, ReviewError } from "./error.js";
 export {

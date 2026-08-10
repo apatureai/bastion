@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
   "name": "ai.apature/mcp-review",
   "description": "In-loop, read-only design review for coding agents: inspect a verified preview, return grounded findings with element refs and fixes, and recheck the agent's fix before CI.",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "websiteUrl": "https://github.com/apatureai/bastion",
   "repository": {
     "url": "https://github.com/apatureai/bastion",
@@ -23,7 +23,7 @@
       ]
     },
     "ai.apature/protocol_baseline": "2025-11-25",
-    "ai.apature/catalog_version": "1.1.0",
+    "ai.apature/catalog_version": "1.2.0",
     "ai.apature/read_only_boundary": "Customer-facing: the server judges, explains, and verifies. It never edits code, commits, pushes, or opens pull requests. Submit and recheck create metered jobs; design_review_get and design_review_panel_action are read-only, and a panel apply_fix returns the fix for the caller's coding agent rather than applying it.",
     "ai.apature/tools": [
       "design_review",

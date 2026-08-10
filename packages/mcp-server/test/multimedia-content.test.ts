@@ -36,6 +36,15 @@ function critique(findings: CritiqueFinding[], over: Partial<Critique> = {}): Cr
     overall: "One blocker.",
     findings,
     not_reviewed: [],
+    // A Critique always carries its judgment provenance; these fixtures stand
+    // in for a real, model-backed review.
+    provenance: {
+      model_backed: true,
+      source: "model",
+      engine: "verdict-cli",
+      model: "qwen3-vl",
+      detail: "a model judged the capture",
+    },
     ...over,
   };
 }
