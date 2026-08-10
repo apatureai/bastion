@@ -8,7 +8,7 @@ A coding agent changes a UI, deploys a preview, and has no way to see whether th
 
 It is also, deliberately, a reference implementation. Most public MCP servers are stdio, unauthenticated, single-tenant, and return in milliseconds. This one carries the other shape: a Streamable HTTP edge with OAuth 2.1 resource-server auth, per-tenant Postgres state, submit-and-poll jobs that outlive the transport session, and a hardened boundary around the one thing an agent-supplied URL always is, which is an SSRF primitive.
 
-Everything below runs offline with no credentials. The judgments come from a fixture (see [Status and roadmap](#status-and-roadmap)); every other layer is the real code path.
+Everything below runs offline with no credentials, and with nothing configured the judgments come from a fixture. They do not have to stay that way. [Getting real judgments](#getting-real-judgments) is one clone and one environment variable: the critique backend, [apatureai/verdict](https://github.com/apatureai/verdict), is public and MIT, screenshots the page with headless Chromium, and returns the exact result contract this server consumes. Which engine is running is printed every time the server starts, so a fixture judgment can never be mistaken for a model's.
 
 ## Quickstart
 
@@ -32,7 +32,9 @@ pnpm demo
 ```console
 $ pnpm demo
 
-mcp-review local server ready on stdio: offline, fixture judgments, authorized host: preview.example.com
+mcp-review local server ready on stdio
+  engine: FIXTURE engine: no critique backend configured. Findings are replayed from the golden fixture and describe a fictional pricing page, NOT the URL you pass. Set VERDICT_CLI (a built verdict checkout) for real judgments.
+  authorized hosts: preview.example.com
 connected to apature-mcp-review v1.1.0 over stdio
 
 [1] tools/list
@@ -114,15 +116,159 @@ The local server speaks MCP over stdio, which is what Claude Code, Cursor, Codex
 
 `pnpm demo` spawns exactly that command and completes a real handshake against it, so the command is verified here; registration differs per client.
 
-The only host the local server authorizes is `preview.example.com`; every other host is rejected as `DOMAIN_UNVERIFIED`. To add your own, edit `packages/mcp-server/src/local-stdio.ts` and rebuild:
+The only host the local server authorizes is `preview.example.com`; every other host is rejected as `DOMAIN_UNVERIFIED`. Add your own, and the critique backend, through the environment, with no code change and no rebuild:
 
-```ts
-import { createLocalReviewServer } from "./local-server.js";
-
-const server = createLocalReviewServer({ allowedHosts: ["preview.mycompany.com"] });
+```json
+{
+  "mcpServers": {
+    "apature-review": {
+      "command": "node",
+      "args": ["/absolute/path/to/bastion/packages/mcp-server/dist/local-stdio.js"],
+      "env": {
+        "BASTION_ALLOWED_HOSTS": "preview.mycompany.com",
+        "VERDICT_CLI": "/absolute/path/to/verdict",
+        "MODEL_BASE_URL": "https://your-openai-compatible-endpoint/v1",
+        "MODEL_API_KEY": "..."
+      }
+    }
+  }
+}
 ```
 
-Remember what that buys you: the target is authorized for real, and then judged from a fixture. It will not tell you anything about your page.
+Without `VERDICT_CLI` the target is authorized for real and then judged from a fixture, which tells you nothing about your page. The next section is how to set it up.
+
+## Getting real judgments
+
+With nothing configured, the findings are a fixture about a fictional pricing page. This section replaces that with a real critique of a real page. It needs no credentials from this project, no database, and no hosted service.
+
+The backend is [apatureai/verdict](https://github.com/apatureai/verdict), which is public and MIT. It launches headless Chromium, captures each route at each viewport, measures the DOM, critiques the render against your repository's own design system, deletes every finding it cannot point at, and writes an `EngineReviewResult`. That is the exact contract `packages/mcp-types/src/engine.ts` declares and this server consumes, so connecting them is configuration rather than code.
+
+### 1. Build verdict
+
+```bash
+git clone https://github.com/apatureai/verdict.git
+cd verdict
+corepack enable
+pnpm install --frozen-lockfile
+pnpm build
+pnpm browser:install     # Chromium for playwright-core, roughly 275 MB downloaded
+```
+
+### 2. Point bastion at it
+
+```bash
+export VERDICT_CLI=/absolute/path/to/verdict
+export MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
+export MODEL_API_KEY=<your-key>
+```
+
+`VERDICT_CLI` selects the backend. `MODEL_BASE_URL` and `MODEL_API_KEY` are verdict's own variables and are passed straight through to it, so any OpenAI-compatible chat-completions endpoint that accepts images works: DashScope compatible mode, a self-hosted vLLM or SGLang server, anything speaking that wire format. The endpoint is never guessed, and a key without a base URL is a startup error rather than a silent fallback.
+
+With a key set, verdict runs `--model live` and a model looks at your screenshots. Without one it runs `--model canned`, which captures and measures your page for real but judges nothing. Both states are announced, and the second one is announced loudly.
+
+### 3. Review a URL
+
+```bash
+pnpm review https://preview.mycompany.com/pricing --routes /pricing --viewports desktop
+```
+
+`pnpm review` is the same MCP client `pnpm demo` uses, pointed at a target you choose: it spawns the local stdio server exactly as a coding agent would, so there is no private path here that your own MCP client does not get. The host you name on the command line is authorized for that run, and the CLI says so before it starts.
+
+Here is a complete run against a public page, with `VERDICT_MODEL=mock` so it needs no key. Capture, measurement, and the artifacts are real; only the critique is not, which is what every line about it says:
+
+```console
+$ VERDICT_CLI=~/src/verdict VERDICT_MODEL=mock pnpm review https://example.com/ --viewports desktop
+
+bastion: reviewing https://example.com/
+  engine: VERDICT CLI engine: /Users/you/src/verdict/packages/cli/dist/main.js, --model mock. Capture and measurement are real, but NO MODEL JUDGES THE PAGE (no VERDICT_CONTEXT_DIR: the critique is not grounded in a design system); the grade and findings are verdict's mock client. Set MODEL_BASE_URL and MODEL_API_KEY for a real critique.
+  authorizing example.com for this run because you named it on the command line
+mcp-review local server ready on stdio
+  engine: VERDICT CLI engine: /Users/you/src/verdict/packages/cli/dist/main.js, --model mock. ...
+  authorized hosts: preview.example.com, example.com
+verdict: reviewing https://example.com (/) -> /Users/you/src/bastion/out/verdict/1786369474801-cli-1786369474771
+verdict| judgment-engine — reviewing https://example.com
+verdict|   MOCK model client — deterministic, empty critique. No network call.
+verdict|   launching Chromium…
+verdict|   capturing 1 route(s) × 1 viewport(s)…
+verdict|   running triage + deep pass…
+verdict|
+verdict| Capture
+verdict|   1 screenshot(s) written to out/verdict/1786369474801-cli-1786369474771/screenshots
+verdict|   2 DOM element(s) recorded in the geometry map
+verdict|   page health: clean
+verdict|
+verdict| Measured facts  (computed from the captured DOM, no model involved)
+verdict|   1 measurement(s) (touch_target 1) over 1 distinct element(s)
+verdict|
+verdict|    1. [touch_target] / body > div > p:nth-of-type(2) > a (desktop)
+verdict|       touch target 82x18px is below 44x44px
+verdict|
+verdict| Done in 1.5s.
+
+Review rev_c9c18398-faba-41c5-8361-b8b63d54453e  grade n/a (no model judged this page)
+  mock(qwen3-vl-plus)
+
+  no findings
+
+  not reviewed: [bastion] no model judged this page: verdict ran with --model mock. The grade and any findings in this result are not a judgment of the target. Set MODEL_BASE_URL and MODEL_API_KEY and run with VERDICT_MODEL=live for a real critique.
+
+Wrote /Users/you/src/bastion/out/review.json
+Wrote /Users/you/src/bastion/out/panel.html
+
+NOTHING ABOVE JUDGED YOUR PAGE. VERDICT CLI engine: ... --model mock. ...
+See the README section "Getting real judgments" to configure a critique backend.
+```
+
+**Success looks like** verdict's own capture report streaming past, a screenshot count that matches your routes times viewports, and a `Review` block. Swap `VERDICT_MODEL=mock` for a real `MODEL_API_KEY` and the last three lines disappear, the grade is printed, and the findings are about your page. The per-run artifact directory under `out/verdict/` keeps the screenshots, the DOM geometry map, the measured facts, and the resolved system prompt, so a finding can be checked against what the model was actually shown.
+
+The SSRF boundary is not relaxed for local use. A host that resolves to a private or loopback address is refused before verdict is even started:
+
+```console
+$ pnpm review https://localtest.me/
+
+rejected: DNS_TARGET_PROHIBITED
+  host localtest.me resolves to a prohibited (loopback) address
+```
+
+That is also why there is no way to review `http://localhost:3000` through this server: targets must be https, must not be IP literals, and must resolve to public addresses. Point it at a preview deployment. To review a local dev server, use verdict's own CLI directly, which has no such boundary because it has no tenants.
+
+### What each mode gives you
+
+| | fixture (default) | verdict CLI, no key | verdict CLI, live model |
+|---|---|---|---|
+| Configuration | none | `VERDICT_CLI` | `VERDICT_CLI` + `MODEL_BASE_URL` + `MODEL_API_KEY` |
+| Screenshots of your page | no | yes | yes |
+| DOM measurements of your page | no | yes | yes |
+| Findings about your page | no | no | yes |
+| Grade printed | no | no | yes |
+| Cost | none | none | your endpoint's per-call price |
+| `design_recheck` | yes, fixture outcomes | no, see below | no, see below |
+
+### Configuring the backend
+
+| Variable | Effect |
+|---|---|
+| `BASTION_ENGINE` | `auto` (default), `fixture`, `verdict-cli`, `verdict-http`. `auto` picks the CLI backend when `VERDICT_CLI` is set, then the job API when `ENGINE_BASE_URL` is set, then the fixture |
+| `VERDICT_CLI` | Path to a built verdict checkout, or directly to its `packages/cli/dist/main.js`. Selects the CLI backend |
+| `VERDICT_MODEL` | `auto` (default), `mock`, `canned`, `live`. `auto` is live when `MODEL_API_KEY` is set, canned otherwise, which is verdict's own rule |
+| `VERDICT_CONTEXT_DIR` | Directory holding `tokens.json`, `.designreview.yml` and `package.json`, which is what grounds the critique in your design system. Without it the critique is ungrounded, not broken |
+| `VERDICT_OUT_DIR` | Where per-review artifact directories are written. Default `out/verdict` under the working directory |
+| `VERDICT_TIMEOUT_MS` | Ceiling on one review. Default 900000, fifteen minutes |
+| `MODEL_BASE_URL`, `MODEL_API_KEY` | Verdict's variables, passed through unchanged |
+| `BASTION_ALLOWED_HOSTS` | Comma-separated hosts to authorize besides the demo host. `pnpm review` adds the host you name on the command line |
+| `ENGINE_BASE_URL`, `ENGINE_HMAC_SECRET`, `ENGINE_INSTALLATION_ID` | A running verdict job API instead of the CLI. See below |
+
+Half-configured states fail at startup rather than degrading to fixtures: a base URL with no signing secret, a live model with no endpoint, an unbuilt verdict checkout, and an unknown mode name each stop the server with the reason.
+
+### What is not wired yet
+
+**`design_recheck` does not work against either verdict backend.** Verdict exposes no per-finding recheck, over the CLI or over its job API. Bastion could re-review the target and guess which findings matched, but a guess presented as a per-finding verdict is worse than an error, so both adapters refuse with that reason and `design_recheck` stays usable only against the fixture engine. The seam to fill is `EngineClient.recheck` in `src/engine-client.ts`, and the honest implementation needs a recheck surface upstream.
+
+**The verdict job API backend has never been run against a real verdict deployment.** `src/verdict-job-engine.ts` speaks the documented contract (`POST /jobs`, `GET /jobs/:id`, `DELETE /jobs/:id`, the same `x-gate-signature` / `x-gate-installation` / `x-gate-timestamp` signing over the same canonical string, the same `x-schema-version` gate) and is tested against a stub, but verdict's long-running service additionally requires a `CAPTURE_ENDPOINT` capture fleet that verdict does not implement. Until that exists the CLI backend is the one that produces judgments, which is why `auto` prefers it.
+
+**The live model path has not been exercised from this repository.** Everything up to and including the `--model live` command line is under test, and `MODEL_BASE_URL` / `MODEL_API_KEY` reach verdict unchanged, but the end-to-end runs recorded here used verdict's mock client, because this repository has no endpoint credentials. The live client itself is verdict's code and is covered by verdict's tests.
+
+**Reviews block for as long as capture takes.** The local server runs the backend synchronously inside the `design_review` tool call, so a deep review of several routes can hold that call open for minutes. The durable submit-and-poll path that solves this exists in `review-service.ts` and is used by the HTTP composition root; the local server does not use it.
 
 ## Who this is for
 
@@ -133,7 +279,7 @@ Remember what that buys you: the target is authorized for real, and then judged 
 
 ## What it does
 
-- Runs a complete five-tool MCP server locally over stdio, with no credentials, no database, no network calls, and no model.
+- Runs a complete five-tool MCP server locally over stdio, with no credentials, no database, no network calls, and no model. Set `VERDICT_CLI` and the same server reviews your page for real.
 - Submits a review of an HTTPS preview URL as an async job, and serves the result through five views: `status`, `summary`, `findings`, `focus`, `evidence`.
 - Returns findings as MCP content blocks (an interactive HTML review panel, per-finding text, annotated evidence images), degrading honestly on a host that cannot render one of them.
 - Rechecks 1 to 20 findings from a completed review after the agent claims a fix, and rejects an unchanged target without spending anything.
@@ -143,8 +289,8 @@ Remember what that buys you: the target is authorized for real, and then judged 
 ## What it deliberately does not do
 
 - **It never edits code.** No patching, committing, pushing, opening pull requests, or driving a browser. It returns judgments and evidence; the agent on the other end does the work. The server is the eyes, the agent is the hands.
-- **It does not screenshot anything and it does not call a model.** Capture and inference sit behind the engine boundary, in the public sibling [apatureai/verdict](https://github.com/apatureai/verdict): it drives headless Chromium for real captures and calls an OpenAI-compatible endpoint configured with `MODEL_BASE_URL` / `MODEL_API_KEY`. That repo exists and is MIT, but this one is not wired to it yet, so the judgments you get here are still fixture-backed. Closing that gap is roadmap item 1 in [Status and roadmap](#status-and-roadmap).
-- **It does not judge the URL you pass.** Offline, the findings come from a golden fixture describing a fictional pricing page.
+- **It does not screenshot anything itself and it does not call a model itself.** Capture and inference sit behind the engine boundary, in the public sibling [apatureai/verdict](https://github.com/apatureai/verdict): it drives headless Chromium for real captures and calls an OpenAI-compatible endpoint configured with `MODEL_BASE_URL` / `MODEL_API_KEY`. This server now runs that engine when you configure it and consumes its result; it does not reimplement either half. See [Getting real judgments](#getting-real-judgments).
+- **It does not judge the URL you pass until you configure a backend.** With nothing set, the findings come from a golden fixture describing a fictional pricing page, and every entry point says so before it prints them.
 
 ## Why this is technically interesting
 
@@ -172,7 +318,7 @@ Most MCP servers are thin wrappers: one tool call maps to one function call, ret
 |---|---|---|
 | `design_review` | yes | Submit an async review of an authorized HTTPS preview (routes, viewports, `triage`/`deep` depth). Returns a job. |
 | `design_review_get` | no | Poll job status or read the result in one of five views. |
-| `design_recheck` | yes | Re-judge 1 to 20 findings from a completed review after the agent changed the UI. Rejects a host change or an unchanged target. |
+| `design_recheck` | yes | Re-judge 1 to 20 findings from a completed review after the agent changed the UI. Rejects a host change or an unchanged target. Available against the fixture engine only; see [What is not wired yet](#what-is-not-wired-yet). |
 | `design_review_cancel` | no | Best-effort cancel of a queued or running job; requires the `reviews:cancel` scope. |
 | `design_review_panel_action` | no | Route a review-panel interaction: return a grounded finding's fix for the agent, or the refs to re-verify. |
 
@@ -212,11 +358,13 @@ HTTP edge (TLS, Host allowlist, body + in-flight limits)
   -> HMAC-signed submit to the judgment engine
 ```
 
-The client gets a `job_id` and a `poll_after_ms`, and polls `design_review_get`, which refreshes from the engine when a refresh is due and returns the completed `Critique`. Locally the same path runs with the fixture engine and an in-memory store, synchronously; the job is already `completed` when submit returns.
+The client gets a `job_id` and a `poll_after_ms`, and polls `design_review_get`, which refreshes from the engine when a refresh is due and returns the completed `Critique`. Locally the same path runs against an in-memory store, synchronously: the job is already `completed` when submit returns. What answers there is the fixture engine by default, or a verdict backend when one is configured, behind the same `EngineClient` port.
 
 A recheck adds: the prior review must exist and be completed; every requested finding id must belong to it; the target host must be unchanged; and the target fingerprint (URL plus `expected_revision`) must actually have changed, or it is rejected as `TARGET_UNCHANGED` without running judgment. Rejections and throttles both happen before any unit is reserved, so they cost nothing.
 
 ### What is real and what is synthetic offline
+
+This is the unconfigured server, the one `pnpm demo` drives. [Getting real judgments](#getting-real-judgments) changes the last three rows.
 
 | Part | Offline behaviour |
 |---|---|
@@ -224,9 +372,9 @@ A recheck adds: the prior review must exist and be completed; every requested fi
 | Target authorization, egress classification, DNS-rebind rejection | Real (runs on every submit) |
 | Job lifecycle, idempotency, budgets, recheck rejection and throttling | Real |
 | Views, content blocks, panel projection and reducer | Real |
-| The findings themselves | **Fixture.** A golden engine result about a fictional pricing page, not a judgment of the URL you passed |
-| DNS | **Stub.** One fixed public address, returned without a lookup; no network call is made |
-| Evidence crops | **Placeholder.** Deterministic generated PNGs where the engine's annotated screenshots would be |
+| The findings themselves | **Fixture.** A golden engine result about a fictional pricing page, not a judgment of the URL you passed. Set `VERDICT_CLI` and they are a real critique of your page |
+| DNS | **Stub for the demo host only.** `preview.example.com` is answered from a constant so the demo makes no network call; every other host, including any you add, goes to the system resolver and is then classified for real |
+| Evidence crops | **Placeholder.** Deterministic generated PNGs where the engine's annotated screenshots would be. Verdict's own screenshots are written to `out/verdict/<run>/screenshots` when a backend is configured |
 
 ## Running the HTTP server
 
@@ -238,7 +386,7 @@ It boots, authenticates, persists, and migrates. It cannot complete a review unt
 
 ### Configuration
 
-Every variable below is read by the code. None are needed by the local server, the quickstart, or the test suite.
+Every variable below is read by the code. None are needed by the local server, the quickstart, or the test suite. The critique-backend variables are listed separately under [Configuring the backend](#configuring-the-backend); `ENGINE_BASE_URL` and `ENGINE_HMAC_SECRET` are shared by both surfaces.
 
 | Variable | Required | Default | Effect |
 |---|---|---|---|
@@ -270,9 +418,14 @@ packages/mcp-types/                boundary contracts, no runtime dependencies
 packages/mcp-server/
   src/tools.ts                     Zod input schemas, source of the advertised JSON Schema
   src/server.ts                    the five MCP tools, views, and typed error mapping
-  src/local-server.ts              offline composition root (fixture engine, stub DNS)
+  src/local-server.ts              local composition root (fixture engine unless one is configured)
   src/local-stdio.ts               `mcp-review-local` process entrypoint (stdio transport)
   src/demo.ts                      the quickstart client: spawns the server, drives the loop
+  src/review-cli.ts                `pnpm review <url>`: the same client, pointed at your target
+  src/engine-runtime.ts            which critique backend this process runs, read from the env
+  src/verdict-cli-engine.ts        backend: a local verdict checkout, driven through its CLI
+  src/verdict-job-engine.ts        backend: a running verdict deployment, over its signed job API
+  src/engine-result.ts             structural validation of a result that came from another program
   src/review-service.ts            job lifecycle, idempotency, budgets, recheck semantics
   src/normalize.ts                 request normalization and the idempotency fingerprint
   src/target-auth.ts               canonicalization, verified-host check, rebind rejection
@@ -310,18 +463,20 @@ $ pnpm test
 
  RUN  v4.1.10
 
- Test Files  29 passed | 1 skipped (30)
-      Tests  254 passed | 2 skipped (256)
+ Test Files  33 passed | 1 skipped (34)
+      Tests  302 passed | 2 skipped (304)
 ```
 
 ```bash
 pnpm lint                                                  # eslint, warnings fail the build
 pnpm typecheck                                             # tsc -b across project references
 pnpm test packages/mcp-server/test/local-server.test.ts    # one file
+pnpm demo                                                  # the fixture-backed protocol walkthrough
+pnpm review <https url>                                    # one review through the configured backend
 pnpm clean                                                 # remove build output
 ```
 
-The skipped file is `packages/mcp-server/test/production-postgres.test.ts`, which exercises migration arbitration against a real database and only runs when `MCP_TEST_DATABASE_URL` is set. With one supplied the suite is 30 files / 256 tests, all passing:
+The skipped file is `packages/mcp-server/test/production-postgres.test.ts`, which exercises migration arbitration against a real database and only runs when `MCP_TEST_DATABASE_URL` is set. With one supplied the suite is 34 files / 304 tests, all passing:
 
 ```bash
 docker run --rm -d -p 5432:5432 \
@@ -333,7 +488,7 @@ MCP_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/mcp_review_tes
 
 That suite creates and drops its own schemas, so point it at a scratch database only.
 
-Nothing in the suite touches a model, a browser, or the network: the engine is a fixture mock, the DNS resolver is a stub, and the Postgres application plane runs in-process against [PGlite](https://pglite.dev). `vitest.config.ts` raises the timeouts to 30s because a cold first run instantiates PGlite (WASM Postgres) inside a hook.
+Nothing in the suite touches a model, a browser, a subprocess, or the network: the engine is a fixture mock, the verdict backends are driven through their process and transport seams, DNS is stubbed or answered from a constant, and the Postgres application plane runs in-process against [PGlite](https://pglite.dev). `vitest.config.ts` raises the timeouts to 30s because a cold first run instantiates PGlite (WASM Postgres) inside a hook.
 
 Both workspace packages are `private`; there is no published npm package yet. See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and how changes get reviewed.
 
@@ -344,6 +499,7 @@ Working today, covered by the suite:
 | Component | Notes |
 |---|---|
 | Local MCP server (stdio, offline) | `pnpm demo`, `pnpm start:local` |
+| Real critique backend over a local verdict checkout | `pnpm review <url>`; see [Getting real judgments](#getting-real-judgments) |
 | All five tools, five views, panel round trip | End to end in the quickstart |
 | Target authorization + egress classification | Enforced by the local server too |
 | Job lifecycle, idempotency, recheck semantics, budgets | Including zero-charge rejection paths |
@@ -352,13 +508,15 @@ Working today, covered by the suite:
 
 Known gaps, in rough priority order. Each names the seam to work against, and each is a reasonable first contribution.
 
-**1. Wire a real critique backend.** This is the main one. Judgments come from a golden fixture, so the server currently tells you nothing about the URL you passed. The seam is `EngineClient` / `EngineJobClient` in `packages/mcp-server/src/engine-client.ts`, with an HMAC-signed HTTP implementation already written in `engine-http-client.ts` and a deterministic mock next to it. A backend needs to answer submit/poll/cancel and return an `EngineReviewResult` matching `packages/mcp-types/fixtures/engine-review-result.golden.json`.
+**1. Finish the critique backend.** The main gap in earlier releases was that judgments were fixtures with no way to make them real. That is closed for reviews: `VERDICT_CLI` points this server at a local [apatureai/verdict](https://github.com/apatureai/verdict) checkout, verdict captures and critiques the page, and its `EngineReviewResult` flows through the same `EngineClient` port the fixture mock uses. See [Getting real judgments](#getting-real-judgments). Three pieces of that work are genuinely unfinished, and each is a good contribution:
 
-[apatureai/verdict](https://github.com/apatureai/verdict) is the intended counterpart and it is public and MIT, so this is closer than it used to be. Its `packages/api` serves the same async job API this client calls (`POST /jobs`, `GET /jobs/:id`, `DELETE /jobs/:id`), and the request signing lines up on both sides: the same `x-gate-signature` / `x-gate-installation` / `x-gate-timestamp` headers over the same `timestamp.installationId.body` canonical string. What nobody has done is run the two against each other, so treat the result payload mapping (its review output onto `EngineReviewResult`) as unverified rather than done. Standing up `ENGINE_BASE_URL` against it and reporting where the shapes disagree is a genuinely useful contribution, and any service speaking the same shape works just as well.
+- **`design_recheck` against a verdict backend.** Verdict has no per-finding recheck surface, over its CLI or its job API, so both adapters refuse rather than synthesizing outcomes. The seam is `EngineClient.recheck`; the honest fix starts upstream, with a recheck endpoint that re-captures the flagged elements.
+- **Run the job API backend against a real verdict deployment.** `src/verdict-job-engine.ts` speaks the contract and is tested against a stub, but verdict's long-running service needs a `CAPTURE_ENDPOINT` capture fleet that verdict does not implement, so the two programs have never met over HTTP. Reporting where the shapes disagree, once one exists, is exactly the useful bug report.
+- **Verify the live model path from here.** The `--model live` command line is under test and the endpoint variables are passed through unchanged, but the end-to-end runs recorded in this README used verdict's mock client, because this repository has no endpoint credentials.
 
-**2. Screenshot capture.** Not implemented here, and still not planned to live here: capture belongs behind the engine boundary above, and it is already written there. `verdict` drives headless Chromium through playwright-core and produces deterministic screenshots plus a DOM geometry map; its `browser:install` and `review` scripts are the entry points, and that repo's README documents how to run them. So the missing piece is not a capture implementation, it is the link in item 1.
+**2. Screenshot capture.** Not implemented here, and still not planned to live here: capture belongs behind the engine boundary above, and it is already written there. `verdict` drives headless Chromium through playwright-core and produces deterministic screenshots plus a DOM geometry map, and with `VERDICT_CLI` set those screenshots land in `out/verdict/<run>/screenshots` on every review. What this repository still lacks is a way to serve them back through the MCP evidence view, which is item 3.
 
-**3. Real evidence images.** `EvidenceProvider` in `src/evidence.ts` is the seam and it is documented; the only implementation is `SyntheticEvidenceProvider`, which emits deterministic placeholder PNGs (real bytes, no pixels of your page). An implementation that fetches annotated crops from an artifact store is self-contained and testable.
+**3. Real evidence images.** `EvidenceProvider` in `src/evidence.ts` is the seam and it is documented; the only implementation is `SyntheticEvidenceProvider`, which emits deterministic placeholder PNGs (real bytes, no pixels of your page). This one got easier: with `VERDICT_CLI` configured, verdict writes the real screenshots to `out/verdict/<run>/screenshots` and stamps each finding's `screenshotId` with the key it wrote them under, so a provider that reads that directory is a self-contained, testable change that would put your own page into the evidence view and the panel.
 
 **4. Move the recheck index and unit ledger into the store.** Job records persist to Postgres, but the recheck index and the tenant unit counter (a flat 1000 per `ReviewService`) live in memory on an instance constructed per MCP connection, so a recheck only resolves a review submitted on the same connection. The fix is to read the review back from `ReviewApplicationStore` and move the ledger into it. Well-scoped and high value for anyone actually deploying this.
 
@@ -380,7 +538,7 @@ Known gaps, in rough priority order. Each names the seam to work against, and ea
 
 Two honesty notes that are not roadmap items so much as things to know.
 
-**There are still no published quality numbers, so assume no measured accuracy claims.** The harness to produce them is no longer missing, though: it lives in [apatureai/verdict](https://github.com/apatureai/verdict) under `packages/eval`, which carries the canaries, the golden-set tooling, and the precision, recall and human-agreement metrics, and it declares the bars it grades against as `DEFAULT_QUALITY_BARS` in `packages/eval/src/quality-gate.ts`. What has not happened is a promoted candidate run, so neither repo publishes a results table. Since this server returns fixture judgments anyway, no number measured there would describe what you get here until item 1 is wired.
+**There are still no published quality numbers, so assume no measured accuracy claims.** The harness to produce them is no longer missing, though: it lives in [apatureai/verdict](https://github.com/apatureai/verdict) under `packages/eval`, which carries the canaries, the golden-set tooling, and the precision, recall and human-agreement metrics, and it declares the bars it grades against as `DEFAULT_QUALITY_BARS` in `packages/eval/src/quality-gate.ts`. What has not happened is a promoted candidate run, so neither repo publishes a results table. With `VERDICT_CLI` configured the judgments you get here are verdict's, which means any number measured there would describe them; there is simply no such number yet.
 
 **The auth path has not had an external security review.** The OAuth 2.1 resource-server code, the token verifier and the SSRF boundary are covered by this repo's own tests and nothing more. See [SECURITY.md](SECURITY.md).
 

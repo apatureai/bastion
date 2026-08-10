@@ -21,7 +21,8 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
     "start:local": "node packages/mcp-server/dist/local-stdio.js",
-    "demo": "node packages/mcp-server/dist/demo.js"
+    "demo": "node packages/mcp-server/dist/demo.js",
+    "review": "node packages/mcp-server/dist/review-cli.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

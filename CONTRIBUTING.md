@@ -107,6 +107,12 @@ README has a file-by-file map.
   separate from `local-server.ts`. Keep the entrypoint out of the cycle if you refactor this.
 - **Zero-warning lint.** `eslint . --max-warnings=0`. Do not disable a rule inline without a comment
   explaining why.
+- **A fixture must never pass for a judgment.** `src/engine-runtime.ts` resolves which critique
+  backend a process runs and returns a one-line description with it; every entrypoint prints that
+  line before doing any work, and a half-configured backend fails at startup instead of falling
+  back to fixtures. If you add a backend, add its description, keep `modelBacked` honest (`null`
+  when the answer lives in someone else's process), and never synthesize an engine result the
+  engine did not produce.
 - **No em dashes in prose or output strings**, and no AI attribution in commits, comments, or docs.
 - New behaviour ships with a test. The suite is fast and runs offline, so there is no excuse.
 

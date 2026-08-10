@@ -1,13 +1,37 @@
 export { createMcpReviewServer } from "./server.js";
 export type { McpReviewServerDeps } from "./server.js";
-// The offline composition root: the same five tools with fixture judgments, a stub
-// resolver, and placeholder evidence. No credentials, database, network, or engine.
+// The local composition root: the same five tools with fixture judgments by
+// default, or a verdict-backed engine when the environment configures one.
 export {
+  createLocalDnsResolver,
   createLocalReviewServer,
   LOCAL_ALLOWED_HOST,
   LOCAL_RESOLVED_ADDRESS,
 } from "./local-server.js";
 export type { LocalReviewServerOptions } from "./local-server.js";
+// The critique backends. `resolveEngineRuntime` reads the environment and says,
+// in one line, whether the findings will come from a model or from a fixture.
+export {
+  EngineConfigError,
+  resolveEngineRuntime,
+  resolveVerdictCliEntry,
+  resolveVerdictModel,
+} from "./engine-runtime.js";
+export type { EngineMode, EngineRuntime, ResolveEngineRuntimeOptions } from "./engine-runtime.js";
+export {
+  noModelDisclosure,
+  spawnProcessRunner,
+  VerdictCliEngineClient,
+} from "./verdict-cli-engine.js";
+export type {
+  ProcessResult,
+  ProcessRunner,
+  VerdictCliEngineOptions,
+  VerdictModelChoice,
+} from "./verdict-cli-engine.js";
+export { VerdictJobEngineClient } from "./verdict-job-engine.js";
+export type { VerdictJobEngineOptions } from "./verdict-job-engine.js";
+export { EngineResultError, parseEngineReviewResult } from "./engine-result.js";
 export type { EvidenceProvider } from "./evidence.js";
 export { SyntheticEvidenceProvider, renderPlaceholderPng } from "./synthetic-evidence.js";
 export { renderReviewPanel, escapeHtml } from "./panel-html.js";

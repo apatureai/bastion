@@ -12,6 +12,13 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
  * It spawns the server as a child process rather than importing it, so what runs
  * here is exactly what a coding agent would run when it launches this repo as a
  * local MCP server: same binary, same transport, same handshake.
+ *
+ * The demo pins the child to the offline fixture engine (`BASTION_ENGINE=fixture`)
+ * no matter what the surrounding shell is configured with. Its target,
+ * `preview.example.com`, is a host nothing is ever fetched from, so pointing a
+ * real critique backend at it could only produce a capture failure; and the
+ * transcript below is asserted in the README, which requires it to be
+ * deterministic. To review a page for real, use `pnpm review <url>`.
  */
 
 const OUT_DIR = resolve(process.cwd(), "out");
@@ -28,8 +35,23 @@ const step = (n: number, title: string): void => {
   process.stdout.write(`\n[${n}] ${title}\n`);
 };
 
+/** The parent environment, minus unset keys, with the engine choice pinned. */
+function childEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const [key, value] of Object.entries(process.env)) {
+    if (value !== undefined) env[key] = value;
+  }
+  env.BASTION_ENGINE = "fixture";
+  delete env.BASTION_ALLOWED_HOSTS;
+  return env;
+}
+
 async function main(): Promise<void> {
-  const transport = new StdioClientTransport({ command: process.execPath, args: [SERVER_ENTRY] });
+  const transport = new StdioClientTransport({
+    command: process.execPath,
+    args: [SERVER_ENTRY],
+    env: childEnv(),
+  });
   const client = new Client({ name: "mcp-review-demo", version: "1.0.0" });
   await client.connect(transport);
 
