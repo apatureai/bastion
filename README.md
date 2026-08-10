@@ -137,7 +137,7 @@ Remember what that buys you: the target is authorized for real, and then judged 
 ## What it deliberately does not do
 
 - **It never edits code.** No patching, committing, pushing, opening pull requests, or driving a browser. It returns judgments and evidence; the agent on the other end does the work. The server is the eyes, the agent is the hands.
-- **It does not screenshot anything and it does not call a model.** Capture and inference belong to a separate judgment engine. See [Status and roadmap](#status-and-roadmap).
+- **It does not screenshot anything and it does not call a model.** Capture and inference sit behind the engine boundary, in the public sibling [apatureai/judgment-engine](https://github.com/apatureai/judgment-engine): it drives headless Chromium for real captures and calls an OpenAI-compatible endpoint configured with `MODEL_BASE_URL` / `MODEL_API_KEY`. That repo exists and is MIT, but this one is not wired to it yet, so the judgments you get here are still fixture-backed. Closing that gap is roadmap item 1 in [Status and roadmap](#status-and-roadmap).
 - **It does not judge the URL you pass.** Offline, the findings come from a golden fixture describing a fictional pricing page.
 
 ## Why this is technically interesting
@@ -227,6 +227,8 @@ A recheck adds: the prior review must exist and be completed; every requested fi
 `Dockerfile` builds the workspace and runs `packages/mcp-server/dist/boot.js`, the production composition root: Streamable HTTP transport, bearer JWT verification against an issuer's JWKS, a Postgres application plane, and a signed client for the judgment engine. It fails closed with a readable message when configuration is missing.
 
 It boots, authenticates, persists, and migrates. It cannot complete a review until `ENGINE_BASE_URL` points at a judgment engine that speaks the `EngineJobClient` protocol (see [Status and roadmap](#status-and-roadmap)). The production root deliberately has no mock fallback: a server that answers with fixture judgments must be the local one, explicitly, never a misconfigured production one.
+
+**There is no hosted endpoint, and no URL here to point a client at.** Nobody operates a public instance of this server, so `directory/server.json` declares no `remotes` at all rather than publishing a host that would not answer. If you deploy it, take the `ai.apature/self_hosted_remote_template` block out of that file's `_meta`, put your own host in it, and move it up into a real `remotes` array before submitting the listing anywhere. A test enforces that the checked-in listing stays remote-free while that is the truth.
 
 ### Configuration
 
@@ -344,9 +346,11 @@ Working today, covered by the suite:
 
 Known gaps, in rough priority order. Each names the seam to work against, and each is a reasonable first contribution.
 
-**1. Wire a real critique backend.** This is the main one. Judgments come from a golden fixture, so the server currently tells you nothing about the URL you passed. The seam is `EngineClient` / `EngineJobClient` in `packages/mcp-server/src/engine-client.ts`, with an HMAC-signed HTTP implementation already written in `engine-http-client.ts` and a deterministic mock next to it. A backend needs to answer submit/poll/cancel and return an `EngineReviewResult` matching `packages/mcp-types/fixtures/engine-review-result.golden.json`. [apatureai/judgment-engine](https://github.com/apatureai/judgment-engine) is the intended counterpart; any service that speaks the same shape works.
+**1. Wire a real critique backend.** This is the main one. Judgments come from a golden fixture, so the server currently tells you nothing about the URL you passed. The seam is `EngineClient` / `EngineJobClient` in `packages/mcp-server/src/engine-client.ts`, with an HMAC-signed HTTP implementation already written in `engine-http-client.ts` and a deterministic mock next to it. A backend needs to answer submit/poll/cancel and return an `EngineReviewResult` matching `packages/mcp-types/fixtures/engine-review-result.golden.json`.
 
-**2. Screenshot capture.** Not implemented here, and not planned to live here: capture belongs behind the engine boundary above. If you want the loop closed end to end, that is where a Playwright capture step goes.
+[apatureai/judgment-engine](https://github.com/apatureai/judgment-engine) is the intended counterpart and it is public and MIT, so this is closer than it used to be. Its `packages/api` serves the same async job API this client calls (`POST /jobs`, `GET /jobs/:id`, `DELETE /jobs/:id`), and the request signing lines up on both sides: the same `x-gate-signature` / `x-gate-installation` / `x-gate-timestamp` headers over the same `timestamp.installationId.body` canonical string. What nobody has done is run the two against each other, so treat the result payload mapping (its review output onto `EngineReviewResult`) as unverified rather than done. Standing up `ENGINE_BASE_URL` against it and reporting where the shapes disagree is a genuinely useful contribution, and any service speaking the same shape works just as well.
+
+**2. Screenshot capture.** Not implemented here, and still not planned to live here: capture belongs behind the engine boundary above, and it is already written there. `judgment-engine` drives headless Chromium through playwright-core and produces deterministic screenshots plus a DOM geometry map; its `browser:install` and `review` scripts are the entry points, and that repo's README documents how to run them. So the missing piece is not a capture implementation, it is the link in item 1.
 
 **3. Real evidence images.** `EvidenceProvider` in `src/evidence.ts` is the seam and it is documented; the only implementation is `SyntheticEvidenceProvider`, which emits deterministic placeholder PNGs (real bytes, no pixels of your page). An implementation that fetches annotated crops from an artifact store is self-contained and testable.
 
@@ -368,7 +372,11 @@ Known gaps, in rough priority order. Each names the seam to work against, and ea
 
 **12. Track down one flaky run.** A single unidentified test failure appeared once in roughly 43 consecutive full-suite runs and has not reproduced since. If you see a red run on an unchanged commit, re-run before treating it as a regression, and if you can reproduce it, that is a genuinely useful bug report.
 
-Two honesty notes that are not roadmap items so much as things to know: there are no published quality numbers (the protocol, quality, security, and cost evaluations were never completed, so assume no measured accuracy claims), and the auth path has not had an external security review. See [SECURITY.md](SECURITY.md).
+Two honesty notes that are not roadmap items so much as things to know.
+
+**There are still no published quality numbers, so assume no measured accuracy claims.** The harness to produce them is no longer missing, though: it lives in [apatureai/judgment-engine](https://github.com/apatureai/judgment-engine) under `packages/eval`, which carries the canaries, the golden-set tooling, and the precision, recall and human-agreement metrics, and it declares the bars it grades against as `DEFAULT_QUALITY_BARS` in `packages/eval/src/quality-gate.ts`. What has not happened is a promoted candidate run, so neither repo publishes a results table. Since this server returns fixture judgments anyway, no number measured there would describe what you get here until item 1 is wired.
+
+**The auth path has not had an external security review.** The OAuth 2.1 resource-server code, the token verifier and the SSRF boundary are covered by this repo's own tests and nothing more. See [SECURITY.md](SECURITY.md).
 
 Some modules are exported from `packages/mcp-server/src/index.ts` and not yet reachable from either composition root (the HTTP evidence path, for instance). They are exported on purpose so a fork can compose them, and they are covered by unit tests, but treat "exported" as "available", not "wired".
 

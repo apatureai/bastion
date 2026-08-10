@@ -8,22 +8,20 @@
     "url": "https://github.com/apatureai/mcp-review",
     "source": "github"
   },
-  "remotes": [
-    {
+  "_meta": {
+    "ai.apature/status": "self-hosted. No public endpoint is operated, so this listing intentionally declares no `remotes`: an MCP client reading it cannot be pointed at a host that does not answer. Run the server yourself (see the README), then add the `remotes` entry described by `ai.apature/self_hosted_remote_template` with your own host before submitting this listing to a registry.",
+    "ai.apature/self_hosted_remote_template": {
       "type": "streamable-http",
-      "url": "https://mcp.apature.ai/mcp",
+      "url": "https://<your-mcp-host>/mcp",
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer <token> or an OAuth-issued access token. There is no hosted endpoint today; the URL below is the shape a self-hosted deployment publishes. See the repository README.",
+          "description": "Bearer <token> or an OAuth-issued access token. Replace <your-mcp-host> with the host you deployed the Streamable HTTP edge on; this template is documentation, not a live endpoint.",
           "isRequired": true,
           "isSecret": true
         }
       ]
-    }
-  ],
-  "_meta": {
-    "ai.apature/status": "self-hosted. No public endpoint is operated today, so the URL in `remotes` documents the shape a deployment publishes rather than a live host. Run the server yourself (see the README) and replace the remote URL before submitting this listing to a registry.",
+    },
     "ai.apature/protocol_baseline": "2025-11-25",
     "ai.apature/catalog_version": "1.1.0",
     "ai.apature/read_only_boundary": "Customer-facing: the server judges, explains, and verifies. It never edits code, commits, pushes, or opens pull requests. Submit and recheck create metered jobs; design_review_get and design_review_panel_action are read-only, and a panel apply_fix returns the fix for the caller's coding agent rather than applying it.",

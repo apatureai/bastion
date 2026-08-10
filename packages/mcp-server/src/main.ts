@@ -18,7 +18,7 @@ import { requiredEnv } from "./env.js";
  * misconfigured deployment never serves an unauthenticated or unscoped surface.
  *
  * Required env:
- *   MCP_RESOURCE_URL           this server's public resource id (aud), e.g. https://mcp.apature.ai
+ *   MCP_RESOURCE_URL           this server's public resource id (aud), e.g. https://mcp.example.com
  *   MCP_AUTHORIZATION_SERVERS  comma-separated issuer URLs for PRM discovery
  *   MCP_JWKS_URL               the issuer's JWKS endpoint (token signature keys)
  *   MCP_TOKEN_ISSUER           expected token `iss`

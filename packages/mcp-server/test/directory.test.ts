@@ -26,17 +26,29 @@ describe("directory/server.json listing", () => {
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
   });
 
-  it("advertises a single Streamable HTTP remote with an https URL", () => {
-    const remotes = manifest.remotes as Array<{ type: string; url: string }>;
-    expect(Array.isArray(remotes)).toBe(true);
-    expect(remotes).toHaveLength(1);
-    expect(remotes[0]?.type).toBe("streamable-http");
-    expect(remotes[0]?.url.startsWith("https://")).toBe(true);
+  it("advertises no remote endpoint, because none is operated", () => {
+    // No public host runs this server. A `remotes` entry in a registry listing
+    // is machine-read: publishing one we do not operate points every client
+    // that installs the listing at a host that never answers. The deployment
+    // shape lives in _meta as documentation instead, and a self-hoster moves it
+    // into `remotes` with their own host. If this repo ever operates an
+    // endpoint, assert the live URL here rather than deleting the test.
+    expect(manifest.remotes).toBeUndefined();
   });
 
-  it("requires a secret Authorization header", () => {
-    const remote = (manifest.remotes as Array<{ headers: Array<Record<string, unknown>> }>)[0]!;
-    const auth = remote.headers.find((h) => h.name === "Authorization");
+  it("documents the self-hosted remote as a template with a placeholder host", () => {
+    const meta = manifest._meta as Record<string, unknown>;
+    const template = meta["ai.apature/self_hosted_remote_template"] as {
+      type: string;
+      url: string;
+      headers: Array<Record<string, unknown>>;
+    };
+    expect(template).toBeDefined();
+    expect(template.type).toBe("streamable-http");
+    expect(template.url.startsWith("https://")).toBe(true);
+    // A placeholder, never a hostname a client could actually dial.
+    expect(template.url).toContain("<your-mcp-host>");
+    const auth = template.headers.find((h) => h.name === "Authorization");
     expect(auth).toBeDefined();
     expect(auth?.isRequired).toBe(true);
     expect(auth?.isSecret).toBe(true);

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://schemas.apature.ai/mcp-review/review-error/1.0.0",
+  "$id": "https://raw.githubusercontent.com/apatureai/mcp-review/main/schemas/review-error.schema.json",
   "title": "Apature MCP Review Tool Error",
   "type": "object",
   "additionalProperties": false,

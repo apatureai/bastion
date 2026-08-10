@@ -50,7 +50,7 @@ async function start(options: {
   // The SDK validates the Host header (incl. port) against allowedHosts: the
   // DNS-rebinding defense. The bound port is only known after listen, so pass a
   // mutable array and register 127.0.0.1:<port> once it is known (in production
-  // this is the fixed public origin, e.g. mcp.apature.ai).
+  // this is the fixed public origin, e.g. mcp.example.com).
   const allowedHosts: string[] = [];
   const built = createProductionHttpServer({
     verifier: fakeVerifier,
@@ -61,7 +61,7 @@ async function start(options: {
     engineReady: async () => options.engineReady ?? true,
     dnsReady: async () => options.dnsReady ?? true,
     resourceUrl: RESOURCE,
-    authorizationServers: ["https://auth.apature.ai"],
+    authorizationServers: ["https://auth.example.com"],
     allowedHosts,
     httpLimits: options.httpLimits,
   });
@@ -145,7 +145,7 @@ describe("production HTTP MCP server (#28)", () => {
     expect(res.status).toBe(200);
     const meta = (await res.json()) as Record<string, unknown>;
     expect(meta.resource).toBe(RESOURCE);
-    expect(meta.authorization_servers).toEqual(["https://auth.apature.ai"]);
+    expect(meta.authorization_servers).toEqual(["https://auth.example.com"]);
     expect(meta.scopes_supported).toContain("reviews:cancel");
   });
 
@@ -400,7 +400,7 @@ describe("HTTP resource boundary (#42)", () => {
       engineReady: async () => true,
       dnsReady: async () => true,
       resourceUrl: RESOURCE,
-      authorizationServers: ["https://auth.apature.ai"],
+      authorizationServers: ["https://auth.example.com"],
       httpLimits: { maxBodyBytes: 1024 * 1024 + 1 },
     })).toThrow(/hard limit/);
   });

@@ -2,8 +2,8 @@ import { generateKeyPair, SignJWT } from "jose";
 import { describe, expect, it } from "vitest";
 import { createJwtVerifier, TokenInvalidError } from "../src/index.js";
 
-const ISSUER = "https://auth.apature.ai";
-const AUDIENCE = "https://mcp.apature.ai";
+const ISSUER = "https://auth.example.com";
+const AUDIENCE = "https://mcp.example.com";
 
 /** Sign a token locally (no network); the verifier is tested against the public key. */
 async function signed(

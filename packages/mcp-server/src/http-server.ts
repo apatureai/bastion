@@ -32,7 +32,7 @@ export interface ProductionHttpConfig {
   engineReady: () => Promise<boolean>;
   /** Optional DNS adapter probe; absence is not assumed healthy. */
   dnsReady: () => Promise<boolean>;
-  /** This server's canonical resource identifier (RFC 8707/9728), e.g. https://mcp.apature.ai. */
+  /** This server's canonical resource identifier (RFC 8707/9728), e.g. https://mcp.example.com. */
   resourceUrl: string;
   /** Issuer URLs a client obtains a token from (PRM `authorization_servers`). */
   authorizationServers: readonly string[];
