@@ -22,7 +22,7 @@ fork this code, use GitHub's private vulnerability reporting:
 1. Go to the repository's **Security** tab.
 2. Choose **Report a vulnerability** to open a private security advisory.
 
-If that option is unavailable (archived repositories restrict some GitHub
+If that option is unavailable (if this repository restricts some GitHub
 features), the most useful thing you can do is publish your findings in your
 own fork's README so downstream forks can see them. Please do not expect a fix
 here.
