@@ -17,5 +17,5 @@ import { createLocalReviewServer, LOCAL_ALLOWED_HOST } from "./local-server.js";
 const server = createLocalReviewServer();
 await server.connect(new StdioServerTransport());
 process.stderr.write(
-  `mcp-review local server ready on stdio — offline, fixture judgments, authorized host: ${LOCAL_ALLOWED_HOST}\n`,
+  `mcp-review local server ready on stdio: offline, fixture judgments, authorized host: ${LOCAL_ALLOWED_HOST}\n`,
 );

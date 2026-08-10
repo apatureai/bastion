@@ -1,67 +1,63 @@
 # Contributing
 
-**This project is archived.** Apature has been wound down and this repository is published as a
-snapshot for people who want to read or reuse the code.
+Contributions are welcome. Bug reports, failing test cases, documentation fixes, and roadmap items
+from the README are all useful, and small pull requests are easier to land than large ones.
 
-What that means in practice:
+If you are looking for somewhere to start, the numbered list in the README's
+[Status and roadmap](README.md#status-and-roadmap) section is ordered roughly by value, and each
+item names the seam to work against. Items 3 (real evidence images), 4 (move the recheck index and
+unit ledger into the store), and 7 (feedback event writer) are self-contained and do not require
+standing up anything outside this repository.
 
-- Issues and pull requests may never be reviewed, and probably will not be.
-- No roadmap, no releases, no maintenance commitment.
-- **Forking is encouraged.** MIT license, no strings. If you want to carry any of this forward,
-  fork it and make it yours; that is a better use of your time than waiting on a review here.
-
-The rest of this file exists so that a fork starts from working instructions rather than
-guesswork.
-
-## Layout
-
-pnpm workspace, TypeScript, two packages:
-
-- `packages/mcp-types` holds the boundary contracts: tool envelopes, the `Critique` result shape,
-  and golden engine fixtures. Single source of truth for the agent-facing surface.
-- `packages/mcp-server` is the Streamable HTTP MCP server: tools, auth, job store, rate limiting,
-  engine client, Postgres application plane.
-
-Supporting material: `schemas/` (machine-readable MCP tool and error schemas),
-`directory/server.json` (the directory listing), and `migrations/` under `packages/mcp-server`.
-The README is the documentation; the internal design documents (TRD, ARCHITECTURE, CONTRACTS,
-THREAT_MODEL and the rest) are not part of this release, though source comments still cite them
-by section shorthand.
-
-## Building and testing
+## Setup
 
 Prerequisites:
 
-- **Node 24 or newer** (`.node-version` pins `24`; CI runs that version).
-- **pnpm 9.15.0**. `corepack enable` picks it up from the `packageManager` field.
+- **Node 24 or newer.** `.node-version` pins `24`; CI runs that version.
+- **pnpm 9.15.0.** `corepack enable` picks it up from the `packageManager` field.
 
 ```bash
+git clone https://github.com/apatureai/mcp-review.git
+cd mcp-review
+corepack enable
 pnpm install --frozen-lockfile
-pnpm lint        # eslint . --max-warnings=0  (warnings fail)
+pnpm build
+```
+
+Nothing else is required: no API keys, no database, no Docker. `pnpm install` is the only step that
+needs network access.
+
+## Test, lint, typecheck
+
+```bash
+pnpm lint        # eslint . --max-warnings=0  (warnings fail the build)
 pnpm typecheck   # tsc -b across project references
 pnpm build       # tsc -b (same compiler invocation; emits dist/)
 pnpm test        # vitest run
+pnpm clean       # tsc -b --clean, removes build output
 ```
 
-`pnpm clean` (`tsc -b --clean`) removes build output.
+CI runs lint, typecheck, and test in that order, and a pull request needs all three green.
 
-All of these were run green against this tree on Node 24.14.0. `pnpm test` reports 29 files
-passed and 1 skipped (254 passed, 2 skipped); the skipped file needs Postgres, below.
+On this tree with Node 24.14.0, `pnpm test` reports 29 files passed and 1 skipped (254 passed,
+2 skipped). The skipped file needs Postgres, below.
 
-`pnpm build` also produces the offline server and the worked example: `pnpm start:local` runs the
-credential-free MCP server over stdio, and `pnpm demo` drives a full review loop against it. See
-the README quickstart.
+`pnpm build` also produces the runnable server and the worked example: `pnpm start:local` runs the
+credential-free MCP server over stdio, and `pnpm demo` drives a full review loop against it. If you
+change anything on the tool surface, run `pnpm demo` as well as the suite; it is the fastest way to
+see the whole path.
 
-One caveat, recorded for honesty: during archival testing a single unidentified test failure
-appeared in one of ~43 consecutive full-suite runs and could not be reproduced in the other 42.
-If you see a red run on an unchanged commit, re-run before treating it as a regression. Vitest's
-`testTimeout`/`hookTimeout` were raised to 30s in `vitest.config.ts` because a cold first run
-instantiates PGlite (WASM Postgres) inside a hook and could exceed the 5s default.
+One thing to know before you file a flake: a single unidentified test failure appeared once in
+roughly 43 consecutive full-suite runs and has not reproduced since. If you see a red run on an
+unchanged commit, re-run it before treating it as a regression, and if you can reproduce it
+reliably, please open an issue with the seed and the output. Vitest's `testTimeout` and
+`hookTimeout` are raised to 30s in `vitest.config.ts` because a cold first run instantiates PGlite
+(WASM Postgres) inside a hook and can exceed the 5s default.
 
 ### Postgres-backed tests
 
 `packages/mcp-server/test/production-postgres.test.ts` exercises migration arbitration against a
-real database and is skipped unless `MCP_TEST_DATABASE_URL` is set. CI used `postgres:17-alpine`;
+real database and is skipped unless `MCP_TEST_DATABASE_URL` is set. CI uses `postgres:17-alpine`;
 locally:
 
 ```bash
@@ -73,40 +69,70 @@ MCP_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/mcp_review_tes
   pnpm test
 ```
 
-With a database supplied the suite is 30 files / 256 tests, all passing. The suite creates and
-drops its own throwaway schemas, so point it at a scratch database, never a real one.
+With a database supplied the suite is 30 files / 256 tests, all passing. The suite creates and drops
+its own throwaway schemas, so point it at a scratch database, never a real one.
 
-### Running the server
+## Layout
 
-`packages/mcp-server` exposes `mcp-review-server` (`node dist/boot.js`). It fails closed, with a
-readable message, without `MCP_RESOURCE_URL`, `MCP_AUTHORIZATION_SERVERS`, `MCP_JWKS_URL`,
-`MCP_TOKEN_ISSUER`, `DATABASE_URL`, `ENGINE_BASE_URL`, and `ENGINE_HMAC_SECRET`. The `Dockerfile`
-builds the workspace and runs that entrypoint on port 8080 with `/livez` and `/readyz` probes. The
-README's Configuration section lists every variable the code reads, noting that the hosted service
-is no longer operated, and that a real Judgment Engine to point `ENGINE_BASE_URL` at is not part of
-this release. For anything you can actually run, use `packages/mcp-server/src/local-server.ts`
-instead; the production root deliberately has no mock fallback.
+pnpm workspace, TypeScript, two packages:
 
-`src/boot.ts` is the entrypoint rather than `src/main.ts` on purpose: `production.ts` imports
-`startFromEnv` from `main.ts`, so a top-level boot guard inside `main.ts` formed an ESM import
-cycle that never settled. Keep the entrypoint out of the cycle if you refactor this.
+- `packages/mcp-types` holds the boundary contracts: tool envelopes, the `Critique` result shape,
+  and golden engine fixtures. Single source of truth for the agent-facing surface. No runtime
+  dependencies, and it should stay that way.
+- `packages/mcp-server` is the MCP server: tools, views, auth, job store, rate limiting, engine
+  client, Postgres application plane, and both composition roots.
 
-## Conventions, if you fork
+Supporting material: `schemas/` (machine-readable MCP tool and error schemas),
+`directory/server.json` (the registry listing), and `migrations/` under `packages/mcp-server`. The
+README has a file-by-file map.
 
-- **The product boundary is load-bearing.** Apature is the eyes; the agent is the hands. This
-  server judges, explains, and verifies. It never edits code, commits, pushes, opens pull
-  requests, or drives the customer's application. Most of the type and tool design only makes
-  sense with that constraint held.
+## Conventions that matter
+
+- **The product boundary is load-bearing.** This server judges, explains, and verifies. It never
+  edits code, commits, pushes, opens pull requests, or drives the customer's application. It is the
+  eyes; the agent is the hands. Most of the type and tool design only makes sense with that
+  constraint held, and `panel-interaction.ts` is where it is easiest to break by accident.
 - **The tool catalog is contract-tested.** `schemas/mcp-tools.json`, `directory/server.json`, and
   the live server's `tools/list` are cross-checked by `directory.test.ts` and
   `catalog-drift.test.ts`, including the version string. Change one, change all three.
 - **Contracts live in `mcp-types`**, with golden fixtures under `packages/mcp-types/fixtures`.
   Changing a result shape means updating the golden file deliberately, not regenerating it to make
-  tests pass.
-- Lint is zero-warning, and CI ran lint, typecheck, and test in that order.
+  tests pass. If a shape change is the point of your PR, say so in the description.
+- **ESM everywhere.** `"type": "module"` in both packages, and relative imports carry the `.js`
+  extension even in TypeScript source (`./local-server.js`). TypeScript project references wire the
+  packages together, so `tsc -b` from the root is the only build you need.
+- **Entrypoints stay out of import cycles.** `src/boot.ts` is the process entrypoint rather than
+  `src/main.ts` because `production.ts` imports `startFromEnv` from `main.ts`, and a top-level boot
+  guard inside `main.ts` formed an ESM cycle that never settled. Same reason `local-stdio.ts` is
+  separate from `local-server.ts`. Keep the entrypoint out of the cycle if you refactor this.
+- **Zero-warning lint.** `eslint . --max-warnings=0`. Do not disable a rule inline without a comment
+  explaining why.
+- **No em dashes in prose or output strings**, and no AI attribution in commits, comments, or docs.
+- New behaviour ships with a test. The suite is fast and runs offline, so there is no excuse.
 
-## If you open a PR anyway
+## Security-sensitive areas
 
-That is fine, just calibrate your expectations. Keep it small, explain the change in the
-description, and make sure `pnpm lint && pnpm typecheck && pnpm test` passes. It may sit
-unreviewed indefinitely, and a fork is the supported path.
+Changes to these get read closely, and a PR that touches them should explain the threat model
+implication in the description:
+
+- `src/target-auth.ts` and `src/egress.ts`: the SSRF boundary. Never widen the allowlist semantics,
+  never leak which internal address resolved, and add a test for every new address range.
+- `src/auth.ts`, `src/jwt-verifier.ts`: token verification and scope derivation.
+- `src/http-server.ts`: body limits, media type, in-flight caps, Host allowlist.
+- `src/panel-html.ts`: everything page-derived is escaped, and the panel fetches nothing.
+- `src/pg.ts` and `migrations/`: applied migrations are checksum-pinned and immutable. Add a new
+  file; never edit a historical one.
+
+Please report vulnerabilities privately rather than in a pull request. See [SECURITY.md](SECURITY.md).
+
+## Pull requests
+
+- Branch from `main`, keep the change focused, and explain what it does and why in the description.
+- Make sure `pnpm lint && pnpm typecheck && pnpm test` passes locally before you open it. CI runs
+  the same three.
+- Pull requests are reviewed by the maintainer. Expect a first response within about a week; ping on
+  the PR if it goes quiet longer than that.
+- Review is about correctness, the boundaries above, and test coverage. Style is enforced by lint,
+  so there is nothing to argue about there.
+- For anything large, or anything that changes a contract in `mcp-types`, open an issue first so the
+  design conversation happens before you write the code.

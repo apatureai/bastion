@@ -3,7 +3,7 @@
   "name": "ai.apature/mcp-review",
   "description": "In-loop, read-only design review for coding agents: inspect a verified preview, return grounded findings with element refs and fixes, and recheck the agent's fix before CI.",
   "version": "1.1.0",
-  "websiteUrl": "https://apature.ai",
+  "websiteUrl": "https://github.com/apatureai/mcp-review",
   "repository": {
     "url": "https://github.com/apatureai/mcp-review",
     "source": "github"
@@ -15,7 +15,7 @@
       "headers": [
         {
           "name": "Authorization",
-          "description": "Bearer <token> or an OAuth-issued access token. The hosted endpoint is decommissioned; see the repository README.",
+          "description": "Bearer <token> or an OAuth-issued access token. There is no hosted endpoint today; the URL below is the shape a self-hosted deployment publishes. See the repository README.",
           "isRequired": true,
           "isSecret": true
         }
@@ -23,7 +23,7 @@
     }
   ],
   "_meta": {
-    "ai.apature/status": "archived - Apature is wound down. The endpoint in `remotes` is decommissioned and no tokens are issued; this listing is retained as a historical record and must not be resubmitted to a registry.",
+    "ai.apature/status": "self-hosted. No public endpoint is operated today, so the URL in `remotes` documents the shape a deployment publishes rather than a live host. Run the server yourself (see the README) and replace the remote URL before submitting this listing to a registry.",
     "ai.apature/protocol_baseline": "2025-11-25",
     "ai.apature/catalog_version": "1.1.0",
     "ai.apature/read_only_boundary": "Customer-facing: the server judges, explains, and verifies. It never edits code, commits, pushes, or opens pull requests. Submit and recheck create metered jobs; design_review_get and design_review_panel_action are read-only, and a panel apply_fix returns the fix for the caller's coding agent rather than applying it.",

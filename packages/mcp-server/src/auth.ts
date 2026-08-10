@@ -101,7 +101,7 @@ export function protectedResourceMetadata(
     authorization_servers: [...authorizationServers],
     bearer_methods_supported: ["header"],
     scopes_supported: [REVIEWS_CANCEL_SCOPE],
-    resource_documentation: "https://apature.ai/docs/mcp",
+    resource_documentation: "https://github.com/apatureai/mcp-review#readme",
   };
 }
 
