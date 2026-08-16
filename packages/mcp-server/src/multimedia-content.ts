@@ -8,6 +8,7 @@ import type {
   MultimediaCritiqueContent,
   ResourceContentBlock,
 } from "@apature/mcp-types";
+import { coverageLines } from "./coverage.js";
 
 /**
  * Multimedia-native `design_review` result shaping (D3, issue #58). Apature is
@@ -80,6 +81,12 @@ export function buildMultimediaCritiqueContent(
 
   const content: McpContentBlock[] = [
     { type: "text", text: `Design review (${critique.grade}): ${critique.overall}` },
+    // What the run covered, on every path including "the engine did not say",
+    // and what its grounding gate deleted. Rendered here as well as carried in
+    // `structuredContent.coverage`, because a client that renders `content[]`
+    // shows these blocks and never opens the structured payload: the surface an
+    // agent actually reads must not be the quieter of the two.
+    ...coverageLines(critique).map((text) => ({ type: "text" as const, text })),
   ];
   const imagesWithheld: string[] = [];
   let emittedImage = false;

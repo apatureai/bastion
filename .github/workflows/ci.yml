@@ -59,3 +59,30 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+  upstream-fixtures:
+    # The cross-repo check no test inside this repository can perform.
+    # packages/mcp-types/fixtures/ holds Bastion's copy of the result contract
+    # apatureai/verdict produces; an in-process test can only prove that copy has
+    # not been edited locally, which is why the one that claimed more was renamed.
+    # This job puts verdict on disk and compares the bytes, which is the only
+    # place the comparison is possible.
+    name: fixtures match apatureai/verdict
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Checkout verdict
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          repository: apatureai/verdict
+          path: .upstream/verdict
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+
+      - name: Compare fixtures byte for byte
+        run: node scripts/verify-upstream-fixtures.mjs .upstream/verdict

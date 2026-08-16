@@ -8,7 +8,7 @@ A coding agent changes a UI, deploys a preview, and has no way to see whether th
 
 It is also, deliberately, a reference implementation. Most public MCP servers are stdio, unauthenticated, single-tenant, and return in milliseconds. This one carries the other shape: a Streamable HTTP edge with OAuth 2.1 resource-server auth, per-tenant Postgres state, submit-and-poll jobs that outlive the transport session, and a hardened boundary around the one thing an agent-supplied URL always is, which is an SSRF primitive.
 
-Everything below runs offline with no credentials, and with nothing configured the judgments come from a fixture. They do not have to stay that way. [Getting real judgments](#getting-real-judgments) is one clone and one environment variable: the critique backend, [apatureai/verdict](https://github.com/apatureai/verdict), is public and MIT, screenshots the page with headless Chromium, and returns the exact result contract this server consumes. A fixture judgment cannot be mistaken for a model's, and not because of anything printed at startup: the distinction is inside the result. Every review carries a `provenance` object with `model_backed`, and when that is `false` the grade is the literal string `"unjudged"`, the narrative says so instead of describing a page nothing looked at, and `not_reviewed[0]` begins `[bastion] no model judged this page`. See [Provenance: did anything judge this page?](#provenance-did-anything-judge-this-page).
+Everything below runs offline with no credentials, and with nothing configured the judgments come from a fixture. They do not have to stay that way. [Getting real judgments](#getting-real-judgments) is one clone and one environment variable: the critique backend, [apatureai/verdict](https://github.com/apatureai/verdict), is public and MIT, screenshots the page with headless Chromium, and returns the exact result contract this server consumes. A fixture judgment cannot be mistaken for a model's, and not because of anything printed at startup: the distinction is inside the result. Every review carries a `provenance` object with `model_backed`, and when that is `false` the grade is the literal string `"unjudged"`, the narrative says so instead of describing a page nothing looked at, and `not_reviewed[0]` begins `[bastion] no model judged this page`. Every review also carries `coverage`, because a model can be called and still judge nothing, and a run whose `coverage.routes_reviewed` is empty is graded `"nothing_reviewed"` rather than the `ship` such a result carries by construction. See [Provenance: did anything judge this page?](#provenance-did-anything-judge-this-page) and [Coverage: what did it actually look at?](#coverage-what-did-it-actually-look-at).
 
 ## Quickstart
 
@@ -35,7 +35,7 @@ $ pnpm demo
 mcp-review local server ready on stdio
   engine: FIXTURE engine: no critique backend configured. Findings are replayed from the golden fixture and describe a fictional pricing page, NOT the URL you pass. Set VERDICT_CLI (a built verdict checkout) for real judgments.
   authorized hosts: preview.example.com
-connected to apature-mcp-review v1.2.0 over stdio
+connected to apature-mcp-review v1.3.0 over stdio
 
 [1] tools/list
     design_review                metered
@@ -53,6 +53,7 @@ connected to apature-mcp-review v1.2.0 over stdio
 [4] design_review_get  view=summary
     review rev_60ed3a95-21cd-4188-8660-51a5727bf1fa -> grade unjudged
     provenance: model_backed=false source=fixture engine=bastion-fixture
+    Coverage: 1 of 2 route(s) reviewed; reviewed /pricing; skipped /checkout; viewports skipped: tablet.
     No model judged this page, so there is no assessment of it: the offline fixture engine replayed the golden result in @apature/mcp-types; it describes a fictional pricing page and not the target that was requested. Any findings below are not observations of the target.
     f_001  should_fix [unjudged] Primary CTA uses an off-brand color on mobile
              /pricing (mobile) button[data-testid='cta-primary']
@@ -71,7 +72,7 @@ connected to apature-mcp-review v1.2.0 over stdio
     2 actionable of 3 findings
 
 [6] design_review_get  view=evidence  (multimedia + MCP-Apps panel)
-    content blocks: resource, text, text, image, text, image, text, text
+    content blocks: resource, text, text, text, image, text, image, text, text
     panel=true multimedia=true withheld=[]
     wrote out/review.json and out/panel.html
 
@@ -119,13 +120,51 @@ The consumer of a review here is usually a coding agent, not a person. It never 
 }
 ```
 
-The rule an agent can code against, in one line: **trust the result only when `provenance.model_backed === true`.**
+The rule an agent can code against: **trust the result only when `provenance.model_backed === true` and `coverage.state` is not `"nothing"`.** Two conditions, because they are two different questions and neither answers the other. See [Coverage](#coverage-what-did-it-actually-look-at) below for the second one.
 
 | `model_backed` | when | what the payload does |
 | --- | --- | --- |
 | `false` | the fixture engine; verdict run with `--model mock` or `--model canned` | `grade` is `"unjudged"`, `confidence` is `null`, `overall` says no model judged the page instead of describing one, `not_reviewed[0]` starts `[bastion] no model judged this page`, and every finding carries `"unjudged": true` |
 | `true` | verdict run with `--model live`: Chromium captured your target and a vision model judged the capture | the engine's grade, narrative, confidence and findings pass through untouched, and `provenance.model` names the judge |
 | `null` | a remote verdict deployment over its job API | the grade passes through, because a real judgment may well be behind it, but this process cannot see how that deployment's model is configured and does not claim to |
+
+### Coverage: what did it actually look at?
+
+`provenance` answers whether a model judged the page. It does not answer what the model judged, and those come apart. Verdict's triage pass can conclude that a deep review is needed and then name no route to run it on. A model really was called, so `model_backed` is truthfully `true`; no page was ever judged. A result with no surviving findings grades `ship` by construction, because verdict floors the grade to what the findings support and nothing supports better than `ship`. Field for field, that run is indistinguishable from a clean page:
+
+```json
+"grade": "ship", "findings": [], "provenance": { "model_backed": true, ... }
+```
+
+So every `Critique` also carries `coverage`, which is verdict's `coverage` block (`routesRequested` / `routesReviewed` and the viewport pair) in this surface's own casing, plus the classification:
+
+```json
+"grade": "nothing_reviewed",
+"coverage": {
+  "state": "nothing",
+  "routes_requested": ["/", "/pricing"],
+  "routes_reviewed": [],
+  "routes_skipped": ["/", "/pricing"],
+  "viewports_requested": ["mobile", "tablet", "desktop"],
+  "viewports_reviewed": [],
+  "viewports_skipped": ["mobile", "tablet", "desktop"]
+}
+```
+
+| `coverage.state` | what it means | what the payload does |
+| --- | --- | --- |
+| `full` | every requested route and viewport was reviewed | nothing is suppressed |
+| `partial` | something was reviewed, but not everything asked for | nothing is suppressed: a partial review is a real verdict about a smaller surface, and `routes_skipped` names what it missed |
+| `nothing` | the run judged no route at all | `grade` is `"nothing_reviewed"`, `confidence` is `null`, `overall` is replaced with a statement that nothing was reviewed, every finding carries `"unjudged": true`, and a `not_reviewed` entry starts `[bastion] nothing was reviewed` |
+| `unstated` | the engine did not report coverage | nothing is suppressed, and the payload says so rather than implying a completeness it cannot verify. Absence is never read as "everything was reviewed" |
+
+`nothing_reviewed` wins over `unjudged` when both apply: an operator whose run judged no page is not helped by being told the judgment stamp was missing too, and both facts are still in the payload (`provenance`, and both disclosure lines in `not_reviewed`, the no-model one first). This is the same rule and the same vocabulary [apatureai/gate](https://github.com/apatureai/gate) uses for its Check Run, so the two surfaces cannot tell different stories about one run.
+
+#### Grounding: findings the engine deleted
+
+`hallucination_drops` is how many model findings verdict's grounding gate deleted for citing a route or an element the capture never produced. "The page is clean" and "the model produced four findings and not one of them could be pointed at" both arrive as an empty `findings` array under a `ship` grade, and only the engine knows which happened.
+
+It does **not** suppress the grade. The routes were judged, and deleting ungroundable findings is the grounding gate working as intended. It is reported so an empty finding list is not read as a clean page. `null` and `0` are different answers: `0` means the gate ran and deleted nothing, `null` means the engine reported no grounding gate.
 
 #### Every payload an agent acts on, not only the review
 
@@ -448,6 +487,7 @@ This is the unconfigured server, the one `pnpm demo` drives. [Getting real judgm
 | Job lifecycle, idempotency, budgets, recheck rejection and throttling | Real |
 | Views, content blocks, panel projection and reducer | Real |
 | The findings themselves | **Fixture, and the payload says so.** A golden engine result about a fictional pricing page, not a judgment of the URL you passed: `provenance.model_backed` is `false`, the grade is `"unjudged"`, every finding carries `"unjudged": true`, and `not_reviewed[0]` discloses it. Set `VERDICT_CLI` and they are a real critique of your page. See [Provenance](#provenance-did-anything-judge-this-page) |
+| What the run covered | **Real, and carried from the engine.** `coverage` and `hallucination_drops` are verdict's own fields, passed through rather than computed here. Against the fixture they describe the golden run's honest partial (`/pricing` reviewed, `/checkout` skipped). An engine that does not report coverage yields `state: "unstated"`, which is never read as "everything was reviewed". See [Coverage](#coverage-what-did-it-actually-look-at) |
 | Recheck outcomes | **Fixture, and the payload says so.** Derived from a hash of the finding id, so every outcome is `"unjudged"` with a `null` confidence and a reason that claims no observation of your target. Not available against a verdict backend at all; see [What is not wired yet](#what-is-not-wired-yet) |
 | A routed panel fix | **Withheld.** `design_review_panel_action` returns `unjudged` rather than handing fixture text to a coding agent |
 | DNS | **Stub for the demo host only.** `preview.example.com` is answered from a constant so the demo makes no network call; every other host, including any you add, goes to the system resolver and is then classified for real |

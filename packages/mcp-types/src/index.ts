@@ -7,12 +7,24 @@ export type {
   EngineConfidenceUnavailableReason,
   EngineDimension,
   EngineFinding,
+  EngineReviewCoverage,
   EngineReviewResult,
   EngineRecheckOutcomeKind,
   EngineRecheckOutcome,
   EngineRecheckResult,
 } from "./engine.js";
 export { hasDisplayableEngineConfidence } from "./engine.js";
+// Review coverage: the in-band "what did it actually look at?", the question
+// next to provenance's "did anything judge it?". Neither answers the other.
+export type { CoverageState } from "./coverage.js";
+export {
+  coverageState,
+  hallucinationDrops,
+  routesSkipped,
+  skipped,
+  suppressesGradeForCoverage,
+  viewportsSkipped,
+} from "./coverage.js";
 export {
   SCHEMA_VERSION,
 } from "./critique.js";
@@ -24,6 +36,7 @@ export type {
   CritiqueSeverity,
   Viewport,
   CritiqueGrade,
+  CritiqueCoverage,
   CritiqueFinding,
   Critique,
   DesignReviewResult,

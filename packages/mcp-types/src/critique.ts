@@ -7,6 +7,7 @@
  * concrete repair suggestions.
  */
 
+import type { CoverageState } from "./coverage.js";
 import type { EngineDimension } from "./engine.js";
 import type { JudgmentProvenance } from "./provenance.js";
 
@@ -53,8 +54,56 @@ export type Viewport = "mobile" | "tablet" | "desktop";
  * serializer that would drop a null, and is legible in a log line on its own.
  * It is deliberately outside the ship/blocked ordering, so a consumer comparing
  * against a threshold gets no answer instead of a flattering one.
+ *
+ * `nothing_reviewed` is the second such value and is not the same statement. It
+ * is set whenever `coverage.routesReviewed` is empty: a model may well have been
+ * called, and `provenance.model_backed` may well be `true`, but the run formed a
+ * judgment about no route at all, so the `ship` the engine floors to describes
+ * no page. It is separate from `unjudged` because the cause and the remedy
+ * differ: `unjudged` means configure a critique backend, `nothing_reviewed`
+ * means the configured backend judged nothing this run and should be re-run.
+ * Both sit outside the ordering for the same reason.
+ *
+ * When both apply, the grade is `nothing_reviewed`, matching gate's rule that
+ * coverage wins the title: an operator whose run judged no page is not helped by
+ * being told the judgment stamp was missing too, and the payload still carries
+ * both facts in `provenance` and `not_reviewed`.
  */
-export type CritiqueGrade = "ship" | "ship_with_nits" | "needs_work" | "blocked" | "unjudged";
+export type CritiqueGrade =
+  | "ship"
+  | "ship_with_nits"
+  | "needs_work"
+  | "blocked"
+  | "unjudged"
+  | "nothing_reviewed";
+
+/**
+ * What the run actually looked at, as the agent surface reports it.
+ *
+ * The engine states this as `coverage.routesReviewed` and friends (see
+ * `EngineReviewCoverage`); this is that same object in this surface's own case,
+ * exactly as the engine's `notReviewed` is presented here as `not_reviewed`. The
+ * words do not change, only the casing convention of the payload they sit in.
+ *
+ * `state` is the classification a consumer would otherwise have to recompute,
+ * and it is the same four-value vocabulary `apatureai/gate` uses.
+ */
+export type CritiqueCoverage = {
+  /** `full`, `partial`, `nothing`, or `unstated` when the engine did not say. */
+  state: CoverageState;
+  /** Routes the review was asked to cover. */
+  routes_requested: string[];
+  /** Routes the run actually formed a judgment about. Empty means nothing was reviewed. */
+  routes_reviewed: string[];
+  /** Requested routes the run never judged, in requested order. */
+  routes_skipped: string[];
+  /** Viewports the review was asked to cover. */
+  viewports_requested: Viewport[];
+  /** Viewports actually captured and judged, across the reviewed routes. */
+  viewports_reviewed: Viewport[];
+  /** Requested viewports the run never judged, in requested order. */
+  viewports_skipped: Viewport[];
+};
 
 /**
  * One agent-facing finding. Carries `element_ref` plus a concrete token/class
@@ -85,14 +134,18 @@ export type CritiqueFinding = {
   confidence: number | null;
   /**
    * Present, and always `true`, when nothing judged the page this finding
-   * claims to describe: the same condition that sets `grade` to `"unjudged"`.
+   * claims to describe: the same condition that replaces `grade` with
+   * `"unjudged"` or `"nothing_reviewed"`. Both causes carry the one marker
+   * rather than a second word each, because at item scope they mean the
+   * identical thing to the agent: do not act on this as an observation.
    *
    * The envelope already says so, but an agent iterating `findings[]` and
    * applying each `suggestion` never reads the envelope. Every item therefore
    * carries the signal itself, in the envelope's own vocabulary rather than in
    * a second scheme. Absence means only "not provably unjudged": the envelope's
-   * `provenance` stays the authority, and a consumer that requires a real
-   * judgment still checks `provenance.model_backed === true` there.
+   * `provenance` and `coverage` stay the authority, and a consumer that requires
+   * a real judgment still checks `provenance.model_backed === true` and
+   * `coverage.state` there.
    */
   unjudged?: true;
 };
@@ -106,8 +159,33 @@ export type Critique = {
   confidence: number | null;
   overall: string;
   findings: CritiqueFinding[];
-  /** Routes/viewports the engine could not review. */
+  /** Routes/viewports the engine could not review, plus Bastion's own disclosures. */
   not_reviewed: string[];
+  /**
+   * What the run actually looked at. Present on EVERY critique; `state` is
+   * `"unstated"` when the engine reported no coverage, which is never read as
+   * "everything was reviewed".
+   *
+   * This is the second question a consumer has to ask, after `provenance`. An
+   * engine can honestly stamp `model_backed: true` for a run that judged no
+   * route, and that run arrives as `grade: "ship"` with `findings: []`. When
+   * `state` is `"nothing"` the grade is replaced with `"nothing_reviewed"` and
+   * nothing else in the payload is an assessment of the target.
+   */
+  coverage: CritiqueCoverage;
+  /**
+   * How many model findings the engine's grounding gate deleted for citing a
+   * route or an element the capture never produced, or `null` when the engine
+   * reported no grounding gate. `null` and `0` are different answers: `0` means
+   * the gate ran and deleted nothing.
+   *
+   * A positive value with an empty `findings` array is not a clean page. It is
+   * a page the model had things to say about, none of which could be pointed at.
+   * The grade is not suppressed for it, exactly as in gate: the routes were
+   * judged and the grounding gate did its job. It is disclosed so a reader is
+   * not left to assume the first reading.
+   */
+  hallucination_drops: number | null;
   /**
    * Where this judgment came from. Present on EVERY critique, on every path,
    * including the offline fixture path, and part of the tool-result contract in

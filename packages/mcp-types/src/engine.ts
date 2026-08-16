@@ -84,6 +84,49 @@ export type EngineFinding = {
   confidence?: number;
 };
 
+/**
+ * What the engine's run actually looked at (verdict#165), stated structurally.
+ *
+ * The same shape under the same field names that `apatureai/gate` consumes as
+ * `ReviewCoverage`. It is mirrored rather than reworded on purpose: gate and
+ * Bastion read the identical bytes from the identical engine, and someone
+ * reading both repositories must not have to learn two words for one field.
+ *
+ * Bastion needs it because a wire result always carries a `grade`, and a result
+ * with zero surviving findings always grades `ship`: verdict floors the grade to
+ * what the surviving findings support, and nothing supports better than `ship`.
+ * That is correct for a genuinely clean page and INDISTINGUISHABLE, field for
+ * field, from a run that judged nothing.
+ *
+ * `provenance` does not close that gap, which is the whole reason this field is
+ * here. An engine truthfully stamps `model_backed: true` for a run whose triage
+ * concluded a deep review was needed and then named no route to run it on: a
+ * model really was called, and the page it was called about really was never
+ * judged. `provenance` answers "did a model judge?"; this answers "what did it
+ * judge?". Neither substitutes for the other.
+ *
+ * `notReviewed` cannot close it either, and the golden fixture is the proof: it
+ * skips `/checkout` and the tablet viewport while carrying real findings on the
+ * routes it did review. A rule of "zero findings plus a non-empty `notReviewed`
+ * is not a pass" would punish that run for being honest about a partial, and
+ * `notReviewed` is free prose a producer may leave empty besides.
+ *
+ * Identifiers rather than counts, so a consumer can NAME what was skipped.
+ * Optional and additive under schema v1: a producer that cannot answer honestly
+ * omits the field, and Bastion reads absence as "not stated", never as
+ * "everything was reviewed".
+ */
+export type EngineReviewCoverage = {
+  /** Routes the review was asked to cover. */
+  routesRequested: string[];
+  /** Routes the run actually formed a judgment about. Empty means nothing was reviewed. */
+  routesReviewed: string[];
+  /** Viewports the review was asked to cover. */
+  viewportsRequested: EngineViewport[];
+  /** Viewports actually captured and judged, across the reviewed routes. */
+  viewportsReviewed: EngineViewport[];
+};
+
 /** The engine's review result, consumed but not owned by Bastion. */
 export type EngineReviewResult = {
   grade: EngineGrade;
@@ -103,6 +146,25 @@ export type EngineReviewResult = {
   findings: EngineFinding[];
   /** Routes/viewports/previews the engine skipped. */
   notReviewed: string[];
+  /**
+   * What the run actually looked at (verdict#165), additive and optional under
+   * schema v1. Absent means "this producer does not report coverage", never
+   * "everything was reviewed". Bastion reads it in `coverageState()` and refuses
+   * to report a grade when nothing was reviewed. See `EngineReviewCoverage`.
+   */
+  coverage?: EngineReviewCoverage;
+  /**
+   * How many model findings the engine's grounding gate deleted because they
+   * cited a route or an element the capture never produced.
+   *
+   * This is the difference between "the page is clean" and "the model produced
+   * four findings and not one of them could be pointed at", and both arrive here
+   * as `findings: []` under a `ship` grade. The engine knows which happened;
+   * without this field it is the only party that does, and an agent reading the
+   * empty array concludes the first. Optional and additive: a producer that runs
+   * no grounding gate omits it, and absence means "not stated" rather than zero.
+   */
+  hallucinationDrops?: number;
   artifacts: {
     annotatedScreenshots: Array<{ findingId: string; url: string }>;
     engineDebugUrl?: string;

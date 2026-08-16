@@ -92,6 +92,33 @@ class LiveModelEngine extends MockEngineClient {
   }
 }
 
+/**
+ * A backend that really was called and really judged nothing: a live model, and
+ * a triage answer that named no route to deep-review.
+ *
+ * It is the third shape a payload can take, alongside judged and unjudged, and
+ * the one the published contract had no field for at all. `grade` becomes
+ * `nothing_reviewed`, `coverage.state` becomes `nothing`, and
+ * `hallucination_drops` is a real number: all three are validated here against
+ * what `tools/list` advertises, exactly like every other payload, so a strict
+ * client cannot receive a shape the contract does not declare.
+ */
+class NothingReviewedEngine extends LiveModelEngine {
+  override async review(request: NormalizedReviewRequest): Promise<EngineReviewResult> {
+    const result = await super.review(request);
+    return {
+      ...result,
+      coverage: {
+        routesRequested: [...request.routes],
+        routesReviewed: [],
+        viewportsRequested: [...request.viewports],
+        viewportsReviewed: [],
+      },
+      hallucinationDrops: 2,
+    };
+  }
+}
+
 /** Render Ajv's errors the way a strict client would report a rejection. */
 function explain(errors: readonly ErrorObject[] | null | undefined): string {
   return (errors ?? [])
@@ -222,6 +249,7 @@ describe("every tool call and payload validates against what tools/list advertis
     calls = [
       ...(await captureCalls(new MockEngineClient(), "unjudged")),
       ...(await captureCalls(new LiveModelEngine(), "judged")),
+      ...(await captureCalls(new NothingReviewedEngine(), "nothing-reviewed")),
     ];
     denied = await captureError();
   });
@@ -304,6 +332,59 @@ describe("every tool call and payload validates against what tools/list advertis
       }
     }
     expect(failures.join("\n"), failures.join("\n")).toBe("");
+  });
+
+  it("declares every field the review payload actually carries, and requires it", () => {
+    // The blind spot the presence checks share with an open sub-schema. The
+    // review object is `additionalProperties: true`, so an undeclared field
+    // validates silently: `not_reviewed` was emitted on every review and named
+    // in README three times while appearing nowhere in this file, and
+    // `coverage` and `hallucination_drops` did not exist here at all. A field an
+    // agent is told to read must be in the published contract, not merely
+    // tolerated by it.
+    const review = (
+      (catalog.tools.find((t) => t.name === "design_review_get")!.outputSchema!
+        .properties as Record<string, JsonSchema>).review
+    );
+    const declared = Object.keys(review.properties as Record<string, unknown>);
+    const required = review.required as string[];
+    for (const field of ["not_reviewed", "coverage", "hallucination_drops"]) {
+      expect(declared, `${field} is not declared`).toContain(field);
+      expect(required, `${field} is not required`).toContain(field);
+    }
+    // And every review payload the server actually served carries them.
+    for (const { label, payload } of calls) {
+      const body = payload.review as Record<string, unknown> | undefined;
+      if (body === undefined) continue;
+      expect(Object.keys(body), `${label} review fields`).toEqual(
+        expect.arrayContaining(["not_reviewed", "coverage", "hallucination_drops"]),
+      );
+    }
+  });
+
+  it("validates the nothing-reviewed shape, which no engine emits and the server substitutes", () => {
+    // A live, model-backed run that judged no route. Its grade and its
+    // coverage.state are values that only exist because Bastion refuses to
+    // report the engine's `ship`, so both have to be in the advertised enums.
+    const nothing = calls.find((c) =>
+      c.label.startsWith("design_review_get[summary] (nothing-reviewed)"),
+    );
+    expect(nothing, "the nothing-reviewed engine produced no summary call").toBeDefined();
+    const review = nothing!.payload.review as {
+      grade: string;
+      coverage: { state: string; routes_reviewed: string[] };
+      hallucination_drops: number | null;
+      provenance: { model_backed: boolean | null };
+    };
+    expect(review.provenance.model_backed).toBe(true);
+    expect(review.coverage.routes_reviewed).toEqual([]);
+    expect(review.coverage.state).toBe("nothing");
+    expect(review.grade).toBe("nothing_reviewed");
+    expect(review.hallucination_drops).toBe(2);
+    const validate = outputValidators.get("design_review_get")!;
+    expect(validate(JSON.parse(JSON.stringify(nothing!.payload))) || explain(validate.errors)).toBe(
+      true,
+    );
   });
 
   it("rejects a payload carrying a field the contract does not declare", () => {

@@ -75,5 +75,30 @@
     "captureVersion": "playwright-capture@3",
     "rubricVersion": "design-rubric@1",
     "uiDnaVersion": "ui-dna@2026.06.12"
+  },
+  "coverage": {
+    "routesRequested": [
+      "/pricing",
+      "/checkout"
+    ],
+    "routesReviewed": [
+      "/pricing"
+    ],
+    "viewportsRequested": [
+      "mobile",
+      "tablet",
+      "desktop"
+    ],
+    "viewportsReviewed": [
+      "mobile",
+      "desktop"
+    ]
+  },
+  "provenance": {
+    "model_backed": true,
+    "source": "model",
+    "engine": "verdict-http",
+    "model": "qwen3-vl",
+    "detail": "qwen3-vl judged the /pricing captures (mobile and desktop) taken from the requested preview."
   }
 }

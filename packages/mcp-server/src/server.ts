@@ -44,7 +44,7 @@ const SERVER_NAME = "apature-mcp-review";
 // Locked to directory/server.json `version` and schemas/mcp-tools.json
 // `catalog_version` by the catalog-drift gate (#29): the version a client sees
 // in serverInfo is the version the registry listing advertises.
-const SERVER_VERSION = "1.2.0";
+const SERVER_VERSION = "1.3.0";
 
 /**
  * What the connected host can render. The default is the MCP base protocol and

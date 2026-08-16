@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { CritiqueCoverage } from "@apature/mcp-types";
+import { coverageLines } from "./coverage.js";
 
 /**
  * The worked example: a real MCP client, over a real stdio transport, driving the
@@ -115,16 +117,20 @@ async function main(): Promise<void> {
       unjudged?: true;
     }>;
     not_reviewed: string[];
+    coverage: CritiqueCoverage;
+    hallucination_drops: number | null;
     provenance: { model_backed: boolean | null; source: string; engine: string };
   };
   process.stdout.write(`    review ${review.review_id} -> grade ${review.grade}\n`);
   // The point of printing this is that it is not the demo's commentary: it is a
   // field of the tool result, which is what an agent that never sees this
-  // terminal would read.
+  // terminal would read. The same goes for coverage: "did a model judge?" and
+  // "what did it judge?" are two questions and the payload answers both.
   process.stdout.write(
     `    provenance: model_backed=${String(review.provenance.model_backed)}` +
       ` source=${review.provenance.source} engine=${review.provenance.engine}\n`,
   );
+  for (const line of coverageLines(review)) process.stdout.write(`    ${line}\n`);
   process.stdout.write(`    ${review.overall}\n`);
   for (const f of review.findings) {
     // The `[unjudged]` marker is the finding's own field, not the demo's gloss:

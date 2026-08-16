@@ -1,5 +1,5 @@
 {
-  "catalog_version": "1.2.0",
+  "catalog_version": "1.3.0",
   "protocol_baseline": "2025-11-25",
   "tools": [
     {
@@ -386,9 +386,10 @@
                   "ship_with_nits",
                   "needs_work",
                   "blocked",
-                  "unjudged"
+                  "unjudged",
+                  "nothing_reviewed"
                 ],
-                "description": "Overall verdict. Always \"unjudged\" when provenance.model_backed is false: no engine emits that value, the server substitutes it because nothing looked at the page, and it is deliberately outside the ship..blocked ordering so it cannot be compared against a threshold."
+                "description": "Overall verdict. Always \"unjudged\" when provenance.model_backed is false, and always \"nothing_reviewed\" when coverage.state is \"nothing\", which wins when both apply. No engine emits either value; the server substitutes them because nothing looked at the page, or because the run judged no route at all. Both sit deliberately outside the ship..blocked ordering so they cannot be compared against a threshold. A model-backed run CAN be \"nothing_reviewed\": provenance.model_backed answers whether a model was called, not whether it judged anything."
               },
               "provenance": {
                 "type": "object",
@@ -450,7 +451,7 @@
               "overall": {
                 "type": "string",
                 "maxLength": 4000,
-                "description": "The narrative assessment. When provenance.model_backed is false this is replaced, not annotated: prose describing a page nothing looked at is never presented as a description of the target."
+                "description": "The narrative assessment. When provenance.model_backed is false, or when coverage.state is \"nothing\", this is replaced, not annotated: prose describing a page nothing judged is never presented as a description of the target."
               },
               "findings": {
                 "type": "array",
@@ -461,10 +462,108 @@
                   "properties": {
                     "unjudged": {
                       "const": true,
-                      "description": "Present, and always true, when nothing judged the page this finding claims to describe: the same condition that sets grade to \"unjudged\". Absent otherwise, so its absence claims nothing on its own and provenance stays the authority."
+                      "description": "Present, and always true, when nothing judged the page this finding claims to describe: the condition that also replaces grade with \"unjudged\" or \"nothing_reviewed\". Absent otherwise, so its absence claims nothing on its own and provenance and coverage stay the authority."
                     }
                   }
                 }
+              },
+              "not_reviewed": {
+                "type": "array",
+                "description": "Routes, viewports and previews the engine could not review, in its own words, plus this server's own disclosures. When provenance.model_backed is false the first entry begins \"[bastion] no model judged this page\"; when coverage.state is \"nothing\" an entry begins \"[bastion] nothing was reviewed\", after the no-model line if that one is present too.",
+                "items": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "coverage": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "What the run actually looked at. The second question a consumer asks, after provenance: an engine can honestly report model_backed true for a run whose triage named no route to review, and that run arrives as grade \"ship\" with an empty findings array. Route and viewport identifiers, never counts, so a caller can name what was skipped. Present on every review; state is \"unstated\" when the engine reported no coverage, which is never read as \"everything was reviewed\".",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "full",
+                      "partial",
+                      "nothing",
+                      "unstated"
+                    ],
+                    "description": "full: every requested route and viewport was reviewed. partial: something was, but not everything asked for; its grade is a real verdict about what it covered. nothing: the run judged no route, the grade is replaced with \"nothing_reviewed\", and nothing in the payload is an assessment of the target. unstated: the engine does not report coverage, which is disclosed rather than assumed either way."
+                  },
+                  "routes_requested": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "routes_reviewed": {
+                    "type": "array",
+                    "description": "Routes the run actually formed a judgment about. Empty means nothing was reviewed.",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "routes_skipped": {
+                    "type": "array",
+                    "description": "Requested routes with no counterpart in routes_reviewed, in requested order.",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 2000
+                    }
+                  },
+                  "viewports_requested": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "mobile",
+                        "tablet",
+                        "desktop"
+                      ]
+                    }
+                  },
+                  "viewports_reviewed": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "mobile",
+                        "tablet",
+                        "desktop"
+                      ]
+                    }
+                  },
+                  "viewports_skipped": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "mobile",
+                        "tablet",
+                        "desktop"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "state",
+                  "routes_requested",
+                  "routes_reviewed",
+                  "routes_skipped",
+                  "viewports_requested",
+                  "viewports_reviewed",
+                  "viewports_skipped"
+                ]
+              },
+              "hallucination_drops": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0,
+                "description": "How many model findings the engine's grounding gate deleted for citing a route or an element the capture never produced, or null when the engine reported no grounding gate. null and 0 are different answers: 0 means the gate ran and deleted nothing. A positive value with an empty findings array is not a clean page, it is a page the model had things to say about, none of which could be pointed at. It never suppresses the grade: the routes were judged and the gate did its job."
               }
             },
             "required": [
@@ -472,7 +571,10 @@
               "grade",
               "provenance",
               "confidence",
-              "overall"
+              "overall",
+              "not_reviewed",
+              "coverage",
+              "hallucination_drops"
             ]
           },
           "findings": {

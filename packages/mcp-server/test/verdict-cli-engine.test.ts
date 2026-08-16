@@ -82,9 +82,14 @@ describe("VerdictCliEngineClient", () => {
     expect(argv[argv.indexOf("--model") + 1]).toBe("live");
     expect(argv[argv.indexOf("--context-dir") + 1]).toBe("/repo");
     // A live run is the engine's result verbatim, except for Bastion's own
-    // provenance stamp: no engine field is added, removed, or rewritten.
+    // provenance stamp: no engine field is added, removed, or rewritten. The
+    // engine's own `provenance` is dropped at the boundary, so it is excluded
+    // from both sides rather than compared.
     const { provenance, ...engineFields } = result;
-    expect(engineFields).toEqual(golden);
+    const { provenance: _wireProvenance, ...goldenEngineFields } = golden;
+    expect(engineFields).toEqual(goldenEngineFields);
+    // The two fields the mapper used to throw away, intact at this seam.
+    expect(engineFields.coverage).toEqual(golden.coverage);
     expect(provenance).toEqual({
       model_backed: true,
       source: "model",

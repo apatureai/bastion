@@ -1,0 +1,24 @@
+{
+  "$comment": "Where each fixture in this directory came from, and the exact upstream bytes it is synced to. The blob ids are git object ids of the UPSTREAM files (git hash-object), recorded when the copy was taken. scripts/verify-upstream-fixtures.mjs is what actually checks the claim against a real apatureai/verdict checkout; the offline test in test/golden.test.ts can only check that this repo's copy still hashes to the id recorded here, which is a drift alarm on local edits and is NOT a cross-repo comparison.",
+  "upstream": {
+    "repo": "https://github.com/apatureai/verdict",
+    "alsoConsumedBy": "https://github.com/apatureai/gate",
+    "note": "verdict produces these results and gate consumes them. All three repositories must hold byte-identical copies; the shape is the cross-repo contract."
+  },
+  "fixtures": [
+    {
+      "local": "engine-review-result.golden.json",
+      "upstreamPath": "packages/types/fixtures/gate-review-result.golden.json",
+      "blob": "73825892bf4bfd17f2e156ceb74d1340674fdf92",
+      "syncedAt": "2026-08-16",
+      "upstreamCommit": "1b46ada"
+    },
+    {
+      "local": "engine-review-result.pre-calibration.json",
+      "upstreamPath": "packages/types/fixtures/gate-review-result.pre-calibration.json",
+      "blob": "7d1c7e4780b5967c1df937f12667875e4d38ffb8",
+      "syncedAt": "2026-08-16",
+      "upstreamCommit": "1b46ada"
+    }
+  ]
+}

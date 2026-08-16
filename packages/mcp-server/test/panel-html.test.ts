@@ -34,6 +34,18 @@ const critique = (findings: CritiqueFinding[]): Critique => ({
   overall: "Two issues.",
   findings,
   not_reviewed: ["route /checkout (no preview matched)"],
+  // An honest partial: /checkout was asked for and never judged. The panel has
+  // to say so, which is why coverage rides on every Critique.
+  coverage: {
+    state: "partial",
+    routes_requested: ["/pricing", "/checkout"],
+    routes_reviewed: ["/pricing"],
+    routes_skipped: ["/checkout"],
+    viewports_requested: ["mobile"],
+    viewports_reviewed: ["mobile"],
+    viewports_skipped: [],
+  },
+  hallucination_drops: 0,
   // A Critique always carries its judgment provenance; these fixtures stand in
   // for a real, model-backed review.
   provenance: {

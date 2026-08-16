@@ -76,7 +76,12 @@ describe("VerdictJobEngineClient", () => {
     });
 
     const { provenance, ...engineFields } = await client.review(request);
-    expect(engineFields).toEqual(loadGoldenEngineResult());
+    // The engine's own `provenance` is dropped at the boundary, so it is
+    // excluded from both sides rather than compared.
+    const { provenance: _wireProvenance, ...goldenEngineFields } = loadGoldenEngineResult();
+    expect(engineFields).toEqual(goldenEngineFields);
+    // The two fields the mapper used to throw away, intact at this seam.
+    expect(engineFields.coverage).toEqual(goldenEngineFields.coverage);
     // A remote deployment's model configuration is not visible from here, so
     // the stamp says "unknown" rather than guessing in either direction.
     expect(provenance?.model_backed).toBeNull();

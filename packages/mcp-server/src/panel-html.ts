@@ -1,4 +1,5 @@
 import type { AnnotatedImage, Critique, CritiqueFinding, PanelFinding } from "@apature/mcp-types";
+import { coverageLines } from "./coverage.js";
 
 /**
  * Renderer for the interactive MCP-Apps review panel's HTML.
@@ -108,6 +109,12 @@ export function renderReviewPanel(
           .join("")}</ul></section>`
       : "";
   const confidence = critique.confidence === null ? "unavailable" : critique.confidence.toFixed(2);
+  // What the run covered and what its grounding gate deleted, in the same words
+  // the structured payload and the MCP content blocks use. Rendered on every
+  // path, so the panel a human looks at is never the quieter surface.
+  const coverage = coverageLines(critique)
+    .map((line) => `<p class="muted">${escapeHtml(line)}</p>`)
+    .join("\n      ");
 
   return `<!doctype html>
 <html lang="en">
@@ -137,6 +144,7 @@ export function renderReviewPanel(
       <h1>Design review <span class="grade">${escapeHtml(critique.grade)}</span></h1>
       <p class="where">review ${escapeHtml(critique.review_id)} &middot; confidence ${escapeHtml(confidence)} &middot; ${critique.findings.length} finding(s)</p>
       <p>${escapeHtml(critique.overall)}</p>
+      ${coverage}
     </header>
 ${sections}
 ${notReviewed}

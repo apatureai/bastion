@@ -36,6 +36,19 @@ function critique(findings: CritiqueFinding[], over: Partial<Critique> = {}): Cr
     overall: "One blocker.",
     findings,
     not_reviewed: [],
+    // A Critique carries what the run COVERED as well as who judged it; these
+    // fixtures stand in for a real, model-backed review that covered everything
+    // it was asked for.
+    coverage: {
+      state: "full",
+      routes_requested: ["/pricing"],
+      routes_reviewed: ["/pricing"],
+      routes_skipped: [],
+      viewports_requested: ["desktop"],
+      viewports_reviewed: ["desktop"],
+      viewports_skipped: [],
+    },
+    hallucination_drops: 0,
     // A Critique always carries its judgment provenance; these fixtures stand
     // in for a real, model-backed review.
     provenance: {
@@ -56,9 +69,9 @@ describe("buildMultimediaCritiqueContent", () => {
     const r = buildMultimediaCritiqueContent(critique([finding()]), [png("ev-1")], { images: true });
     expect(r.multimedia).toBe(true);
     expect(r.images_withheld).toEqual([]);
-    // overall text, finding text, image
-    expect(r.content.map((c) => c.type)).toEqual(["text", "text", "image"]);
-    const img = r.content[2];
+    // overall text, coverage text, finding text, image
+    expect(r.content.map((c) => c.type)).toEqual(["text", "text", "text", "image"]);
+    const img = r.content[3];
     expect(img).toMatchObject({ type: "image", data: "AAAA", mimeType: "image/png" });
   });
 
@@ -66,14 +79,14 @@ describe("buildMultimediaCritiqueContent", () => {
     const r = buildMultimediaCritiqueContent(critique([finding()]), [png("ev-1")], { images: false });
     expect(r.multimedia).toBe(false);
     expect(r.images_withheld).toEqual(["ev-1"]);
-    expect(r.content.map((c) => c.type)).toEqual(["text", "text"]); // no image block
+    expect(r.content.map((c) => c.type)).toEqual(["text", "text", "text"]); // no image block
   });
 
   it("does not fabricate an image block when no crop was supplied for a finding", () => {
     const r = buildMultimediaCritiqueContent(critique([finding()]), [], { images: true });
     expect(r.multimedia).toBe(false);
     expect(r.images_withheld).toEqual([]);
-    expect(r.content.map((c) => c.type)).toEqual(["text", "text"]);
+    expect(r.content.map((c) => c.type)).toEqual(["text", "text", "text"]);
   });
 
   it("ignores a non-image MIME type (never emits it or withholds it)", () => {
@@ -81,12 +94,12 @@ describe("buildMultimediaCritiqueContent", () => {
     const r = buildMultimediaCritiqueContent(critique([finding()]), [bad], { images: true });
     expect(r.multimedia).toBe(false);
     expect(r.images_withheld).toEqual([]);
-    expect(r.content.map((c) => c.type)).toEqual(["text", "text"]);
+    expect(r.content.map((c) => c.type)).toEqual(["text", "text", "text"]);
   });
 
   it("handles a finding with no evidence_id (text only)", () => {
     const r = buildMultimediaCritiqueContent(critique([finding({ evidence_id: null })]), [png("ev-1")], { images: true });
-    expect(r.content.map((c) => c.type)).toEqual(["text", "text"]);
+    expect(r.content.map((c) => c.type)).toEqual(["text", "text", "text"]);
     expect(r.multimedia).toBe(false);
   });
 
@@ -96,8 +109,8 @@ describe("buildMultimediaCritiqueContent", () => {
       { not_reviewed: ["/checkout"] },
     );
     const r = buildMultimediaCritiqueContent(c, [png("ev-a"), png("ev-b")], { images: true });
-    // overall, a-text, a-img, b-text, b-img, not-reviewed
-    expect(r.content.map((b) => b.type)).toEqual(["text", "text", "image", "text", "image", "text"]);
+    // overall, coverage, a-text, a-img, b-text, b-img, not-reviewed
+    expect(r.content.map((b) => b.type)).toEqual(["text", "text", "text", "image", "text", "image", "text"]);
     expect((r.content.at(-1) as { text: string }).text).toContain("/checkout");
   });
 
@@ -126,23 +139,23 @@ describe("buildMultimediaCritiqueContent", () => {
     it("marks every finding block, not only the envelope block", () => {
       const r = buildMultimediaCritiqueContent(unjudgedCritique(), [], { images: true });
       const texts = r.content.filter((b) => b.type === "text").map((b) => (b as { text: string }).text);
-      // Block 0 is the envelope. Every block after it is a finding, and each one
-      // carries the marker by itself.
-      expect(texts.length).toBe(3);
-      for (const text of texts.slice(1)) {
+      // Block 0 is the envelope and block 1 is coverage. Every block after
+      // those is a finding, and each one carries the marker by itself.
+      expect(texts.length).toBe(4);
+      for (const text of texts.slice(2)) {
         expect(text).toContain("[unjudged]");
         expect(text).toContain("not an observation of the target");
       }
     });
 
     it("uses the structured field's own vocabulary, not a second scheme", () => {
-      const [, first] = buildMultimediaCritiqueContent(unjudgedCritique(), [], { images: true }).content;
+      const [, , first] = buildMultimediaCritiqueContent(unjudgedCritique(), [], { images: true }).content;
       expect((first as { text: string }).text.startsWith("[blocker] [unjudged] ")).toBe(true);
     });
 
     it("says nothing on a judged finding, so the marker's absence is not a claim", () => {
       const r = buildMultimediaCritiqueContent(critique([finding()]), [], { images: true });
-      const text = (r.content[1] as { text: string }).text;
+      const text = (r.content[2] as { text: string }).text;
       expect(text).not.toContain("unjudged");
       expect(text).toContain("[blocker] Off-token color");
     });
@@ -180,8 +193,8 @@ describe("buildDesignReviewContent — MCP-Apps panel + multimedia", () => {
     // The MCP-Apps profile marker, not plain text/html, is what makes the host
     // render it as an interactive panel.
     expect(MCP_APP_PANEL_MIME).toBe("text/html;profile=mcp-app");
-    // panel first, then the multimedia blocks (overall, finding, image)
-    expect(r.content.map((b) => b.type)).toEqual(["resource", "text", "text", "image"]);
+    // panel first, then the multimedia blocks (overall, coverage, finding, image)
+    expect(r.content.map((b) => b.type)).toEqual(["resource", "text", "text", "text", "image"]);
   });
 
   it("withholds the panel honestly when the host lacks MCP-Apps (no resource block)", () => {

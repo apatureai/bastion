@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { CritiqueCoverage } from "@apature/mcp-types";
+import { coverageLines } from "./coverage.js";
 import { EngineConfigError, resolveEngineRuntime, type EngineRuntime } from "./engine-runtime.js";
 
 /**
@@ -169,18 +171,26 @@ async function run(options: Options, runtime: EngineRuntime): Promise<number> {
         suggestion: string | null;
       }>;
       not_reviewed: string[];
+      coverage: CritiqueCoverage;
+      hallucination_drops: number | null;
       provenance: { model_backed: boolean | null; source: string; engine: string };
     };
 
     // The grade printed here is the grade in the payload, not a decision this
     // CLI makes about what to show: the server already reports "unjudged"
-    // whenever provenance says nothing looked at the page, so a person reading
-    // this terminal and an agent reading out/review.json see the same verdict.
+    // whenever provenance says nothing looked at the page, and
+    // "nothing_reviewed" whenever coverage says it judged no route, so a person
+    // reading this terminal and an agent reading out/review.json see the same
+    // verdict.
     out(`\nReview ${review.review_id}  grade ${review.grade}`);
     out(
       `  judged by: ${review.provenance.engine} (source ${review.provenance.source}, ` +
         `model_backed ${String(review.provenance.model_backed)})`,
     );
+    // Same two lines, from the same function, that the payload and the panel
+    // carry. Printed unconditionally, including the "the engine did not say"
+    // case, so this terminal never implies a completeness it cannot verify.
+    for (const line of coverageLines(review)) out(`  ${line}`);
     out(`  ${review.overall}`);
     for (const finding of review.findings) {
       out(
@@ -210,8 +220,21 @@ async function run(options: Options, runtime: EngineRuntime): Promise<number> {
       // says about itself.
       out(
         `\nNOTHING ABOVE JUDGED YOUR PAGE. ${runtime.description}\n` +
-          `The same fact is in the JSON: provenance.model_backed is false and grade is "unjudged".\n` +
+          `The same fact is in the JSON: provenance.model_backed is false.\n` +
           `See the README section "Getting real judgments" to configure a critique backend.`,
+      );
+    }
+    if (review.coverage.state === "nothing") {
+      // The second such sentence, and it is needed even when the line above did
+      // not print: a configured, live, model-backed backend can judge no route
+      // at all, and that run reaches here as an empty finding list under a
+      // suppressed grade. Saying only "no findings" would read as a clean page.
+      out(
+        `\nNOTHING ABOVE WAS REVIEWED. The engine judged 0 of ` +
+          `${review.coverage.routes_requested.length} requested route(s) on this run, so the ` +
+          `result describes no page.\nThe same fact is in the JSON: coverage.routes_reviewed is ` +
+          `empty and grade is "nothing_reviewed". Re-run the review; not_reviewed says why each ` +
+          `route was skipped.`,
       );
     }
     return 0;

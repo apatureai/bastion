@@ -13,14 +13,39 @@ import { EngineResultError, parseEngineReviewResult } from "../src/engine-result
 
 const golden = loadGoldenEngineResult();
 
+/**
+ * The golden fixture minus the one field the parser is required to strip.
+ *
+ * The shared upstream fixture carries a `provenance` block, because verdict
+ * stamps one on every result it writes. Bastion's parser drops it: provenance is
+ * Bastion's statement about whether anything judged the page, and honouring one
+ * that arrived over the wire would let a backend certify itself. So "unchanged"
+ * means "unchanged except that", stated here rather than left implicit.
+ */
+const { provenance: goldenWireProvenance, ...goldenEngineFields } = golden;
+
 /** The fixture with one field replaced, as an unknown payload. */
 function withField(key: string, value: unknown): unknown {
   return { ...(golden as unknown as Record<string, unknown>), [key]: value };
 }
 
 describe("parseEngineReviewResult", () => {
-  it("accepts the golden engine contract unchanged", () => {
-    expect(parseEngineReviewResult(golden, "golden")).toEqual(golden);
+  it("accepts the golden engine contract unchanged, apart from stripping provenance", () => {
+    expect(goldenWireProvenance, "the shared fixture carries an engine provenance").toBeDefined();
+    expect(parseEngineReviewResult(golden, "golden")).toEqual(goldenEngineFields);
+  });
+
+  it("preserves the engine's coverage and grounding count, which the mapper needs", () => {
+    // These two survived this validator as unrecognized extras and were then
+    // dropped by `mapEngineResultToCritique`. The mapper carries them now, so
+    // the boundary has to be pinned on keeping them: a future rewrite of this
+    // function that enumerates fields instead of spreading would silently
+    // reintroduce the defect.
+    const parsed = parseEngineReviewResult(golden, "golden");
+    expect(parsed.coverage).toEqual(golden.coverage);
+    expect(parsed.coverage?.routesReviewed).toEqual(["/pricing"]);
+    const withDrops = parseEngineReviewResult(withField("hallucinationDrops", 4), "golden");
+    expect(withDrops.hallucinationDrops).toBe(4);
   });
 
   it("accepts the pre-calibration counterexample, which omits every optional field", () => {
@@ -48,7 +73,7 @@ describe("parseEngineReviewResult", () => {
       "review.json",
     );
     expect(parsed.provenance).toBeUndefined();
-    expect(parsed).toEqual(golden);
+    expect(parsed).toEqual(goldenEngineFields);
   });
 
   it("preserves unknown fields on a finding too", () => {
