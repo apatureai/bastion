@@ -111,3 +111,15 @@ export function hallucinationDrops(result: EngineReviewResult): number | null {
   if (typeof drops !== "number" || !Number.isFinite(drops) || drops < 0) return null;
   return drops;
 }
+
+/**
+ * Whether the engine retracted its own grade.
+ *
+ * Distinct from coverage: a run can review every requested route and still have
+ * nothing to say about them, if every finding was deleted before it could be
+ * reported. Coverage is full on that run and the grade is not a verdict.
+ */
+export function gradeRetraction(result: EngineReviewResult): string | null {
+  const reason = result.gradeUnavailableReason;
+  return typeof reason === "string" && reason.trim().length > 0 ? reason : null;
+}

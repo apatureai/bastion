@@ -19,6 +19,7 @@ export { hasDisplayableEngineConfidence } from "./engine.js";
 export type { CoverageState } from "./coverage.js";
 export {
   coverageState,
+  gradeRetraction,
   hallucinationDrops,
   routesSkipped,
   skipped,

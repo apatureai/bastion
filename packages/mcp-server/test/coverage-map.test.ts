@@ -264,3 +264,26 @@ describe("every surface says the same thing about one run", () => {
     for (const text of surfaces) expect(text).not.toContain("—");
   });
 });
+
+describe("an engine retracting its own grade", () => {
+  // Coverage cannot express this case: the route WAS reviewed, so coverage is full
+  // and truthful, and every model finding was deleted before it could be reported.
+  // `grade` floors to "ship" because the field is required, and bastion used to
+  // hand an agent that "ship" verbatim.
+  const retracted = (over: Partial<EngineReviewResult> = {}) =>
+    liveResult({ grade: "ship", findings: [], hallucinationDrops: 2, gradeUnavailableReason: "nothing_survived_validation", ...over });
+
+  it("does not hand an agent a ship grade the engine retracted", () => {
+    expect(mapEngineResultToCritique("rev_ret_0001", retracted()).grade).toBe("unjudged");
+  });
+
+  it("treats a reason it has never heard of as a retraction", () => {
+    expect(
+      mapEngineResultToCritique("rev_ret_0002", retracted({ gradeUnavailableReason: "some_future_reason" })).grade,
+    ).toBe("unjudged");
+  });
+
+  it("leaves a genuine grade alone when the engine did not retract", () => {
+    expect(mapEngineResultToCritique("rev_ret_0003", liveResult({ grade: "ship", findings: [], hallucinationDrops: 0 })).grade).toBe("ship");
+  });
+});

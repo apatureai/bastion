@@ -11,6 +11,7 @@ import type {
 import {
   coverageState,
   hasDisplayableEngineConfidence,
+  gradeRetraction,
   isUnjudged,
   suppressesGradeForCoverage,
 } from "@apature/mcp-types";
@@ -173,16 +174,26 @@ export function mapEngineResultToCritique(reviewId: string, result: EngineReview
   // coverage, which is disclosed rather than refused.
   const coverage = mapCoverage(result);
   const nothingReviewed = suppressesGradeForCoverage(coverageState(result));
+  // An engine can retract its grade for a cause coverage cannot express: every
+  // model finding deleted before it could be reported, on a route that WAS
+  // reviewed. Coverage reads full and truthful, and the grade means nothing.
+  const retraction = gradeRetraction(result);
   // Either suppression means no item in `findings[]` is an observation of the
   // target, so both raise the same per-item marker. An agent holding one array
   // element cannot see the envelope, and at that scope the two causes are the
   // same instruction: do not act on this.
-  const ungrounded = unjudged || nothingReviewed;
+  const ungrounded = unjudged || nothingReviewed || retraction !== null;
   const confidenceIsDisplayable = !ungrounded && hasDisplayableEngineConfidence(result);
   // Coverage wins the grade when both apply, matching gate's rule: an operator
   // whose run judged no page is not helped by being told the judgment stamp was
   // missing too, and `provenance` still carries that fact unchanged.
-  const grade = nothingReviewed ? "nothing_reviewed" : unjudged ? "unjudged" : result.grade;
+  const grade = nothingReviewed
+    ? "nothing_reviewed"
+    : unjudged
+      ? "unjudged"
+      : retraction !== null
+        ? "unjudged"
+        : result.grade;
   const overall = nothingReviewed
     ? nothingReviewedOverall(coverage)
     : unjudged

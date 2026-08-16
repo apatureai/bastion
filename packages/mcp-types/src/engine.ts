@@ -165,6 +165,20 @@ export type EngineReviewResult = {
    * no grounding gate omits it, and absence means "not stated" rather than zero.
    */
   hallucinationDrops?: number;
+  /**
+   * The engine retracting its own grade, in its own words.
+   *
+   * `grade` is required, so an engine whose every finding was deleted before it
+   * could be reported still has to put something there and it floors to `ship`.
+   * Coverage cannot express that case: the route WAS reviewed, so coverage is
+   * full and truthful while the grade means nothing.
+   *
+   * Any non-empty value means the grade is unusable. The reasons are not
+   * enumerated here on purpose: a reason this server has not been taught is
+   * still a retraction, and refusing an unknown value would turn an honest
+   * engine into a parse failure.
+   */
+  gradeUnavailableReason?: string;
   artifacts: {
     annotatedScreenshots: Array<{ findingId: string; url: string }>;
     engineDebugUrl?: string;
