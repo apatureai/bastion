@@ -2,6 +2,7 @@ import type {
   Critique,
   CritiqueCoverage,
   CritiqueFinding,
+  CritiqueMeasurements,
   CritiqueSeverity,
   EngineFinding,
   EngineReviewResult,
@@ -159,6 +160,38 @@ function withNothingReviewedDisclosure(
   ];
 }
 
+/**
+ * The measured half, mapped verbatim into this surface's casing.
+ *
+ * Nothing is computed here and nothing is filtered. In particular no suppression
+ * or severity mapping runs: a measurement has no severity to map, and muting one
+ * is a repository's publishing policy on a pull request rather than something an
+ * agent asked for.
+ *
+ * `state` is the one derived value, and it derives from the presence of the
+ * field alone. An engine that sent no report yields `"unstated"` with both
+ * arrays empty, which an agent must read as "this engine does not report
+ * measurements" and never as "the page measured clean". Synthesizing a
+ * `"reported"` empty report from silence would be the same false claim the
+ * coverage work removed from the grade.
+ */
+function mapMeasurements(result: EngineReviewResult): CritiqueMeasurements {
+  const report = result.measurements;
+  if (!report) return { state: "unstated", checks_run: [], violations: [] };
+  return {
+    state: "reported",
+    checks_run: [...report.checksRun],
+    violations: report.violations.map((violation) => ({
+      kind: violation.kind,
+      route: violation.route,
+      viewports: [...violation.viewports],
+      element_ref: violation.element,
+      detail: violation.detail,
+      block_eligible: violation.blockEligible,
+    })),
+  };
+}
+
 export function mapEngineResultToCritique(reviewId: string, result: EngineReviewResult): Critique {
   // An unstamped result is `unknown`, never assumed judged: `model_backed` is
   // null, so a consumer that requires a real judgment still refuses it.
@@ -212,6 +245,11 @@ export function mapEngineResultToCritique(reviewId: string, result: EngineReview
     ),
     not_reviewed: notReviewed,
     coverage,
+    // Carried unchanged on every path, including the two that suppress the
+    // grade and replace the narrative. Those are suppressed because nothing
+    // established them; a measurement needs nothing to establish it, and on an
+    // unjudged payload it is the only thing an agent can act on.
+    measurements: mapMeasurements(result),
     // Carried, never suppressed: the routes WERE judged and the grounding gate
     // deleting every finding is that gate working. It is disclosed so an empty
     // `findings` array is not read as a clean page.

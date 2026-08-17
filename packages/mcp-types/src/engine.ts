@@ -127,6 +127,53 @@ export type EngineReviewCoverage = {
   viewportsReviewed: EngineViewport[];
 };
 
+/** The deterministic check kinds the engine reports (verdict `MeasurementKind`). */
+export type EngineMeasurementKind = "contrast" | "overflow" | "touch_target";
+
+/**
+ * One violation the ENGINE computed from the captured DOM, with no model
+ * involved: a contrast ratio against WCAG AA, a scroll width against a
+ * container, a rectangle against a minimum target size.
+ *
+ * Deliberately not an `EngineFinding` and never convertible into one. It has no
+ * severity, no confidence and no dimension, because nothing judged it and
+ * nothing calibrated it. That is not a weakness of the value, it is the reason
+ * an agent can act on it when it cannot act on a finding: a measurement is true
+ * whether or not a model ran.
+ */
+export type EngineMeasurement = {
+  kind: EngineMeasurementKind;
+  route: string;
+  /** Every viewport this exact violation was measured at. */
+  viewports: EngineViewport[];
+  /** Stable selector, the same vocabulary as `EngineFinding.element`. */
+  element: string;
+  /** The engine's factual sentence, verbatim. */
+  detail: string;
+  /**
+   * The ENGINE's claim that this measurement is precise enough for a consumer
+   * to gate on. `false` does not mean it is wrong, only that acting on it
+   * automatically would be: it may be intentional (a deliberate scroll
+   * container, a desktop pointer target) or in a known false-positive class
+   * (text over a background image). Bastion never computes or overrides it.
+   */
+  blockEligible: boolean;
+};
+
+/**
+ * The measured half of the engine's result.
+ *
+ * `checksRun` is what makes an empty `violations` array mean anything: empty
+ * `checksRun` is "nothing was measured", and a non-empty one with no violations
+ * is the positive statement "these checks ran and found nothing". Optional and
+ * additive: absence means "this producer does not report measurements", never
+ * "the page is clean".
+ */
+export type EngineMeasurementReport = {
+  checksRun: EngineMeasurementKind[];
+  violations: EngineMeasurement[];
+};
+
 /** The engine's review result, consumed but not owned by Bastion. */
 export type EngineReviewResult = {
   grade: EngineGrade;
@@ -179,6 +226,20 @@ export type EngineReviewResult = {
    * engine into a parse failure.
    */
   gradeUnavailableReason?: string;
+  /**
+   * What the engine MEASURED, as opposed to what it judged. Additive and
+   * optional under schema v1, like `coverage`.
+   *
+   * This is the half of a review an agent can act on unconditionally. Every
+   * other field in this payload is downstream of a model having run: the grade,
+   * the narrative, every finding. These are downstream of a `getComputedStyle`
+   * call, so they are true on an unjudged run, on a nothing-reviewed run, and on
+   * a run whose grade the engine retracted.
+   *
+   * Absent means "this producer does not report measurements". It never means
+   * the page is clean.
+   */
+  measurements?: EngineMeasurementReport;
   artifacts: {
     annotatedScreenshots: Array<{ findingId: string; url: string }>;
     engineDebugUrl?: string;

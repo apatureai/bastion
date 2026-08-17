@@ -265,7 +265,7 @@
     {
       "name": "design_review_get",
       "title": "Get design review",
-      "description": "Get status or a compact, focused, or evidence view for an existing review job. Poll no faster than the returned poll_after_ms. Result reads do not consume review units.",
+      "description": "Get status or a compact, focused, or evidence view for an existing review job. Poll no faster than the returned poll_after_ms. Result reads do not consume review units. Act on review.measurements.violations unconditionally: they are computed from the captured DOM and are true whether or not a model ran. Act on review.findings only when provenance.model_backed is true and coverage.state is full or partial.",
       "annotations": {
         "readOnlyHint": true,
         "destructiveHint": false,
@@ -557,6 +557,93 @@
                   "viewports_skipped"
                 ]
               },
+              "measurements": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "What the run MEASURED, computed from the captured DOM with no model involved: text contrast against WCAG AA, horizontal overflow, and touch-target sizes. Present on every review. This is the one part of the payload that is true whether or not a model ran, so it is carried unchanged on unjudged and nothing-reviewed runs where grade, overall and findings are all suppressed. A measurement is never a finding: it has no severity, no confidence and no dimension, and it never changes the grade.",
+                "properties": {
+                  "state": {
+                    "type": "string",
+                    "enum": [
+                      "reported",
+                      "unstated"
+                    ],
+                    "description": "reported: the engine sent a measurement report. unstated: it did not, and both arrays below are empty. Read \"unstated\" as \"this engine does not report measurements\", never as \"the page measured clean\"; that positive statement is state \"reported\" with a non-empty checks_run and an empty violations."
+                  },
+                  "checks_run": {
+                    "type": "array",
+                    "description": "Which checks ran on this capture. Empty means nothing was measured.",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "contrast",
+                        "overflow",
+                        "touch_target"
+                      ]
+                    }
+                  },
+                  "violations": {
+                    "type": "array",
+                    "description": "Deduped per (kind, route, element, detail), with every viewport it was measured at.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "kind": {
+                          "type": "string",
+                          "enum": [
+                            "contrast",
+                            "overflow",
+                            "touch_target"
+                          ]
+                        },
+                        "route": {
+                          "type": "string",
+                          "maxLength": 2000
+                        },
+                        "viewports": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": [
+                              "mobile",
+                              "tablet",
+                              "desktop"
+                            ]
+                          }
+                        },
+                        "element_ref": {
+                          "type": "string",
+                          "maxLength": 2000,
+                          "description": "Stable selector, the same vocabulary as findings[].element_ref."
+                        },
+                        "detail": {
+                          "type": "string",
+                          "maxLength": 1000,
+                          "description": "The engine's factual sentence, verbatim, e.g. \"text contrast 3.23:1 is below WCAG AA 4.5:1\"."
+                        },
+                        "block_eligible": {
+                          "type": "boolean",
+                          "description": "The ENGINE's claim that this measurement is precise enough to gate a merge on. false does not mean the measurement is wrong, only that acting on it automatically would be: it may be intentional (a deliberate scroll container, a desktop pointer target) or in a known false-positive class (text over a background image)."
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "route",
+                        "viewports",
+                        "element_ref",
+                        "detail",
+                        "block_eligible"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "state",
+                  "checks_run",
+                  "violations"
+                ]
+              },
               "hallucination_drops": {
                 "type": [
                   "integer",
@@ -574,6 +661,7 @@
               "overall",
               "not_reviewed",
               "coverage",
+              "measurements",
               "hallucination_drops"
             ]
           },

@@ -8,7 +8,7 @@
  */
 
 import type { CoverageState } from "./coverage.js";
-import type { EngineDimension } from "./engine.js";
+import type { EngineDimension, EngineMeasurementKind } from "./engine.js";
 import type { JudgmentProvenance } from "./provenance.js";
 
 export const SCHEMA_VERSION = "1.0.0" as const;
@@ -150,6 +150,58 @@ export type CritiqueFinding = {
   unjudged?: true;
 };
 
+/**
+ * One violation the ENGINE measured, as the agent surface reports it.
+ *
+ * The single item in this payload an agent may act on without first checking
+ * `provenance`. It has no severity, no confidence and no dimension, and that is
+ * the point rather than an omission: nothing judged it, so nothing about it can
+ * be wrong in the way a finding can be wrong. It is a `getComputedStyle` call
+ * and a rectangle.
+ *
+ * It is NEVER stamped with the per-item `unjudged` marker that `CritiqueFinding`
+ * carries. Marking it would tell an agent to discard the only trustworthy thing
+ * in an unjudged payload, which is the opposite of what that marker exists for.
+ */
+export type CritiqueMeasurement = {
+  kind: EngineMeasurementKind;
+  route: string;
+  /** Every viewport this exact violation was measured at. */
+  viewports: Viewport[];
+  /** Stable selector, the same vocabulary as `CritiqueFinding.element_ref`. */
+  element_ref: string;
+  /** The engine's factual sentence, verbatim. */
+  detail: string;
+  /**
+   * The ENGINE's claim that this measurement is precise enough to gate on.
+   * `false` does not mean it is wrong, only that acting on it automatically
+   * would be. Bastion never computes or overrides it.
+   */
+  block_eligible: boolean;
+};
+
+/**
+ * What the run MEASURED, present on every critique.
+ *
+ * `state` is `"reported"` when the engine sent a report and `"unstated"` when it
+ * did not, and it is never synthesized: an `"unstated"` measurement block has
+ * both arrays empty, and an agent must read that as "this engine does not
+ * report measurements", never as "the page measured clean". That positive
+ * statement is `state: "reported"` with a non-empty `checks_run` and an empty
+ * `violations`.
+ *
+ * The same shape as `coverage` and for the same reason: a consumer should not
+ * have to branch on a missing key, and a missing key invites a default.
+ */
+export type CritiqueMeasurements = {
+  /** `reported` when the engine sent a report, `unstated` when it did not. */
+  state: "reported" | "unstated";
+  /** Which checks ran. Empty means nothing was measured. */
+  checks_run: EngineMeasurementKind[];
+  /** Deduped per (kind, route, element, detail), with viewports accumulated. */
+  violations: CritiqueMeasurement[];
+};
+
 /** The §6.4 Critique object: overall verdict plus structured findings. */
 export type Critique = {
   review_id: string;
@@ -173,6 +225,20 @@ export type Critique = {
    * nothing else in the payload is an assessment of the target.
    */
   coverage: CritiqueCoverage;
+  /**
+   * What the run measured, computed from the captured DOM with no model
+   * involved. Present on EVERY critique, like `coverage` and `provenance`.
+   *
+   * It is carried unchanged on every path, including the unjudged one and the
+   * nothing-reviewed one, where `grade`, `overall` and `findings` are all
+   * suppressed or replaced. That asymmetry is deliberate and is the whole
+   * reason this field exists: those three are suppressed because nothing
+   * established them, and a measurement needs nothing to establish it.
+   *
+   * It never becomes a finding, never carries a severity or a confidence, and
+   * never changes the grade.
+   */
+  measurements: CritiqueMeasurements;
   /**
    * How many model findings the engine's grounding gate deleted for citing a
    * route or an element the capture never produced, or `null` when the engine

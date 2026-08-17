@@ -204,7 +204,16 @@ const DESIGN_REVIEW_GET_LISTING: ToolListingMetadata = {
   title: "Get design review",
   description:
     "Get status or a compact, focused, or evidence view for an existing review job. Poll no " +
-    "faster than the returned poll_after_ms. Result reads do not consume review units.",
+    "faster than the returned poll_after_ms. Result reads do not consume review units. " +
+    // The one sentence the measurement contract exists to make writable. An
+    // agent's default posture toward this payload is "check provenance first",
+    // and that is right for everything a model produced. It is wrong for the
+    // measured half, which is a getComputedStyle call and a rectangle, and
+    // telling an agent to gate it behind a model stamp discards the only
+    // trustworthy thing in an unjudged result.
+    "Act on review.measurements.violations unconditionally: they are computed from the captured " +
+    "DOM and are true whether or not a model ran. Act on review.findings only when " +
+    "provenance.model_backed is true and coverage.state is full or partial.",
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,

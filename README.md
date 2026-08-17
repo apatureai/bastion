@@ -166,6 +166,52 @@ So every `Critique` also carries `coverage`, which is verdict's `coverage` block
 
 It does **not** suppress the grade. The routes were judged, and deleting ungroundable findings is the grounding gate working as intended. It is reported so an empty finding list is not read as a clean page. `null` and `0` are different answers: `0` means the gate ran and deleted nothing, `null` means the engine reported no grounding gate.
 
+#### Measurements: the half an agent can act on unconditionally
+
+Every rule above tells an agent to check something before believing the payload, and every one of
+those rules is right, because everything they guard is downstream of a model having run: the grade,
+the narrative, every finding. `measurements` is the exception, and it is on every `Critique`:
+
+```json
+"measurements": {
+  "state": "reported",
+  "checks_run": ["contrast", "overflow", "touch_target"],
+  "violations": [
+    {
+      "kind": "contrast",
+      "route": "/",
+      "viewports": ["desktop"],
+      "element_ref": "#hero-subtitle",
+      "detail": "text contrast 3.23:1 is below WCAG AA 4.5:1",
+      "block_eligible": true
+    }
+  ]
+}
+```
+
+These are computed by verdict from the captured DOM with **no model involved**: a `getComputedStyle`
+call, a scroll width, a rectangle. So the instruction is different, and it is in the tool description
+as well as here: **act on `measurements.violations` unconditionally**, and act on `findings` only
+when `provenance.model_backed === true` and `coverage.state` is `full` or `partial`. Gating a
+measurement behind a model stamp would discard the only trustworthy thing in an unjudged payload.
+
+They are carried unchanged on every path, including the ones that replace the grade with `unjudged`
+or `nothing_reviewed` and rewrite the narrative, and they are **never** stamped with the per-item
+`unjudged` marker that findings carry: that marker means "do not act on this as an observation", and
+a measurement is an observation whatever the judge did.
+
+A measurement is never a finding. It has no severity, no confidence and no dimension, it never enters
+`findings[]`, and it never changes the grade. `block_eligible` is the ENGINE's claim that a
+measurement is precise enough to gate a merge on; `false` does not mean it is wrong, only that acting
+on it automatically would be, because it may be intentional (a deliberate scroll container, a desktop
+pointer target) or in a known false-positive class (text over a background image). Bastion never
+computes or overrides it.
+
+`state` is `"reported"` when the engine sent a report and `"unstated"` when it did not, and it is
+never synthesized. `"unstated"` means "this engine does not report measurements" and must never be
+read as "the page measured clean"; that positive statement is `"reported"` with a non-empty
+`checks_run` and an empty `violations`.
+
 #### Every payload an agent acts on, not only the review
 
 A stamp on the review body alone is not enough, because the review body is not the only thing an agent reads and acts on. Three other payloads carry it, each for its own reason.
