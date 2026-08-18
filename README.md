@@ -241,11 +241,14 @@ A stamp on the review body alone is not enough, because the review body is not t
 ```text
 1 text  "Design review (unjudged): No model judged this page, so there is no assessment of it: ..."
 2 text  "[should_fix] [unjudged] Primary CTA uses an off-brand color on mobile @ /pricing (mobile, `button[data-testid='cta-primary']`). Fix: Apply the `--color-accent` token ... Nothing judged this page, so this is not an observation of the target."
+3 image _meta { "com.apature/unjudged": true, "com.apature/unjudged_disclosure": "Nothing judged this page, so this is not an observation of the target." }
 ```
 
 Before this, blocks like block 2 were bare: confident, specific advice about a page nothing had looked at, with the disclosure only in the envelope block above it and in the JSON beside it.
 
-Three details that make the claim checkable rather than decorative:
+An image block is the case a sentence cannot solve, and it was the last one left. It has no prose to disclose in, and a host that renders pictures prominently could show what looks like an annotated screenshot of your page with the disclosure only in a neighbouring text block. So the marker rides in `_meta`, which MCP puts on every content block for exactly this, under the same two namespaced keys on the image and on the text block it illustrates, from one function so the pair cannot drift. A judged block carries no `_meta` at all, so the marker's absence claims nothing on its own and `provenance` stays the authority.
+
+Four details that make the claim checkable rather than decorative:
 
 - **`unjudged` is not an engine value.** No backend emits it. Bastion substitutes it, and only when `model_backed` is `false`. It is an explicit value rather than a null or a dropped key because a missing field reads as an older payload and invites a default, and because it sits outside the `ship`..`blocked` ordering, so a consumer comparing against a threshold gets no answer instead of a flattering one.
 - **The narrative is replaced, not annotated.** The fixture's prose is about a pricing page that does not exist. Presenting it as a description of your page would be the same lie as the grade, just in longer form, so on an unjudged path it does not appear at all.

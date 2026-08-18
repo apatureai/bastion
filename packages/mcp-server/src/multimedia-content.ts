@@ -1,12 +1,15 @@
 import type {
   AnnotatedImage,
+  ContentBlockMeta,
   Critique,
   CritiqueFinding,
   DesignReviewContent,
   HostMediaCapability,
+  ImageContentBlock,
   McpContentBlock,
   MultimediaCritiqueContent,
   ResourceContentBlock,
+  TextContentBlock,
 } from "@apature/mcp-types";
 import { coverageLines } from "./coverage.js";
 
@@ -38,6 +41,44 @@ function isImageMime(mimeType: string): boolean {
 }
 
 /**
+ * The `_meta` key a content block carries when the finding it renders is one
+ * nothing judged. Same word as `CritiqueFinding.unjudged` and as the `[unjudged]`
+ * marker in the text, because a second vocabulary for one fact is how the two
+ * surfaces end up disagreeing.
+ */
+export const UNJUDGED_BLOCK_META_KEY = "com.apature/unjudged";
+
+/** The `_meta` key carrying the sentence a human reads for the same fact. */
+export const UNJUDGED_DISCLOSURE_META_KEY = "com.apature/unjudged_disclosure";
+
+/**
+ * The one sentence every unjudged content block says, in the text where there
+ * is text and in `_meta` on every marked block. Exported so the assertion that
+ * an image and its text block say the same thing compares one constant rather
+ * than two copies of a sentence.
+ */
+export const UNJUDGED_BLOCK_DISCLOSURE =
+  "Nothing judged this page, so this is not an observation of the target.";
+
+/**
+ * The `_meta` for a block rendering one finding, or `undefined` when the finding
+ * was judged.
+ *
+ * The `undefined` is the point: a judged block carries no `_meta` at all, so the
+ * marker's absence asserts nothing on its own and `provenance` stays the only
+ * authority. Identical for text and image blocks, from one function, because an
+ * image block that could drift from the text block beside it is the defect this
+ * closes.
+ */
+function unjudgedBlockMeta(f: CritiqueFinding): ContentBlockMeta | undefined {
+  if (f.unjudged !== true) return undefined;
+  return {
+    [UNJUDGED_BLOCK_META_KEY]: true,
+    [UNJUDGED_DISCLOSURE_META_KEY]: UNJUDGED_BLOCK_DISCLOSURE,
+  };
+}
+
+/**
  * One finding rendered as agent-readable text (severity, where, and the fix).
  *
  * The `unjudged` marker is per item for the same reason it is per item on
@@ -48,15 +89,16 @@ function isImageMime(mimeType: string): boolean {
  * nothing guarantees the two are read together. It is the envelope's own word,
  * `unjudged`, not a second vocabulary, and it is emitted only on payloads that
  * carry the field, so its absence claims nothing on its own.
+ *
+ * The same fact also rides in `_meta` on this block and on the image block for
+ * the same finding, so a host that renders content rather than reading prose
+ * still has it, and so the two blocks cannot be separated from it.
  */
 function findingText(f: CritiqueFinding): string {
   const where = f.element_ref ? `${f.route} (${f.viewport}, \`${f.element_ref}\`)` : `${f.route} (${f.viewport})`;
   const marker = f.unjudged === true ? "[unjudged] " : "";
   const fix = f.suggestion ? ` Fix: ${f.suggestion}` : "";
-  const disclosure =
-    f.unjudged === true
-      ? " Nothing judged this page, so this is not an observation of the target."
-      : "";
+  const disclosure = f.unjudged === true ? ` ${UNJUDGED_BLOCK_DISCLOSURE}` : "";
   return `[${f.severity}] ${marker}${f.title} @ ${where}.${fix}${disclosure}`;
 }
 
@@ -92,13 +134,23 @@ export function buildMultimediaCritiqueContent(
   let emittedImage = false;
 
   for (const f of critique.findings) {
-    content.push({ type: "text", text: findingText(f) });
+    const meta = unjudgedBlockMeta(f);
+    const text: TextContentBlock = { type: "text", text: findingText(f) };
+    if (meta) text._meta = meta;
+    content.push(text);
 
     const img = f.evidence_id === null ? undefined : imageByEvidence.get(f.evidence_id);
     if (img === undefined) continue;
 
     if (capability.images) {
-      content.push({ type: "image", data: img.data, mimeType: img.mimeType });
+      // An image block has no prose, so the disclosure its sibling text block
+      // spells out in words rides in `_meta`. Without it a host that renders
+      // pictures prominently could show an "annotated screenshot" for a page
+      // nothing looked at, with the only disclosure in a block beside it that
+      // nothing guarantees is read.
+      const block: ImageContentBlock = { type: "image", data: img.data, mimeType: img.mimeType };
+      if (meta) block._meta = meta;
+      content.push(block);
       emittedImage = true;
     } else {
       // Honest downgrade: the crop exists but the host can't render it, so say so.

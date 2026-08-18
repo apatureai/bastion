@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { buildMultimediaCritiqueContent, buildDesignReviewContent, MCP_APP_PANEL_MIME } from "../src/multimedia-content.js";
-import type { AnnotatedImage, Critique, CritiqueFinding } from "@apature/mcp-types";
+import {
+  buildMultimediaCritiqueContent,
+  buildDesignReviewContent,
+  MCP_APP_PANEL_MIME,
+  UNJUDGED_BLOCK_DISCLOSURE,
+  UNJUDGED_BLOCK_META_KEY,
+  UNJUDGED_DISCLOSURE_META_KEY,
+} from "../src/multimedia-content.js";
+import type {
+  AnnotatedImage,
+  Critique,
+  CritiqueFinding,
+  ImageContentBlock,
+  TextContentBlock,
+} from "@apature/mcp-types";
 
 /**
  * D3 multimedia design_review content shaping (#58). Load-bearing: an overall
@@ -151,6 +164,41 @@ describe("buildMultimediaCritiqueContent", () => {
     it("uses the structured field's own vocabulary, not a second scheme", () => {
       const [, , first] = buildMultimediaCritiqueContent(unjudgedCritique(), [], { images: true }).content;
       expect((first as { text: string }).text.startsWith("[blocker] [unjudged] ")).toBe(true);
+    });
+
+    /**
+     * The image block was the last unmarked surface. A `text` block can carry
+     * the disclosure in its own words; an `image` block has no words, so a host
+     * that renders pictures could show an annotated crop of a page nothing
+     * looked at with the disclosure only in a neighbouring block. MCP puts
+     * `_meta` on every content block for exactly this, so the marker goes there.
+     */
+    it("marks the image block, not only the text block beside it", () => {
+      const r = buildMultimediaCritiqueContent(unjudgedCritique(), [png("ev-1")], { images: true });
+      const image = r.content.find((b): b is ImageContentBlock => b.type === "image");
+      expect(image, "no image block was emitted").toBeDefined();
+      expect(image!._meta).toEqual({
+        [UNJUDGED_BLOCK_META_KEY]: true,
+        [UNJUDGED_DISCLOSURE_META_KEY]: UNJUDGED_BLOCK_DISCLOSURE,
+      });
+    });
+
+    it("says the same thing in the image's _meta as in the text block's words", () => {
+      const r = buildMultimediaCritiqueContent(unjudgedCritique(), [png("ev-1")], { images: true });
+      const image = r.content.find((b): b is ImageContentBlock => b.type === "image")!;
+      const text = r.content.filter((b): b is TextContentBlock => b.type === "text")[2]!;
+      // The text block that the image illustrates, and the image itself, carry
+      // one sentence from one constant: they cannot drift into two accounts.
+      expect(text.text).toContain(UNJUDGED_BLOCK_DISCLOSURE);
+      expect(image._meta?.[UNJUDGED_DISCLOSURE_META_KEY]).toBe(UNJUDGED_BLOCK_DISCLOSURE);
+      expect(text._meta).toEqual(image._meta);
+    });
+
+    it("leaves a judged image block bare, so the marker's absence is not a claim", () => {
+      const r = buildMultimediaCritiqueContent(critique([finding()]), [png("ev-1")], { images: true });
+      const image = r.content.find((b): b is ImageContentBlock => b.type === "image")!;
+      expect(image).toEqual({ type: "image", data: "AAAA", mimeType: "image/png" });
+      expect(Object.keys(image)).not.toContain("_meta");
     });
 
     it("says nothing on a judged finding, so the marker's absence is not a claim", () => {

@@ -54,6 +54,7 @@ export type {
   DesignRecheckResult,
   UpstreamCancellation,
   DesignReviewCancelResult,
+  ContentBlockMeta,
   TextContentBlock,
   ImageContentBlock,
   ResourceContentBlock,

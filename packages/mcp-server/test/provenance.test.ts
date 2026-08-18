@@ -191,6 +191,52 @@ describe("judgment provenance is in the payload, on every path", () => {
       expect(review?.provenance, view).toMatchObject({ model_backed: false, source: "fixture" });
       expect(review?.grade, view).toBe("unjudged");
     }
+    await client.close();
+  });
+
+  /**
+   * The evidence view's `content[]`, as a host that renders blocks receives
+   * them. A text block can disclose in its own words; an image block cannot, so
+   * the marker has to be in `_meta`, and it has to survive the transport rather
+   * than only exist in the in-process object.
+   */
+  it("marks every unjudged content block over the wire, images included", async () => {
+    const client = await connect();
+    const submit = (await client.callTool({
+      name: "design_review",
+      arguments: {
+        url: "https://preview.example.com/pricing",
+        client_request_id: "prov-blocks-0001",
+      },
+    })) as ToolResult;
+    const jobId = (submit.structuredContent?.job as { job_id: string }).job_id;
+    const got = await client.callTool({ name: "design_review_get", arguments: { job_id: jobId, view: "evidence" } });
+    // Round-tripped, like every other assertion here: nothing survives that
+    // would not survive the wire.
+    const content = JSON.parse(JSON.stringify(got.content)) as Array<{
+      type: string;
+      text?: string;
+      _meta?: Record<string, unknown>;
+    }>;
+
+    const images = content.filter((block) => block.type === "image");
+    expect(images.length, "the evidence view emitted no image blocks to check").toBeGreaterThan(0);
+    for (const image of images) {
+      expect(image._meta?.["com.apature/unjudged"]).toBe(true);
+      expect(image._meta?.["com.apature/unjudged_disclosure"]).toBe(
+        "Nothing judged this page, so this is not an observation of the target.",
+      );
+    }
+    // The finding text blocks say the same thing, in words and in `_meta`, so a
+    // host reading either one cannot get the quieter account.
+    const findingTexts = content.filter(
+      (block) => block.type === "text" && block.text?.includes("[unjudged]") === true,
+    );
+    expect(findingTexts.length).toBeGreaterThan(0);
+    for (const block of findingTexts) {
+      expect(block._meta?.["com.apature/unjudged"]).toBe(true);
+    }
+    await client.close();
   });
 
   it("matches the documented tool-result contract in schemas/mcp-tools.json", async () => {

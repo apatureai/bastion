@@ -377,14 +377,31 @@ export type DesignReviewCancelResult = {
 // downgrade: a host that cannot render images gets the text/structured result
 // and is told which images were withheld, never a broken/absent block.
 
+/**
+ * The `_meta` a content block may carry.
+ *
+ * MCP declares `_meta` on every content block as the place for out-of-band
+ * facts about that block. It is where a block states its own judgment status:
+ * an `image` block has no prose to carry a disclosure in, so the marker its
+ * sibling `text` block spells out in words has to live here, in a field a host
+ * can read without parsing English. Keys are namespaced (`com.apature/...`) as
+ * the spec requires.
+ */
+export type ContentBlockMeta = Record<string, unknown>;
+
 /** An MCP `text` content block. */
-export type TextContentBlock = { type: "text"; text: string };
+export type TextContentBlock = { type: "text"; text: string; _meta?: ContentBlockMeta };
 
 /**
  * An MCP `image` content block: base64-encoded image bytes + MIME type, per the
  * MCP multimedia content shape. Used for annotated screenshot crops.
  */
-export type ImageContentBlock = { type: "image"; data: string; mimeType: string };
+export type ImageContentBlock = {
+  type: "image";
+  data: string;
+  mimeType: string;
+  _meta?: ContentBlockMeta;
+};
 
 /**
  * An MCP `resource` content block carrying an embedded resource, used to deliver

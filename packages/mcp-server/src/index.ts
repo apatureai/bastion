@@ -56,6 +56,9 @@ export {
   buildMultimediaCritiqueContent,
   buildDesignReviewContent,
   MCP_APP_PANEL_MIME,
+  UNJUDGED_BLOCK_META_KEY,
+  UNJUDGED_DISCLOSURE_META_KEY,
+  UNJUDGED_BLOCK_DISCLOSURE,
 } from "./multimedia-content.js";
 export { ReviewService } from "./review-service.js";
 export type { ReviewServiceDeps, RecheckRejectionReason } from "./review-service.js";
