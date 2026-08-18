@@ -177,6 +177,39 @@ describe("resolveVerdictModel", () => {
     expect(() => resolveVerdictModel({ VERDICT_MODEL: "live" })).toThrow(/MODEL_BASE_URL/);
   });
 
+  /**
+   * The configuration that used to claim a judgment nothing made.
+   *
+   * `live` is the only choice that mints `model_backed: true`, and the stamp is
+   * minted from this choice alone; nothing downstream re-checks it against what
+   * verdict actually ran. Verdict's own `resolveModelRuntime` returns the MOCK
+   * client when `MODEL_API_KEY` is blank and does NOT throw, even for an
+   * explicit `--model live`. So an explicit `VERDICT_MODEL=live` with a base URL
+   * and no key captured the page, judged nothing, and came back as
+   * `grade: "needs_work"` with `provenance.model_backed: true` and a detail
+   * reading "a vision model judged the capture".
+   *
+   * The `auto` rule never reached that state, because `auto` keys off exactly
+   * the variable that is missing. Only the explicit choice could, which is why
+   * the check has to be on the resolved choice rather than on the request.
+   */
+  it("refuses live without a key, which verdict would answer with its mock client", () => {
+    expect(() =>
+      resolveVerdictModel({ VERDICT_MODEL: "live", MODEL_BASE_URL: "https://api/v1" }),
+    ).toThrow(EngineConfigError);
+    expect(() =>
+      resolveVerdictModel({ VERDICT_MODEL: "live", MODEL_BASE_URL: "https://api/v1" }),
+    ).toThrow(/MODEL_API_KEY/);
+    // A blank key is a missing key, the same way the auto rule reads it.
+    expect(() =>
+      resolveVerdictModel({ VERDICT_MODEL: "live", MODEL_BASE_URL: "https://api/v1", MODEL_API_KEY: "  " }),
+    ).toThrow(/MODEL_API_KEY/);
+    // And the refusal is specific to `live`: the two honest no-model modes are
+    // still reachable with no credentials at all.
+    expect(resolveVerdictModel({ VERDICT_MODEL: "canned" })).toBe("canned");
+    expect(resolveVerdictModel({ VERDICT_MODEL: "mock" })).toBe("mock");
+  });
+
   it("honours an explicit choice", () => {
     expect(resolveVerdictModel({ VERDICT_MODEL: "mock", MODEL_API_KEY: "k" })).toBe("mock");
     expect(() => resolveVerdictModel({ VERDICT_MODEL: "fast" })).toThrow(

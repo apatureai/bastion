@@ -320,7 +320,7 @@ export MODEL_BASE_URL=https://your-openai-compatible-endpoint/v1
 export MODEL_API_KEY=<your-key>
 ```
 
-`VERDICT_CLI` selects the backend. `MODEL_BASE_URL` and `MODEL_API_KEY` are verdict's own variables and are passed straight through to it, so any OpenAI-compatible chat-completions endpoint that accepts images works: DashScope compatible mode, a self-hosted vLLM or SGLang server, anything speaking that wire format. The endpoint is never guessed, and a key without a base URL is a startup error rather than a silent fallback.
+`VERDICT_CLI` selects the backend. `MODEL_BASE_URL` and `MODEL_API_KEY` are verdict's own variables and are passed straight through to it, so any OpenAI-compatible chat-completions endpoint that accepts images works: DashScope compatible mode, a self-hosted vLLM or SGLang server, anything speaking that wire format. The endpoint is never guessed, and neither half is optional: a key without a base URL and an explicit `VERDICT_MODEL=live` without a key are both startup errors rather than silent fallbacks. The second one matters because verdict answers a live request with its mock client when the key is missing, without failing, so accepting it would mean capturing your page, judging nothing, and reporting `model_backed: true` anyway.
 
 With a key set, verdict runs `--model live` and a model looks at your screenshots. Without one it runs `--model canned`, which captures and measures your page for real but judges nothing. Both states are announced, and the second one is announced loudly.
 
@@ -411,7 +411,7 @@ That is also why there is no way to review `http://localhost:3000` through this 
 |---|---|
 | `BASTION_ENGINE` | `auto` (default), `fixture`, `verdict-cli`, `verdict-http`. `auto` picks the CLI backend when `VERDICT_CLI` is set, then the job API when `ENGINE_BASE_URL` is set, then the fixture |
 | `VERDICT_CLI` | Path to a built verdict checkout, or directly to its `packages/cli/dist/main.js`. Selects the CLI backend |
-| `VERDICT_MODEL` | `auto` (default), `mock`, `canned`, `live`. `auto` is live when `MODEL_API_KEY` is set, canned otherwise, which is verdict's own rule |
+| `VERDICT_MODEL` | `auto` (default), `mock`, `canned`, `live`. `auto` is live when `MODEL_API_KEY` is set, canned otherwise, which is verdict's own rule. An explicit `live` requires both `MODEL_BASE_URL` and `MODEL_API_KEY` |
 | `VERDICT_CONTEXT_DIR` | Directory holding `tokens.json`, `.designreview.yml` and `package.json`, which is what grounds the critique in your design system. Without it the critique is ungrounded, not broken |
 | `VERDICT_OUT_DIR` | Where per-review artifact directories are written. Default `out/verdict` under the working directory |
 | `VERDICT_TIMEOUT_MS` | Ceiling on one review. Default 900000, fifteen minutes |
@@ -419,7 +419,7 @@ That is also why there is no way to review `http://localhost:3000` through this 
 | `BASTION_ALLOWED_HOSTS` | Comma-separated hosts to authorize besides the demo host. `pnpm review` adds the host you name on the command line |
 | `ENGINE_BASE_URL`, `ENGINE_HMAC_SECRET`, `ENGINE_INSTALLATION_ID` | A running verdict job API instead of the CLI. See below |
 
-Half-configured states fail at startup rather than degrading to fixtures: a base URL with no signing secret, a live model with no endpoint, an unbuilt verdict checkout, and an unknown mode name each stop the server with the reason.
+Half-configured states fail at startup rather than degrading to fixtures: a base URL with no signing secret, a live model with no endpoint, a live model with no key, an unbuilt verdict checkout, and an unknown mode name each stop the server with the reason.
 
 ### What is not wired yet
 

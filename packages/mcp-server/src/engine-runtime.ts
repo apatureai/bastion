@@ -100,6 +100,17 @@ export function resolveVerdictCliEntry(
  * Resolve which verdict model client a CLI-backed review will use, applying
  * verdict's own `auto` rule (live when `MODEL_API_KEY` is set, canned
  * otherwise) so the two programs never disagree about what is about to run.
+ *
+ * `live` is the only choice that produces `model_backed: true`, and this
+ * function is the only thing that decides it: the stamp is minted from the
+ * choice, not from anything verdict reports back. So the two halves of "a model
+ * judged the page" have to be checked here, or the claim is made on trust.
+ * Verdict's `resolveModelRuntime` returns the MOCK client, without throwing,
+ * when `MODEL_API_KEY` is blank, even for an explicit `--model live`; a
+ * `VERDICT_MODEL=live` with a base URL and no key therefore used to run the
+ * mock client and be stamped as a real judgment. Both variables are required
+ * for `live`, so a configuration that cannot produce a judgment is refused at
+ * startup rather than described as one afterwards.
  */
 export function resolveVerdictModel(env: NodeJS.ProcessEnv): VerdictModelChoice {
   const requested = trimmed(env.VERDICT_MODEL) || "auto";
@@ -114,6 +125,15 @@ export function resolveVerdictModel(env: NodeJS.ProcessEnv): VerdictModelChoice 
       "a live verdict review needs MODEL_BASE_URL as well as MODEL_API_KEY. " +
         "The endpoint is never guessed; set MODEL_BASE_URL to your OpenAI-compatible endpoint, " +
         "or set VERDICT_MODEL=canned to run the pipeline without a model.",
+    );
+  }
+  if (choice === "live" && blank(env.MODEL_API_KEY)) {
+    throw new EngineConfigError(
+      "VERDICT_MODEL=live needs MODEL_API_KEY as well as MODEL_BASE_URL. Verdict falls back to " +
+        "its mock client when the key is missing, without failing, so this configuration would " +
+        "capture the page, judge nothing, and still be reported as a model-backed review. Set " +
+        "MODEL_API_KEY, or set VERDICT_MODEL=canned to run the pipeline without a model and have " +
+        "the payload say so.",
     );
   }
   return choice as VerdictModelChoice;
