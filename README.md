@@ -633,8 +633,8 @@ $ pnpm test
 
  RUN  v4.1.10
 
- Test Files  35 passed | 1 skipped (36)
-      Tests  337 passed | 2 skipped (339)
+ Test Files  39 passed | 1 skipped (40)
+      Tests  397 passed | 3 skipped (400)
 ```
 
 ```bash
@@ -646,7 +646,7 @@ pnpm review <https url>                                    # one review through 
 pnpm clean                                                 # remove build output
 ```
 
-The skipped file is `packages/mcp-server/test/production-postgres.test.ts`, which exercises migration arbitration against a real database and only runs when `MCP_TEST_DATABASE_URL` is set. With one supplied the suite is 36 files / 330 tests, all passing:
+Three tests do not run by default, and each names the environment variable that turns it on rather than passing quietly. Two of them are the skipped file, `packages/mcp-server/test/production-postgres.test.ts`, which exercises migration arbitration against a real database and runs when `MCP_TEST_DATABASE_URL` is set. With one supplied the suite is 40 files / 399 passed, 1 skipped:
 
 ```bash
 docker run --rm -d -p 5432:5432 \
@@ -657,6 +657,13 @@ MCP_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/mcp_review_tes
 ```
 
 That suite creates and drops its own schemas, so point it at a scratch database only.
+
+The third is the one still skipped above: `packages/mcp-types/test/golden.test.ts` compares this repository's copy of the shared result contract against a real verdict checkout, which needs one on disk. Point `VERDICT_REPO` at a clone and the suite is 40 files / 400 tests, none skipped. Without it the in-process test that does run proves only that nobody edited Bastion's copy, and its name says exactly that; the cross-repo comparison is the `upstream-fixtures` CI job, which checks verdict out and runs `scripts/verify-upstream-fixtures.mjs` against it.
+
+```bash
+git clone https://github.com/apatureai/verdict.git /tmp/verdict
+VERDICT_REPO=/tmp/verdict pnpm test
+```
 
 Nothing in the suite touches a model, a browser, a subprocess, or the network: the engine is a fixture mock, the verdict backends are driven through their process and transport seams, DNS is stubbed or answered from a constant, and the Postgres application plane runs in-process against [PGlite](https://pglite.dev). `vitest.config.ts` raises the timeouts to 30s because a cold first run instantiates PGlite (WASM Postgres) inside a hook.
 

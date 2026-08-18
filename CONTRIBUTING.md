@@ -39,8 +39,9 @@ pnpm clean       # tsc -b --clean, removes build output
 
 CI runs lint, typecheck, and test in that order, and a pull request needs all three green.
 
-On this tree with Node 24.14.0, `pnpm test` reports 29 files passed and 1 skipped (254 passed,
-2 skipped). The skipped file needs Postgres, below.
+On this tree with Node 24.14.0, `pnpm test` reports 39 files passed and 1 skipped (397 passed,
+3 skipped). Two of the skipped tests are the skipped file, which needs Postgres; the third needs a
+verdict checkout. Both are below, and neither passes quietly when it does not run.
 
 `pnpm build` also produces the runnable server and the worked example: `pnpm start:local` runs the
 credential-free MCP server over stdio, and `pnpm demo` drives a full review loop against it. If you
@@ -69,8 +70,24 @@ MCP_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/mcp_review_tes
   pnpm test
 ```
 
-With a database supplied the suite is 30 files / 256 tests, all passing. The suite creates and drops
-its own throwaway schemas, so point it at a scratch database, never a real one.
+With a database supplied the suite is 40 files / 399 passed and 1 skipped. The suite creates and
+drops its own throwaway schemas, so point it at a scratch database, never a real one.
+
+### The upstream-fixture test
+
+`packages/mcp-types/test/golden.test.ts` carries one test that compares this repository's copy of
+the shared result contract against a real `apatureai/verdict` checkout, so it needs one on disk and
+is skipped unless `VERDICT_REPO` points at a clone. It reports as SKIPPED rather than as a pass on
+purpose: a check that did not run must never look like a check that agreed. CI performs the same
+comparison in the separate `upstream-fixtures` job, which checks verdict out and runs
+`scripts/verify-upstream-fixtures.mjs`.
+
+```bash
+git clone https://github.com/apatureai/verdict.git /tmp/verdict
+VERDICT_REPO=/tmp/verdict pnpm test
+```
+
+With both variables set the suite is 40 files / 400 tests, none skipped.
 
 ## Layout
 
