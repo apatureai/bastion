@@ -39,7 +39,7 @@ pnpm clean       # tsc -b --clean, removes build output
 
 CI runs lint, typecheck, and test in that order, and a pull request needs all three green.
 
-On this tree with Node 24.14.0, `pnpm test` reports 39 files passed and 1 skipped (397 passed,
+On this tree with Node 24.14.0, `pnpm test` reports 39 files passed and 1 skipped (398 passed,
 3 skipped). Two of the skipped tests are the skipped file, which needs Postgres; the third needs a
 verdict checkout. Both are below, and neither passes quietly when it does not run.
 
@@ -70,7 +70,7 @@ MCP_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/mcp_review_tes
   pnpm test
 ```
 
-With a database supplied the suite is 40 files / 399 passed and 1 skipped. The suite creates and
+With a database supplied the suite is 40 files / 400 passed and 1 skipped. The suite creates and
 drops its own throwaway schemas, so point it at a scratch database, never a real one.
 
 ### The upstream-fixture test
@@ -87,7 +87,7 @@ git clone https://github.com/apatureai/verdict.git /tmp/verdict
 VERDICT_REPO=/tmp/verdict pnpm test
 ```
 
-With both variables set the suite is 40 files / 400 tests, none skipped.
+With both variables set the suite is 40 files / 401 tests, none skipped.
 
 ## Layout
 
