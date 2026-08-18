@@ -48,6 +48,13 @@ import {
  * characters while the engine's own fixture ids are five). Validating live calls
  * against the live listing is what makes that class of defect impossible to
  * merge.
+ *
+ * It only validates calls THIS repository writes, though, which leaves it blind
+ * to a catalog that permits more than the server accepts: no call written here
+ * would exercise the extra permission, so the suite stays green while a client
+ * that trusts the advertised contract gets a runtime rejection. That direction
+ * is issue #1 and it is covered next door, in `schema-permissiveness.test.ts`,
+ * which generates inputs from the advertised schema instead of from ours.
  */
 
 const CATALOG_PATH = fileURLToPath(new URL("../../../schemas/mcp-tools.json", import.meta.url));
