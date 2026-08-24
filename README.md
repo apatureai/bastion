@@ -27,7 +27,12 @@ pnpm demo
 
 > The server still identifies itself on the wire as `apature-mcp-review`. That name is part of the
 > MCP handshake and any client configuration that already references it, so the repository rename to
-> `bastion` deliberately left it alone. It spawns the server as a child process over stdio, completes a handshake, submits a review, reads it back four ways, acts on a finding, rechecks it, and gets denied on an unauthorized host:
+> `bastion` deliberately left it alone. The version it reports there is `1.3.0` — the protocol/tool-catalog
+> version, kept in lockstep across `serverInfo`, `schemas/mcp-tools.json` (`catalog_version`), and
+> `directory/server.json` by a drift test, and versioned independently of the npm package. The
+> repository, `package.json`, and the GitHub release track the distribution at `0.1.0`; the wire's
+> `1.3.0` is the tool contract a client negotiates against, and the two move on their own cadences on
+> purpose. It spawns the server as a child process over stdio, completes a handshake, submits a review, reads it back four ways, acts on a finding, rechecks it, and gets denied on an unauthorized host:
 
 ```console
 $ pnpm demo
@@ -253,13 +258,13 @@ Four details that make the claim checkable rather than decorative:
 - **`unjudged` is not an engine value.** No backend emits it. Bastion substitutes it, and only when `model_backed` is `false`. It is an explicit value rather than a null or a dropped key because a missing field reads as an older payload and invites a default, and because it sits outside the `ship`..`blocked` ordering, so a consumer comparing against a threshold gets no answer instead of a flattering one.
 - **The narrative is replaced, not annotated.** The fixture's prose is about a pricing page that does not exist. Presenting it as a description of your page would be the same lie as the grade, just in longer form, so on an unjudged path it does not appear at all.
 - **A backend cannot certify itself.** `provenance` is Bastion's statement, not the engine's. `parseEngineReviewResult` strips any `provenance` that arrives on the wire, and the adapter that fetched the result stamps its own immediately afterwards.
-- **The contract is enforced by a validator, not by a key check.** `packages/mcp-server/test/schema-conformance.test.ts` validates every tool call and every tool result, on both the judged and the unjudged path, against the schemas `tools/list` actually advertises, with Ajv in Draft 2020-12 mode. A presence check cannot see a field the payload emits and the schema does not declare; a validator can, and every output schema in the catalog sets `additionalProperties: false`. Validating the calls too is what catches the opposite failure, a published schema that rejects a call the server accepts. That still only checks calls this repository writes, so `schema-permissiveness.test.ts` covers the remaining direction: it generates a matrix of inputs from the advertised `inputSchema` itself, using the schema's own enum members and its declared length and item bounds, and fails if the server's parser rejects any of them. A catalog that promises more than the code honours is the failure a client hits and the repository never would.
+- **The contract is enforced by a validator, not by a key check.** `packages/mcp-server/test/schema-conformance.test.ts` validates every tool call and every tool result, on both the judged and the unjudged path, against the schemas `tools/list` actually advertises, with Ajv in Draft 2020-12 mode. A presence check cannot see a field the payload emits and the schema does not declare; a validator can, and every output schema in the catalog — down to the nested payload bodies an agent acts on, `job`, `review`, each finding item, `provenance`, `recheck` and its outcomes — sets `additionalProperties: false`, so an undeclared emitted field fails the validator rather than passing trivially over an open subtree. The one deliberate exception is the `details` bag on a typed error, which is an open extension point by contract. Validating the calls too is what catches the opposite failure, a published schema that rejects a call the server accepts. That still only checks calls this repository writes, so `schema-permissiveness.test.ts` covers the remaining direction: it generates a matrix of inputs from the advertised `inputSchema` itself, using the schema's own enum members and its declared length and item bounds, and fails if the server's parser rejects any of them. A catalog that promises more than the code honours is the failure a client hits and the repository never would.
 
 Where to verify each of these in the source: the stamps are minted in `packages/mcp-server/src/provenance.ts`, applied by `MockEngineClient` (`engine-client.ts`), `VerdictCliEngineClient` (`verdict-cli-engine.ts`), `VerdictJobEngineClient` (`verdict-job-engine.ts`) and `JudgmentEngineHttpClient` (`engine-http-client.ts`); the suppression rule is enforced in one place per payload, `mapEngineResultToCritique` (`critique-map.ts`) for reviews and `mapEngineRecheckToRecheck` (`recheck-map.ts`) for rechecks, through which every path into a `Critique` or a `Recheck` runs, plus `handlePanelAction` (`panel-interaction.ts`) for the routed fix; the wire strip is in `parseEngineReviewResult` (`engine-result.ts`); the field is required by `schemas/mcp-tools.json`; and `packages/mcp-server/test/provenance.test.ts` asserts, over the real MCP transport and against the round-tripped JSON only, that a fixture-path payload is distinguishable from a model-backed one.
 
 ### Connect your own MCP client
 
-The local server speaks MCP over stdio, which is what Claude Code, Cursor, Codex, and VS Code use for a local server:
+The local server speaks MCP over stdio, which is what Claude Code, Cursor, Codex, and VS Code use for a local server. Both configs below are also checked in under [`examples/`](examples/) so you can copy the file instead of the snippet:
 
 ```json
 {
@@ -548,6 +553,65 @@ This is the unconfigured server, the one `pnpm demo` drives. [Getting real judgm
 
 It boots, authenticates, persists, and migrates. It cannot complete a review until `ENGINE_BASE_URL` points at a judgment engine that speaks the `EngineJobClient` protocol (see [Status and roadmap](#status-and-roadmap)). The production root deliberately has no mock fallback: a server that answers with fixture judgments must be the local one, explicitly, never a misconfigured production one.
 
+### Try the remote edge locally (no database, no IdP, no model)
+
+That no-fallback rule is exactly what made the remote surface hard to experience: booting it means standing up an OAuth issuer and a Postgres plane first. So there is an explicit local walkthrough that composes the **same** transport, the **same** JWT verifier, and the **same** SSRF boundary against a fixture engine and an in-memory store:
+
+```bash
+pnpm build
+pnpm dev:http
+```
+
+It generates an ephemeral ES256 keypair, serves a real JWKS, mints a working bearer token, and prints a copy-pasteable recipe. Every judgment is a fixture and says so in `provenance` (`model_backed: false`), exactly like `pnpm demo`. A full authenticated session, verbatim:
+
+```bash
+# 1. In one terminal:
+pnpm dev:http
+#    → prints  export BASTION_TOKEN='eyJ...'   and the MCP endpoint (default http://127.0.0.1:8080/mcp)
+
+# 2. In another terminal, paste the exported token, then:
+export BASTION_MCP=http://127.0.0.1:8080/mcp
+
+# unauthenticated → 401 with an RFC 9728 WWW-Authenticate pointer
+curl -s -o /dev/null -w '%{http_code}\n' -X POST "$BASTION_MCP" \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+
+# authenticated initialize → 200, and the response headers carry mcp-session-id
+SID=$(curl -sD - -o /dev/null -X POST "$BASTION_MCP" \
+  -H "Authorization: Bearer $BASTION_TOKEN" -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}' \
+  | awk 'tolower($1)=="mcp-session-id:"{print $2}' | tr -d '\r')
+
+# tell the server the client is initialized, then list the tools
+curl -s -o /dev/null -X POST "$BASTION_MCP" -H "Authorization: Bearer $BASTION_TOKEN" \
+  -H "mcp-session-id: $SID" -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+
+curl -sN "$BASTION_MCP" -H "Authorization: Bearer $BASTION_TOKEN" -H "mcp-session-id: $SID" \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+
+# submit a review of the one seeded host (returns a running job you then poll)
+curl -sN "$BASTION_MCP" -H "Authorization: Bearer $BASTION_TOKEN" -H "mcp-session-id: $SID" \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"design_review","arguments":{"url":"https://preview.example.com/pricing","client_request_id":"curl-review-1"}}}'
+```
+
+The token carries `tenant_id` and the `reviews:cancel` scope — the exact claims [`jwt-verifier.ts`](packages/mcp-server/src/jwt-verifier.ts) requires. Need a fresh one, or one for a different tenant/scope? The dev issuer mints on demand: `curl -sX POST <issuer>/dev/token -d '{"tenantId":"acme","scope":"reviews:cancel"}'` (the issuer URL is printed at boot). The only host this dev server will authorize as a review target is `preview.example.com`; set `BASTION_ALLOWED_HOSTS=preview.mycompany.com` before `pnpm dev:http` to seed your own. None of this issuer code is reachable from the production root.
+
+### Registering a review target (what `verify_domain` means)
+
+In HTTP mode a target host is authorized only if a row exists for it in `mcp_review_targets` whose ownership verification has completed. A `design_review` of an unregistered host is rejected with `DOMAIN_UNVERIFIED` and `next_action: "verify_domain"`. Bastion does not yet issue or check the DNS / well-known / deployment proofs that put a row there ([roadmap item 5](#status-and-roadmap)); until a proof issuer exists, the operator — who controls the database — asserts ownership out of band and records it:
+
+```bash
+DATABASE_URL=postgres://... pnpm register-target --tenant <tenant_id> --host <hostname>
+```
+
+That writes a verified row under the same tenant row-level-security binding the server reads it with, after which a review of an `https://<hostname>/...` URL passes the gate. (The local stdio server and the `pnpm dev:http` walkthrough authorize hosts from `BASTION_ALLOWED_HOSTS` instead, so they need no database.)
+
 **There is no hosted endpoint, and no URL here to point a client at.** Nobody operates a public instance of this server, so `directory/server.json` declares no `remotes` at all rather than publishing a host that would not answer. If you deploy it, take the `ai.apature/self_hosted_remote_template` block out of that file's `_meta`, put your own host in it, and move it up into a real `remotes` array before submitting the listing anywhere. A test enforces that the checked-in listing stays remote-free while that is the truth.
 
 ### Configuration
@@ -622,6 +686,7 @@ packages/mcp-server/
 
 schemas/                           machine-readable tool catalog, error and feedback schemas
 directory/server.json              the MCP registry listing
+examples/                          copy-pasteable client configs + a dev HTTP session script
 ```
 
 Some source comments cite design documents by shorthand (`TRD §4.1`, `THREAT_MODEL T1`) and issue numbers from a private tracker. Those documents are not in this repository; the citations are left in place as provenance for the decisions they explain.
@@ -633,8 +698,8 @@ $ pnpm test
 
  RUN  v4.1.10
 
- Test Files  39 passed | 1 skipped (40)
-      Tests  398 passed | 3 skipped (401)
+ Test Files  40 passed | 1 skipped (41)
+      Tests  404 passed | 3 skipped (407)
 ```
 
 ```bash
@@ -642,11 +707,13 @@ pnpm lint                                                  # eslint, warnings fa
 pnpm typecheck                                             # tsc -b across project references
 pnpm test packages/mcp-server/test/local-server.test.ts    # one file
 pnpm demo                                                  # the fixture-backed protocol walkthrough
+pnpm dev:http                                              # the remote HTTP + OAuth edge, locally, fixture judgments
 pnpm review <https url>                                    # one review through the configured backend
+pnpm register-target --tenant <t> --host <h>               # verify a target host in HTTP mode (needs DATABASE_URL)
 pnpm clean                                                 # remove build output
 ```
 
-Three tests do not run by default, and each names the environment variable that turns it on rather than passing quietly. Two of them are the skipped file, `packages/mcp-server/test/production-postgres.test.ts`, which exercises migration arbitration against a real database and runs when `MCP_TEST_DATABASE_URL` is set. With one supplied the suite is 40 files / 400 passed, 1 skipped:
+Three tests do not run by default, and each names the environment variable that turns it on rather than passing quietly. Two of them are the skipped file, `packages/mcp-server/test/production-postgres.test.ts`, which exercises migration arbitration against a real database and runs when `MCP_TEST_DATABASE_URL` is set. With one supplied the suite is 41 files / 406 passed, 1 skipped:
 
 ```bash
 docker run --rm -d -p 5432:5432 \
@@ -658,7 +725,7 @@ MCP_TEST_DATABASE_URL=postgres://postgres:postgres@127.0.0.1:5432/mcp_review_tes
 
 That suite creates and drops its own schemas, so point it at a scratch database only.
 
-The third is the one still skipped above: `packages/mcp-types/test/golden.test.ts` compares this repository's copy of the shared result contract against a real verdict checkout, which needs one on disk. Point `VERDICT_REPO` at a clone and the suite is 40 files / 401 tests, none skipped. Without it the in-process test that does run proves only that nobody edited Bastion's copy, and its name says exactly that; the cross-repo comparison is the `upstream-fixtures` CI job, which checks verdict out and runs `scripts/verify-upstream-fixtures.mjs` against it.
+The third is the one still skipped above: `packages/mcp-types/test/golden.test.ts` compares this repository's copy of the shared result contract against a real verdict checkout, which needs one on disk. Point `VERDICT_REPO` at a clone and the suite is 41 files / 407 tests, none skipped. Without it the in-process test that does run proves only that nobody edited Bastion's copy, and its name says exactly that; the cross-repo comparison is the `upstream-fixtures` CI job, which checks verdict out and runs `scripts/verify-upstream-fixtures.mjs` against it.
 
 ```bash
 git clone https://github.com/apatureai/verdict.git /tmp/verdict
@@ -667,7 +734,7 @@ VERDICT_REPO=/tmp/verdict pnpm test
 
 Nothing in the suite touches a model, a browser, a subprocess, or the network: the engine is a fixture mock, the verdict backends are driven through their process and transport seams, DNS is stubbed or answered from a constant, and the Postgres application plane runs in-process against [PGlite](https://pglite.dev). `vitest.config.ts` raises the timeouts to 30s because a cold first run instantiates PGlite (WASM Postgres) inside a hook.
 
-Both workspace packages are `private`; there is no published npm package yet. See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and how changes get reviewed.
+Both workspace packages (`@apature/mcp-types`, `@apature/mcp-server`) are prepared for publishing — public `access`, a `prepublishOnly` build, and a `README`/`LICENSE` in each tarball — but nothing is on the npm registry yet. Publishing happens through [`.github/workflows/release.yml`](.github/workflows/release.yml) when a `vX.Y.Z` tag is pushed, and it needs a maintainer to own the `@apature` scope and add an `NPM_TOKEN` secret first (the workflow header spells out the steps). See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and how changes get reviewed.
 
 ## Status and roadmap
 

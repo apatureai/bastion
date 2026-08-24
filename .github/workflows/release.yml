@@ -1,0 +1,87 @@
+name: Release
+
+# Publishes the two public workspace packages (@apature/mcp-types,
+# @apature/mcp-server) to the npm registry when a version tag is pushed.
+#
+# MAINTAINER SETUP (required before this can publish):
+#   1. Own the @apature scope on npmjs.com and both package names under it.
+#   2. Add a repository secret named NPM_TOKEN: an npm automation token with
+#      publish rights to the @apature scope (Settings → Secrets and variables →
+#      Actions). Without it every publish step fails with an auth error.
+#   3. Tag a release commit whose root package.json `version` matches the tag,
+#      e.g. `git tag v0.1.0 && git push origin v0.1.0`. The guard job below
+#      refuses to publish a tag that does not match package.json.
+#
+# Provenance (`--provenance`) attaches a signed build attestation to each
+# tarball; it needs `id-token: write`, granted below.
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  guard:
+    name: tag matches package.json
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Assert tag equals root version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          pkg="$(node -p "require('./package.json').version")"
+          echo "tag=$tag package.json=$pkg"
+          if [ "$tag" != "$pkg" ]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match package.json version $pkg"
+            exit 1
+          fi
+
+  publish:
+    name: build · test · publish
+    needs: guard
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for npm provenance
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6
+        with:
+          version: 9.15.0
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Test
+        run: pnpm test
+
+      - name: Publish to npm (with provenance)
+        # `-r` recurses the workspace; pnpm rewrites `workspace:*` to the real
+        # version. `--access public` matches each package's publishConfig.
+        # Publishing is idempotent per version: a version already on the
+        # registry is skipped rather than failing the run.
+        run: pnpm -r publish --access public --provenance --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

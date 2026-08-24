@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "apature-review": {
+      "command": "node",
+      "args": ["/absolute/path/to/bastion/packages/mcp-server/dist/local-stdio.js"],
+      "env": {
+        "BASTION_ALLOWED_HOSTS": "preview.mycompany.com",
+        "VERDICT_CLI": "/absolute/path/to/verdict",
+        "MODEL_BASE_URL": "https://your-openai-compatible-endpoint/v1",
+        "MODEL_API_KEY": "sk-..."
+      }
+    }
+  }
+}

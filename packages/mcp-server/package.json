@@ -1,10 +1,12 @@
 {
   "name": "@apature/mcp-server",
   "version": "0.1.0",
-  "private": true,
   "description": "Apature Bastion server: agent-facing MCP tools (design_review, design_review_get) over the Verdict review surface.",
   "license": "MIT",
   "author": "Aditya Prathapa",
+  "publishConfig": {
+    "access": "public"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/apatureai/bastion.git",
@@ -21,11 +23,15 @@
   },
   "files": [
     "dist",
-    "migrations"
+    "migrations",
+    "scripts",
+    "README.md",
+    "LICENSE"
   ],
   "scripts": {
     "test": "vitest run",
-    "start": "node dist/boot.js"
+    "start": "node dist/boot.js",
+    "prepublishOnly": "tsc -b"
   },
   "dependencies": {
     "@apature/mcp-types": "workspace:*",
