@@ -138,6 +138,7 @@ export type {
 export {
   classifyAddress,
   isAddressAllowed,
+  isLoopbackHost,
 } from "./egress.js";
 export type { EgressVerdict, ProhibitedReason } from "./egress.js";
 export {
@@ -147,6 +148,7 @@ export {
   TargetAuthError,
 } from "./target-auth.js";
 export type {
+  AuthorizeTargetOptions,
   CanonicalTarget,
   DnsResolver,
   TargetAuthFailureReason,

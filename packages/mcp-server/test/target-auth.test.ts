@@ -38,8 +38,14 @@ describe("canonicalizeTarget (TRD §7.3)", () => {
     );
   });
 
-  it("rejects http", () => {
-    expect(() => canonicalizeTarget("http://preview.example.com")).toThrowError(TargetAuthError);
+  it("rejects http on a remote host", () => {
+    try {
+      canonicalizeTarget("http://preview.example.com");
+      throw new Error("expected rejection");
+    } catch (err) {
+      expect(err).toBeInstanceOf(TargetAuthError);
+      expect((err as TargetAuthError).reason).toBe("not_https");
+    }
   });
 
   it("rejects userinfo", () => {
@@ -58,8 +64,54 @@ describe("canonicalizeTarget (TRD §7.3)", () => {
     }
   });
 
-  it("rejects an IPv6-literal target", () => {
-    expect(() => canonicalizeTarget("https://[::1]/")).toThrowError(TargetAuthError);
+  it("rejects a non-loopback IPv6-literal target", () => {
+    try {
+      canonicalizeTarget("https://[2606:4700:4700::1111]/");
+      throw new Error("expected rejection");
+    } catch (err) {
+      expect(err).toBeInstanceOf(TargetAuthError);
+      expect((err as TargetAuthError).reason).toBe("ip_literal");
+    }
+  });
+
+  describe("loopback dev-host exception (localhost, 127.0.0.0/8, ::1)", () => {
+    it("allows plain http to localhost, keeping the port", () => {
+      const t = canonicalizeTarget("http://localhost:5173/pricing");
+      expect(t.host).toBe("localhost");
+      expect(t.url).toBe("http://localhost:5173/pricing");
+    });
+
+    it("allows a 127.0.0.0/8 IPv4 literal over http", () => {
+      const t = canonicalizeTarget("http://127.0.0.1:3000/");
+      expect(t.host).toBe("127.0.0.1");
+      expect(t.url).toBe("http://127.0.0.1:3000/");
+    });
+
+    it("allows the ::1 IPv6 literal over http", () => {
+      const t = canonicalizeTarget("http://[::1]:8080/");
+      expect(t.host).toBe("::1");
+      expect(t.url).toBe("http://[::1]:8080/");
+    });
+
+    it("also allows https to a loopback host", () => {
+      expect(canonicalizeTarget("https://localhost/").url).toBe("https://localhost/");
+    });
+
+    it("does NOT extend the exception to a non-loopback private host over http", () => {
+      // 10.x is private, not loopback: it gets neither the http nor the
+      // IP-literal relief, and is rejected at the scheme gate.
+      try {
+        canonicalizeTarget("http://10.0.0.5/");
+        throw new Error("expected rejection");
+      } catch (err) {
+        expect(err).toBeInstanceOf(TargetAuthError);
+        expect((err as TargetAuthError).reason).toBe("not_https");
+      }
+    });
+
+    it("does NOT treat a hostname that merely contains 'localhost' as loopback", () => {
+      expect(() => canonicalizeTarget("http://localhost.evil.com/")).toThrowError(TargetAuthError);
+    });
   });
 });
 
@@ -119,5 +171,33 @@ describe("authorizeTarget (full SSRF guard — issue #4)", () => {
     await expect(
       authorizeTarget("https://preview.example.com/", allowlist, resolver),
     ).rejects.toMatchObject({ reason: "no_dns_records" });
+  });
+
+  it("authorizes a named loopback dev host without allowlist or DNS, when allowLoopback is set", async () => {
+    // localhost is not on the allowlist and the resolver knows nothing about it;
+    // the opted-in exception short-circuits before either is consulted.
+    const emptyList: TenantAllowlist = { tenantId: "tenant-1", targets: [] };
+    const t = await authorizeTarget("http://localhost:5173/", emptyList, resolverFor({}), {
+      allowLoopback: true,
+    });
+    expect(t.host).toBe("localhost");
+    expect(t.url).toBe("http://localhost:5173/");
+  });
+
+  it("does NOT grant the loopback exception by default (production edge)", async () => {
+    // Without allowLoopback, a loopback host is treated like any other: unverified.
+    const emptyList: TenantAllowlist = { tenantId: "tenant-1", targets: [] };
+    await expect(
+      authorizeTarget("http://localhost:5173/", emptyList, resolverFor({})),
+    ).rejects.toMatchObject({ reason: "domain_unverified" });
+  });
+
+  it("still rejects a PUBLIC host that resolves ONLY to loopback, even with allowLoopback on", async () => {
+    // The exception is keyed on the literal host, so a verified public name that
+    // resolves to 127.0.0.1 gets no relief and is stopped by the egress denylist.
+    const resolver = resolverFor({ "preview.example.com": ["127.0.0.1"] });
+    await expect(
+      authorizeTarget("https://preview.example.com/", allowlist, resolver, { allowLoopback: true }),
+    ).rejects.toMatchObject({ reason: { egress: "loopback" } });
   });
 });

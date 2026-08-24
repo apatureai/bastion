@@ -113,6 +113,15 @@ export type ReviewServiceDeps = {
   allowlist?: TenantAllowlist;
   /** DNS resolver seam used only when `allowlist` is set. Never real net in tests. */
   resolver?: DnsResolver;
+  /**
+   * Grant the local-dev exception: an explicitly named loopback target
+   * (localhost, 127.0.0.0/8, ::1) is authorized without allowlist or egress
+   * checks, so an agent can review its own local http dev server. OFF by
+   * default and MUST stay off for the production hosted edge, where loopback is
+   * the shared capture host's own interface. Only the local stdio server turns
+   * it on. See {@link AuthorizeTargetOptions.allowLoopback}.
+   */
+  allowLoopbackTargets?: boolean;
   /** Override the recheck budget/backoff/rate-limit defaults (issue #5). */
   recheckLimits?: Partial<RecheckLimitConfig>;
   /** Identity used for the per-principal recheck burst limit. */
@@ -160,6 +169,7 @@ export class ReviewService {
   private readonly newId: (prefix: string) => string;
   private readonly allowlist: TenantAllowlist | null;
   private readonly resolver: DnsResolver | null;
+  private readonly allowLoopbackTargets: boolean;
   private readonly limiter: RecheckLimiter;
   private readonly principalId: string;
   private readonly tenantId: string;
@@ -179,6 +189,7 @@ export class ReviewService {
     this.newId = deps.newId ?? ((prefix) => `${prefix}_${randomUUID()}`);
     this.allowlist = deps.allowlist ?? null;
     this.resolver = deps.resolver ?? null;
+    this.allowLoopbackTargets = deps.allowLoopbackTargets ?? false;
     this.principalId = deps.principalId ?? "principal";
     this.tenantId = deps.tenantId ?? "test-tenant";
     this.store = deps.store ?? new InMemoryReviewApplicationStore();
@@ -832,7 +843,9 @@ export class ReviewService {
         "target authorization is misconfigured: both an allowlist and a resolver are required",
       );
     }
-    await authorizeTarget(url, this.allowlist, this.resolver);
+    await authorizeTarget(url, this.allowlist, this.resolver, {
+      allowLoopback: this.allowLoopbackTargets,
+    });
   }
 
   /** Replay a prior recheck job for an idempotent retry (no new charge). */

@@ -23,7 +23,12 @@ import type { EvidenceProvider } from "./evidence.js";
  * What is real here, always:
  *   - the MCP server, its tool catalog, input validation, and error taxonomy;
  *   - target authorization: canonicalization, verified-host lookup, and the full
- *     egress classification;
+ *     egress classification. Because this server runs on the agent's own machine,
+ *     it grants the one local-dev exception: a target whose LITERAL host is
+ *     loopback (localhost, 127.0.0.0/8, ::1) may be plain http and skips the
+ *     allowlist/egress checks — it is the agent's own dev server. A public name
+ *     that merely resolves to loopback is still rejected. The production edge
+ *     never grants this;
  *   - job lifecycle, idempotency, budgets, recheck rejection and throttling;
  *   - result shaping: views, multimedia content blocks, and the panel reducer.
  *
@@ -106,6 +111,11 @@ export function createLocalReviewServer(options: LocalReviewServerOptions = {}):
     scopes: [REVIEWS_CANCEL_SCOPE],
     allowlist: { tenantId: "local", targets: hosts.map((host) => ({ kind: "host", host })) },
     resolver: options.resolver ?? createLocalDnsResolver(),
+    // This server runs on the agent's own machine, so a loopback target is the
+    // agent's own dev server: grant the plain-http loopback exception here. The
+    // production hosted edge (production.ts) never sets this, so it keeps the
+    // full SSRF guard and refuses a loopback target like any unverified host.
+    allowLoopbackTargets: true,
     // The local host is assumed to render both surfaces, so the evidence view
     // exercises the image blocks AND the MCP-Apps panel rather than degrading.
     hostMedia: { images: true, appsPanel: true },

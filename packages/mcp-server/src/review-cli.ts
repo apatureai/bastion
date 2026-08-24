@@ -6,6 +6,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { CritiqueCoverage } from "@apature/mcp-types";
 import { coverageLines } from "./coverage.js";
+import { isLoopbackHost } from "./egress.js";
 import { EngineConfigError, resolveEngineRuntime, type EngineRuntime } from "./engine-runtime.js";
 
 /**
@@ -19,9 +20,19 @@ import { EngineConfigError, resolveEngineRuntime, type EngineRuntime } from "./e
  * the same server prints to Claude Code, Cursor or Codex.
  *
  * The target host is authorized for this run because you named it on the
- * command line, and the CLI says so before it runs. Everything else in the
- * boundary still applies: https only, no IP literals, real DNS resolution, and
- * the egress classification, so a private or loopback target is still rejected.
+ * command line, and the CLI says so before it runs. The rest of the boundary
+ * still applies: for a remote target it is https only, no IP literals, real DNS
+ * resolution, and the egress classification, so a public host that resolves to a
+ * private or loopback address is still rejected. The one exception is a loopback
+ * dev host you name explicitly (localhost, 127.0.0.0/8, ::1): that is the agent's
+ * own dev server, so plain http and the loopback address are allowed for it — but
+ * only when the literal host is loopback, never for a remote name that resolves
+ * there.
+ *
+ * Exit status: 0 on a completed review; 1 when the server REJECTS the target
+ * (an SSRF-boundary rejection such as DOMAIN_UNVERIFIED is the guard working, not
+ * a crash, and the code + reason are printed); 2 on a usage or engine-config
+ * error before any review runs.
  */
 
 const SERVER_ENTRY = fileURLToPath(new URL("./local-stdio.js", import.meta.url));
@@ -29,13 +40,21 @@ const SERVER_ENTRY = fileURLToPath(new URL("./local-stdio.js", import.meta.url))
 const USAGE = `bastion review: run one design review through the local MCP server.
 
 Usage:
-  node packages/mcp-server/dist/review-cli.js <https url> [options]
+  node packages/mcp-server/dist/review-cli.js <url> [options]
+
+The url must be https, except a loopback dev host (localhost, 127.0.0.0/8, ::1)
+which may be plain http, so a local dev server can be reviewed in-loop.
 
 Options:
   --routes <a,b>       Root-relative routes to review (default: the URL's own path)
   --viewports <a,b>    mobile, tablet, desktop (default: mobile,desktop)
   --out <dir>          Where review.json and panel.html are written (default: out)
   -h, --help           Show this message
+
+Exit status:
+  0  a review completed (read out/review.json; check provenance.model_backed)
+  1  the server rejected the target (e.g. DOMAIN_UNVERIFIED) — the boundary working
+  2  a usage or engine-configuration error, before any review ran
 
 Environment (see README):
   VERDICT_CLI          path to a built apatureai/verdict checkout; without it the
@@ -90,8 +109,10 @@ function parseArgs(argv: readonly string[]): Options | null {
   } catch {
     throw new UsageError(`"${url}" is not an absolute URL`);
   }
-  if (parsed.protocol !== "https:") {
-    throw new UsageError("only https targets are supported; the server rejects everything else");
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && isLoopbackHost(parsed.hostname))) {
+    throw new UsageError(
+      "only https targets are supported; plain http is allowed only for a loopback dev host (localhost, 127.0.0.0/8, ::1)",
+    );
   }
   return {
     url,
