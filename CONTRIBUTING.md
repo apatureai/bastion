@@ -164,3 +164,30 @@ Please report vulnerabilities privately rather than in a pull request. See [SECU
   so there is nothing to argue about there.
 - For anything large, or anything that changes a contract in `mcp-types`, open an issue first so the
   design conversation happens before you write the code.
+- User-facing changes should add a bullet under `## [Unreleased]` in
+  [CHANGELOG.md](CHANGELOG.md). Internal refactors that change nothing an adopter observes do not
+  need one.
+
+## Releasing
+
+Maintainer flow; contributors do not cut releases. Two version numbers live in this repo and they
+are deliberately independent:
+
+- The **release version** (`0.1.0`) is the npm package version, the git tag, and the
+  [CHANGELOG.md](CHANGELOG.md) heading. It is what an adopter pins.
+- The **catalog version** (`1.3.0`) is the MCP contract version advertised by
+  `directory/server.json`, `schemas/mcp-tools.json`, and the server handshake, held identical across
+  the three by `catalog-drift.test.ts`. It moves when the tool surface changes, not when a release is
+  cut. See the README's [Versioning](README.md#versioning-two-numbers-on-purpose) section.
+
+To cut a release:
+
+1. Move the `## [Unreleased]` notes in `CHANGELOG.md` under a dated `## [x.y.z]` heading and bump
+   `version` in the root and both package `package.json` files.
+2. `git tag vX.Y.Z && git push origin vX.Y.Z`.
+
+`.github/workflows/release.yml` then builds, runs the suite, verifies the tag matches
+`package.json`, creates the GitHub release from the changelog section, and publishes both packages
+to npm with provenance **only if** an `NPM_TOKEN` repository secret is set. Without that secret the
+publish step is skipped, so tagging never publishes by surprise. See the README's
+[Releasing](README.md#releasing) section for the full description.

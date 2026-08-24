@@ -9,10 +9,10 @@ export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
-    // Plain Node ESM scripts, run by `node` and by CI directly rather than
-    // compiled. They are not TypeScript, so nothing else here tells the linter
-    // that the Node globals exist.
-    files: ["scripts/**/*.mjs"],
+    // Plain Node ESM scripts and examples, run by `node` and by CI directly
+    // rather than compiled. They are not TypeScript, so nothing else here tells
+    // the linter that the Node globals exist.
+    files: ["scripts/**/*.mjs", "examples/**/*.mjs"],
     languageOptions: {
       globals: {
         console: "readonly",

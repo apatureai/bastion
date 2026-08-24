@@ -102,6 +102,8 @@ open out/panel.html      # macOS; use xdg-open on Linux
 
 The panel is self-contained HTML with no scripts, no external requests, and evidence embedded as `data:` URIs. The `job_*` and `rev_*` ids are freshly generated, so yours will differ from the transcript.
 
+> The `v1.3.0` in `connected to apature-mcp-review v1.3.0` is the MCP **catalog** version the server advertises on the wire, not the release version (`0.1.0`) you cloned. They are two different numbers on purpose; [Versioning: two numbers, on purpose](#versioning-two-numbers-on-purpose) explains which is which and where each one lives.
+
 If `pnpm demo` reports `Cannot find module`, `pnpm build` has not been run. If step 2 comes back `DNS_TARGET_PROHIBITED` instead of a job, something changed `LOCAL_RESOLVED_ADDRESS` in `packages/mcp-server/src/local-server.ts` to a non-public address, and that rejection is the SSRF guard working.
 
 ### Provenance: did anything judge this page?
@@ -622,6 +624,7 @@ packages/mcp-server/
 
 schemas/                           machine-readable tool catalog, error and feedback schemas
 directory/server.json              the MCP registry listing
+examples/local-review/             standalone, dependency-free review loop over MCP stdio (see examples/README.md)
 ```
 
 Some source comments cite design documents by shorthand (`TRD §4.1`, `THREAT_MODEL T1`) and issue numbers from a private tracker. Those documents are not in this repository; the citations are left in place as provenance for the decisions they explain.
@@ -667,7 +670,55 @@ VERDICT_REPO=/tmp/verdict pnpm test
 
 Nothing in the suite touches a model, a browser, a subprocess, or the network: the engine is a fixture mock, the verdict backends are driven through their process and transport seams, DNS is stubbed or answered from a constant, and the Postgres application plane runs in-process against [PGlite](https://pglite.dev). `vitest.config.ts` raises the timeouts to 30s because a cold first run instantiates PGlite (WASM Postgres) inside a hook.
 
-Both workspace packages are `private`; there is no published npm package yet. See [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and how changes get reviewed.
+`@apature/mcp-server` and `@apature/mcp-types` are prepared for publishing under the `@apature` scope (correct `files`/`exports`/`types`, `publishConfig`, and a `prepack` build), but nothing is published to npm yet: publishing waits on the maintainer adding an `NPM_TOKEN` secret and pushing a version tag. See [Releasing](#releasing) for the flow and [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and how changes get reviewed.
+
+## Versioning: two numbers, on purpose
+
+This repository carries two independent version numbers, and they do not, and are not meant to,
+agree. Seeing them differ is not a bug.
+
+| | Release version | Catalog version |
+|---|---|---|
+| Value today | `0.1.0` | `1.3.0` |
+| Where it lives | `package.json` (both packages), the git tag, the GitHub release, [`CHANGELOG.md`](CHANGELOG.md) | `directory/server.json`, `schemas/mcp-tools.json`, and the MCP handshake (`serverInfo.version`) |
+| Where you see it | `npm install`, the release page, the changelog | `connected to apature-mcp-review v1.3.0` when a client connects |
+| What it tracks | this codebase as a shipped artifact: what you pin, clone, and cite | the agent-facing MCP contract: the tool surface, its input and output schemas, and the protocol baseline |
+| When it moves | when a release is cut | when the published tool contract changes |
+
+The **catalog version** is deliberately held identical across `directory/server.json`,
+`schemas/mcp-tools.json`, and the server's `serverInfo`, and the `catalog-drift` test
+(`packages/mcp-server/test/catalog-drift.test.ts`) fails the build if the three ever drift apart. It
+is the number a coding agent negotiates against, so it belongs to the contract, not to the release
+calendar: the tool surface reached `1.x` and settled long before the repository was first tagged for
+release at `0.1.0`.
+
+So the mapping an adopter needs is this one: the thing you clone, pin, and read this changelog for is
+the **release version**. The `v1.3.0` a client prints on connect is the **catalog version**, and it
+maps to the tool contract in `schemas/mcp-tools.json`, not to a changelog entry. If you need to cite
+"the version of bastion I ran", cite the release version (the git tag), and note the catalog version
+alongside it if the tool surface is what matters.
+
+## Releasing
+
+Releases are cut from a git tag and automated by
+[`.github/workflows/release.yml`](.github/workflows/release.yml). The tag tracks the **release
+version** above.
+
+1. Land the change set on `main`. Move the `## [Unreleased]` notes in [`CHANGELOG.md`](CHANGELOG.md)
+   under a new `## [x.y.z] - YYYY-MM-DD` heading, and bump `version` in both package `package.json`
+   files (and the root) to `x.y.z`.
+2. Tag and push: `git tag vX.Y.Z && git push origin vX.Y.Z`.
+3. The workflow builds, runs the full suite, verifies the tag matches `package.json`, and creates a
+   GitHub release whose notes are the matching `CHANGELOG.md` section.
+4. **npm publish is opt-in.** The workflow publishes both packages to npm with provenance *only if an
+   `NPM_TOKEN` secret is present* on the repository; without it the publish step is skipped and only
+   the GitHub release is created. To enable publishing, the maintainer adds an npm automation token
+   as the `NPM_TOKEN` repository secret (Settings -> Secrets and variables -> Actions). Nothing here
+   publishes to npm automatically until that secret exists.
+
+The catalog version is not touched by this flow. It moves only when the tool contract in
+`schemas/mcp-tools.json` and `directory/server.json` changes, together, as the `catalog-drift` test
+requires.
 
 ## Status and roadmap
 
