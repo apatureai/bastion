@@ -21,8 +21,10 @@
     "test": "vitest run",
     "lint": "eslint . --max-warnings=0",
     "start:local": "node packages/mcp-server/dist/local-stdio.js",
+    "dev:http": "node packages/mcp-server/dist/dev-http-boot.js",
     "demo": "node packages/mcp-server/dist/demo.js",
-    "review": "node packages/mcp-server/dist/review-cli.js"
+    "review": "node packages/mcp-server/dist/review-cli.js",
+    "register-target": "node packages/mcp-server/scripts/register-target.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
