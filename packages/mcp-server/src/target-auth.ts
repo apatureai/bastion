@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 import type { ProhibitedReason } from "./egress.js";
-import { classifyAddress } from "./egress.js";
+import { classifyAddress, isLoopbackHost } from "./egress.js";
 
 /**
  * Target authorization (TRD §7, THREAT_MODEL T1/T2). Proves that a tenant is
@@ -65,6 +65,13 @@ export type CanonicalTarget = {
  * lowercases/IDNA-normalizes the host, drops the default port, normalizes an
  * empty path to "/", and REJECTS IP-literal targets (customer previews must use
  * an ownership-verified hostname, never a raw IP).
+ *
+ * The single exception is an explicitly named loopback target (`localhost`,
+ * 127.0.0.0/8, `::1`): a local dev server the agent runs itself. For that host
+ * plain http is permitted and the IP-literal form (`127.0.0.1`, `[::1]`) is
+ * allowed, because those literals ARE the loopback name. The exception keys off
+ * the literal host (`isLoopbackHost`), never DNS, so a public hostname is
+ * unaffected here and still faces the full guard in `authorizeTarget`.
  */
 export function canonicalizeTarget(raw: string): CanonicalTarget {
   let parsed: URL;
@@ -74,14 +81,7 @@ export function canonicalizeTarget(raw: string): CanonicalTarget {
     throw new TargetAuthError("unparseable", `url is not a valid absolute URL: ${raw}`);
   }
 
-  if (parsed.protocol !== "https:") {
-    throw new TargetAuthError("not_https", "only https preview URLs are supported in v1");
-  }
-  if (parsed.username !== "" || parsed.password !== "") {
-    throw new TargetAuthError("userinfo_present", "credentials in the URL are not allowed");
-  }
-
-  // WHATWG URL lowercases and IDNA-encodes the host and drops the default :443.
+  // WHATWG URL lowercases and IDNA-encodes the host and drops the default port.
   // IPv6 literals come back bracketed (e.g. "[::1]"); strip the brackets so
   // `isIP` recognizes them and the denylist sees a bare address.
   const rawHost = parsed.hostname;
@@ -90,8 +90,21 @@ export function canonicalizeTarget(raw: string): CanonicalTarget {
   }
   const host =
     rawHost.startsWith("[") && rawHost.endsWith("]") ? rawHost.slice(1, -1) : rawHost;
-  // Reject IP-literal targets for customer previews (§7.3, T1).
-  if (isIP(host) !== 0) {
+  const loopback = isLoopbackHost(host);
+
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback)) {
+    throw new TargetAuthError(
+      "not_https",
+      "only https preview URLs are supported (plain http is allowed only for a loopback dev host: localhost, 127.0.0.0/8, ::1)",
+    );
+  }
+  if (parsed.username !== "" || parsed.password !== "") {
+    throw new TargetAuthError("userinfo_present", "credentials in the URL are not allowed");
+  }
+  // Reject IP-literal targets for customer previews (§7.3, T1). A loopback
+  // literal is the one allowed IP form, since it names the local machine, not a
+  // reachable customer host.
+  if (isIP(host) !== 0 && !loopback) {
     throw new TargetAuthError("ip_literal", "IP-literal targets are not allowed for previews");
   }
 
@@ -124,6 +137,17 @@ export async function authorizeTarget(
   resolver: DnsResolver,
 ): Promise<CanonicalTarget> {
   const target = canonicalizeTarget(raw);
+
+  // Narrow local-dev exception: an explicitly named loopback target is the
+  // agent's own dev server. It needs no ownership verification (you can only
+  // reach your own machine, so there is nothing to prove you own) and MUST skip
+  // the egress denylist, which classifies every loopback address as prohibited
+  // by design. This is gated strictly on the LITERAL host via `canonicalizeTarget`
+  // + `isLoopbackHost`, so a public hostname that resolves to loopback never
+  // reaches this branch and still hits the DNS-rebind / egress checks below.
+  if (isLoopbackHost(target.host)) {
+    return target;
+  }
 
   if (!isHostVerified(target.host, allowlist)) {
     throw new TargetAuthError(

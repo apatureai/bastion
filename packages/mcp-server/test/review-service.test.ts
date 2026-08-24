@@ -134,6 +134,36 @@ describe("ReviewService SSRF guard (issue #4)", () => {
     expect(ok.budget.tenant_units_remaining).toBe(999);
   });
 
+  it("accepts a plain-http loopback dev target end to end, without allowlisting it", async () => {
+    // The whole point of the local-dev exception: an agent's own dev server on
+    // http://localhost is reviewable through the full submit pipeline even though
+    // "localhost" is not on the allowlist and the resolver would reject it.
+    const service = new ReviewService({
+      engine: new MockEngineClient(),
+      now: () => new Date("2026-06-22T00:00:00.000Z"),
+      newId: (prefix) => `${prefix}_loop0001`,
+      allowlist: { tenantId: "t1", targets: [{ kind: "host", host: "preview.example.com" }] },
+      resolver: { resolve: async () => ["127.0.0.1"] },
+    });
+    const out = await service.submitReview({
+      url: "http://localhost:5173/",
+      client_request_id: "req-loopback-1",
+    });
+    expect(out.job.status).toBe("completed");
+    expect(out.budget.units_reserved).toBe(1);
+  });
+
+  it("still rejects a verified host that resolves only to loopback (rebind, not the exception)", async () => {
+    const service = new ReviewService({
+      engine: new MockEngineClient(),
+      allowlist: { tenantId: "t1", targets: [{ kind: "host", host: "preview.example.com" }] },
+      resolver: { resolve: async () => ["127.0.0.1"] },
+    });
+    await expect(service.submitReview(base)).rejects.toMatchObject({
+      reason: { egress: "loopback" },
+    });
+  });
+
   it("fails closed when only the allowlist is configured (no resolver)", async () => {
     const service = new ReviewService({
       engine: new MockEngineClient(),

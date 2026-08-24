@@ -138,6 +138,7 @@ export type {
 export {
   classifyAddress,
   isAddressAllowed,
+  isLoopbackHost,
 } from "./egress.js";
 export type { EgressVerdict, ProhibitedReason } from "./egress.js";
 export {

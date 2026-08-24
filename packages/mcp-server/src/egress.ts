@@ -191,3 +191,30 @@ export function classifyAddress(addr: string): EgressVerdict {
 export function isAddressAllowed(addr: string): boolean {
   return classifyAddress(addr).allowed;
 }
+
+/**
+ * True when a *literal* target host names the loopback interface: the name
+ * `localhost`, an IPv4 literal in 127.0.0.0/8, `::1`, or an IPv4-mapped/6to4/etc.
+ * spelling that resolves to a 127.x address under the same denylist.
+ *
+ * This is a HOST-STRING predicate, decided from what the caller LITERALLY named,
+ * never from DNS resolution. A public hostname that RESOLVES to a loopback
+ * address is deliberately NOT loopback here, so the egress guard still rejects
+ * it as a rebind. It is the single gate for the narrow local-dev exception:
+ * plain http and a skipped egress denylist are granted ONLY to an explicitly
+ * named loopback target — an agent reviewing its own dev server — and to nothing
+ * that merely points at one. A non-loopback private/reserved host (10.x,
+ * 192.168.x, the metadata IP) is NOT loopback and gets none of the exception.
+ *
+ * Accepts an optional bracketed IPv6 form (`[::1]`) as `URL.hostname` returns it,
+ * stripping the brackets before classification.
+ */
+export function isLoopbackHost(host: string): boolean {
+  const trimmed = host.trim().toLowerCase();
+  if (trimmed === "") return false;
+  if (trimmed === "localhost") return true;
+  const bare =
+    trimmed.startsWith("[") && trimmed.endsWith("]") ? trimmed.slice(1, -1) : trimmed;
+  const verdict = classifyAddress(bare);
+  return !verdict.allowed && verdict.reason === "loopback";
+}

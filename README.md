@@ -29,7 +29,9 @@ pnpm demo
 
 > The server still identifies itself on the wire as `apature-mcp-review`. That name is part of the
 > MCP handshake and any client configuration that already references it, so the repository rename to
-> `bastion` deliberately left it alone. It spawns the server as a child process over stdio, completes a handshake, submits a review, reads it back four ways, acts on a finding, rechecks it, and gets denied on an unauthorized host:
+> `bastion` deliberately left it alone.
+
+It spawns the server as a child process over stdio, completes a handshake, submits a review, reads it back four ways, acts on a finding, rechecks it, and gets denied on an unauthorized host:
 
 ```console
 $ pnpm demo
@@ -385,7 +387,16 @@ See the README section "Getting real judgments" to configure a critique backend.
 
 **Success looks like** verdict's own capture report streaming past, a screenshot count that matches your routes times viewports, and a `Review` block. Swap `VERDICT_MODEL=mock` for a real `MODEL_API_KEY` and the closing warning disappears, `provenance.model_backed` becomes `true`, a real grade is printed in place of `unjudged`, and the findings are about your page. The per-run artifact directory under `out/verdict/` keeps the screenshots, the DOM geometry map, the measured facts, and the resolved system prompt, so a finding can be checked against what the model was actually shown.
 
-The SSRF boundary is not relaxed for local use. A host that resolves to a private or loopback address is refused before verdict is even started:
+The boundary makes one narrow exception for local dev, and nothing more. A loopback host you name **explicitly** — `localhost`, `127.0.0.0/8`, or `::1` — is the agent's own dev server, so it may be plain `http` and its loopback address is allowed:
+
+```console
+$ pnpm review http://localhost:3000/ --viewports desktop
+
+bastion: reviewing http://localhost:3000/
+  authorizing localhost for this run because you named it on the command line
+```
+
+The exception is keyed on the **literal** host, never on where a name resolves. So a *public* name that resolves to a loopback (or any private) address is still refused before verdict is even started — this is DNS-rebind protection, and it is exactly why `localtest.me` (a real public name pointed at `127.0.0.1`) is rejected:
 
 ```console
 $ pnpm review https://localtest.me/
@@ -394,7 +405,7 @@ rejected: DNS_TARGET_PROHIBITED
   host localtest.me resolves to a prohibited (loopback) address
 ```
 
-That is also why there is no way to review `http://localhost:3000` through this server: targets must be https, must not be IP literals, and must resolve to public addresses. Point it at a preview deployment. To review a local dev server, use verdict's own CLI directly, which has no such boundary because it has no tenants.
+Everything else is unchanged: a non-loopback target must be https, must not be an IP literal, and must resolve to a public address. A rejected target is the boundary working, not a crash — `pnpm review` prints the code and reason and exits **1** (it exits **2** only on a usage or engine-configuration error, and **0** on a completed review), so an agent loop can tell a refused target apart from a bug.
 
 ### What each mode gives you
 
@@ -450,7 +461,7 @@ Half-configured states fail at startup rather than degrading to fixtures: a base
 - Submits a review of an HTTPS preview URL as an async job, and serves the result through five views: `status`, `summary`, `findings`, `focus`, `evidence`.
 - Returns findings as MCP content blocks (an interactive HTML review panel, per-finding text, annotated evidence images), degrading honestly on a host that cannot render one of them.
 - Rechecks 1 to 20 findings from a completed review after the agent claims a fix, and rejects an unchanged target without spending anything.
-- Authorizes every target before it would ever be fetched: HTTPS-only canonicalization, an ownership-verified host allowlist, and full IP-range egress classification with DNS-rebind rejection.
+- Authorizes every target before it would ever be fetched: HTTPS-only canonicalization (with a narrow plain-http exception for an explicitly named loopback dev host), an ownership-verified host allowlist, and full IP-range egress classification with DNS-rebind rejection.
 - Carries the Streamable HTTP edge for the same tools: OAuth 2.1 resource-server auth, per-client transport isolation, and a Postgres application plane. The suite exercises that edge end to end over real HTTP and, with `MCP_TEST_DATABASE_URL`, real Postgres.
 
 ## What it deliberately does not do
@@ -465,7 +476,7 @@ Most MCP servers are thin wrappers: one tool call maps to one function call, ret
 
 **Long work behind a short-timeout protocol.** Browser capture across several routes and viewports plus multimodal inference routinely takes minutes. MCP clients do not wait that long (Codex documents a 60-second default tool timeout) and Streamable HTTP sessions drop. So the tool surface is a submit-and-poll job API rather than a blocking call. Job state lives in Postgres, keyed by tenant, entirely independent of the MCP session: a client can disconnect, reconnect against a different replica, and recover its job by id. Tool calls are idempotent on a caller-supplied `client_request_id`, enforced by a `(tenant_id, client_request_id)` unique constraint, so a retried submit after a dropped connection returns the original job (`reused: true`) instead of billing a second review. Reusing that key with different arguments is an explicit `IDEMPOTENCY_CONFLICT`, never a silent overwrite.
 
-**"Fetch this URL for me" is an SSRF primitive.** A tool that accepts a URL from an agent and loads it server-side is a confused deputy. `target-auth.ts` and `egress.ts` are the defense, in layers: the URL is canonicalized (HTTPS only, no userinfo, no fragment, IDNA-normalized host, default port dropped, raw IP literals rejected); the host must appear in the tenant's ownership-verified registry, so a valid token cannot capture a host the tenant does not own; every address the host resolves to is classified against a denylist (loopback, RFC 1918, link-local, the `169.254.169.254` cloud-metadata address, multicast, reserved, NAT64-embedded IPv4, 6to4, CGNAT); and a mixed answer set (some public, some private) is rejected as a DNS-rebind attempt rather than partially allowed. Failures collapse to a single `DNS_TARGET_PROHIBITED` code, so the response never tells the caller which internal address resolved. `egress.ts` is pure and dependency-free by design: it never touches the network, it only classifies addresses a resolver already produced, which makes it exhaustively testable.
+**"Fetch this URL for me" is an SSRF primitive.** A tool that accepts a URL from an agent and loads it server-side is a confused deputy. `target-auth.ts` and `egress.ts` are the defense, in layers: the URL is canonicalized (HTTPS only — the sole exception being plain http to an explicitly named loopback dev host, `localhost`/`127.0.0.0/8`/`::1`, which is the agent's own machine — no userinfo, no fragment, IDNA-normalized host, default port dropped, raw IP literals rejected outside loopback); the host must appear in the tenant's ownership-verified registry (a named loopback host is self-owned and skips this check, but a public name that resolves to loopback does not and is caught by the denylist below), so a valid token cannot capture a host the tenant does not own; every address the host resolves to is classified against a denylist (loopback, RFC 1918, link-local, the `169.254.169.254` cloud-metadata address, multicast, reserved, NAT64-embedded IPv4, 6to4, CGNAT); and a mixed answer set (some public, some private) is rejected as a DNS-rebind attempt rather than partially allowed. Failures collapse to a single `DNS_TARGET_PROHIBITED` code, so the response never tells the caller which internal address resolved. `egress.ts` is pure and dependency-free by design: it never touches the network, it only classifies addresses a resolver already produced, which makes it exhaustively testable.
 
 **Page content is data, never instruction.** The server reads a preview an attacker may control. Nothing captured from the page becomes server instructions, a tool description, an authorization decision, or a new tool call. In the review panel every page-derived string is HTML-escaped and evidence is embedded as a `data:` URI, so the panel fetches nothing.
 

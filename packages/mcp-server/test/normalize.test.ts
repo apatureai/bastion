@@ -25,8 +25,19 @@ describe("normalizePreviewUrl (TRD §4.1)", () => {
     );
   });
 
-  it("rejects http", () => {
+  it("rejects http on a remote host", () => {
     expect(() => normalizePreviewUrl("http://preview.example.com")).toThrow(NormalizationError);
+  });
+
+  it("allows plain http to a loopback dev host, preserving the port and path", () => {
+    expect(normalizePreviewUrl("http://localhost:3000/pricing")).toBe("http://localhost:3000/pricing");
+    expect(normalizePreviewUrl("http://127.0.0.1:8080/")).toBe("http://127.0.0.1:8080/");
+    expect(normalizePreviewUrl("http://[::1]:5173/app")).toBe("http://[::1]:5173/app");
+  });
+
+  it("does not extend the http exception to a non-loopback private host", () => {
+    // 10.x is private, not loopback: it stays https-only.
+    expect(() => normalizePreviewUrl("http://10.0.0.5/")).toThrow(NormalizationError);
   });
 
   it("rejects credentials in the URL", () => {

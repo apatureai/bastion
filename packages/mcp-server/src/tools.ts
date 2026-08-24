@@ -11,12 +11,29 @@ import { z } from "zod";
  * through both, so a shape here that disagrees with the catalog fails CI.
  */
 
+/**
+ * The coarse scheme gate for a preview URL. https is always allowed; plain http
+ * is allowed ONLY for a loopback dev host (localhost, 127.0.0.0/8, ::1) so an
+ * agent can review its own local dev server, the core in-loop case.
+ *
+ * This is a cheap prefix check; the precise policy (loopback classification,
+ * IPv4 octet ranges, userinfo, egress) lives in `normalize.ts` and
+ * `target-auth.ts`, which reject with the specific error codes. This pattern
+ * MUST stay identical to the `pattern` on the `url` property in
+ * `schemas/mcp-tools.json`: the advertised catalog and this parser are two
+ * artifacts kept in lockstep, and `schema-permissiveness.test.ts` fails if the
+ * catalog ever permits a URL this parser would reject.
+ */
+export const PREVIEW_URL_PATTERN = /^(https:\/\/|http:\/\/(localhost|127(\.\d{1,3}){3}|\[::1\])([:/?#]|$))/;
+
 const httpsUrl = z
   .string()
   .url()
   .max(2048)
-  .regex(/^https:\/\//, "only https preview URLs are supported")
-  .describe("Tenant-authorized remote https preview URL. Userinfo and fragments are rejected.");
+  .regex(PREVIEW_URL_PATTERN, "only https preview URLs are supported (http is allowed only for localhost/127.0.0.0/8/::1)")
+  .describe(
+    "Tenant-authorized remote https preview URL. Plain http is accepted only for a loopback dev host (localhost, 127.0.0.0/8, ::1). Userinfo and fragments are rejected.",
+  );
 
 const clientRequestId = z
   .string()

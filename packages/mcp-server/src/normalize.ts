@@ -1,4 +1,5 @@
 import type { Viewport } from "@apature/mcp-types";
+import { isLoopbackHost } from "./egress.js";
 
 /**
  * Preview-target and request normalization for `design_review` (TRD §4.1).
@@ -74,6 +75,13 @@ const DEFAULT_VIEWPORTS: Viewport[] = ["mobile", "desktop"];
  * Normalize a preview URL: https-only, no userinfo, fragment stripped, query
  * preserved (a preview may legitimately depend on it). Throws
  * `NormalizationError` on a policy violation.
+ *
+ * The one exception to https-only is a loopback dev target the caller named
+ * explicitly (`localhost`, 127.0.0.0/8, or `::1`): an agent's local dev server
+ * is the core in-loop case, and it is served over plain http far more often than
+ * https. The exception is gated on the LITERAL host (see `isLoopbackHost`), so a
+ * public hostname that merely resolves to loopback gets no relief here and is
+ * still stopped by the network-layer SSRF guard in `target-auth.ts`.
  */
 export function normalizePreviewUrl(raw: string): string {
   let parsed: URL;
@@ -83,8 +91,12 @@ export function normalizePreviewUrl(raw: string): string {
     throw new NormalizationError(`url is not a valid absolute URL: ${raw}`, "url");
   }
 
-  if (parsed.protocol !== "https:") {
-    throw new NormalizationError("only https preview URLs are supported in v1", "url");
+  const loopback = isLoopbackHost(parsed.hostname);
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && loopback)) {
+    throw new NormalizationError(
+      "only https preview URLs are supported (plain http is allowed only for a loopback dev host: localhost, 127.0.0.0/8, ::1)",
+      "url",
+    );
   }
   if (parsed.username !== "" || parsed.password !== "") {
     throw new NormalizationError("credentials in the URL are not allowed", "url");

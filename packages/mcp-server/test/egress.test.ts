@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { classifyAddress, isAddressAllowed } from "../src/index.js";
+import { classifyAddress, isAddressAllowed, isLoopbackHost } from "../src/index.js";
 
 describe("classifyAddress — IPv4 denylist (TRD §7.5, T1)", () => {
   const denied: Array<[string, string]> = [
@@ -139,5 +139,38 @@ describe("classifyAddress — IPv6 denylist", () => {
 
   it("allows a public IPv6 address", () => {
     expect(isAddressAllowed("2606:2800:220:1:248:1893:25c8:1946")).toBe(true);
+  });
+});
+
+describe("isLoopbackHost — the literal-host gate for the local-dev exception", () => {
+  it("recognizes the loopback names and literals", () => {
+    for (const host of [
+      "localhost",
+      "LOCALHOST",
+      "127.0.0.1",
+      "127.255.255.254",
+      "::1",
+      "[::1]",
+      "::ffff:127.0.0.1",
+    ]) {
+      expect(isLoopbackHost(host), host).toBe(true);
+    }
+  });
+
+  it("does NOT recognize non-loopback hosts, including other private/reserved ranges", () => {
+    for (const host of [
+      "preview.example.com",
+      "localhost.evil.com",
+      "notlocalhost",
+      "10.0.0.5", // private, not loopback
+      "192.168.1.1", // private, not loopback
+      "169.254.169.254", // metadata, not loopback
+      "0.0.0.0", // unspecified, not loopback
+      "93.184.216.34", // public
+      "2606:2800:220:1:248:1893:25c8:1946", // public v6
+      "",
+    ]) {
+      expect(isLoopbackHost(host), host).toBe(false);
+    }
   });
 });
