@@ -250,6 +250,43 @@ describe("createLocalReviewServer with a configured critique backend", () => {
     expect(JSON.stringify(submit.structuredContent)).not.toContain("f_001");
   });
 
+  it("reports a transient engine outage as UPSTREAM_UNAVAILABLE, not INTERNAL_ERROR", async () => {
+    const engine = new RecordingEngine(
+      new EngineDependencyError("could not reach the judgment engine", undefined, undefined, true),
+    );
+    const client = await connect({ engine, allowedHosts: [host], resolver });
+
+    const submit = await call(client, "design_review", {
+      url: `https://${host}/`,
+      client_request_id: "backend-0003",
+    });
+    expect(submit.isError).toBe(true);
+    const error = (submit.structuredContent as { error: { code: string; retriable: boolean } }).error;
+    // A down engine is distinguishable from a bug here, and it is retriable.
+    expect(error.code).toBe("UPSTREAM_UNAVAILABLE");
+    expect(error.retriable).toBe(true);
+    expect(JSON.stringify(submit.structuredContent)).not.toContain("f_001");
+  });
+
+  it("reports engine throttling as UPSTREAM_RATE_LIMITED with a retry hint", async () => {
+    const engine = new RecordingEngine(
+      new EngineDependencyError("engine is rate limiting", 429, 2000, true),
+    );
+    const client = await connect({ engine, allowedHosts: [host], resolver });
+
+    const submit = await call(client, "design_review", {
+      url: `https://${host}/`,
+      client_request_id: "backend-0004",
+    });
+    expect(submit.isError).toBe(true);
+    const error = (
+      submit.structuredContent as { error: { code: string; retriable: boolean; retry_after_ms?: number } }
+    ).error;
+    expect(error.code).toBe("UPSTREAM_RATE_LIMITED");
+    expect(error.retriable).toBe(true);
+    expect(error.retry_after_ms).toBe(2000);
+  });
+
   it("still enforces the SSRF boundary for a backend-configured host", async () => {
     const engine = new RecordingEngine(backedResult());
     const client = await connect({

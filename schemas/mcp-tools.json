@@ -195,7 +195,7 @@
           },
           "error": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
             "properties": {
               "schema_version": {
@@ -226,6 +226,15 @@
               "next_action": {
                 "type": "string",
                 "minLength": 1
+              },
+              "stage": {
+                "type": "string",
+                "description": "The pipeline stage the error was raised at, when known."
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Optional error-specific fields; a deliberately open bag, the one place in this contract additional properties are allowed."
               }
             },
             "required": [
@@ -317,7 +326,7 @@
           },
           "job": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": [
               "job_id",
               "status",
@@ -374,7 +383,7 @@
           },
           "review": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "properties": {
               "review_id": {
                 "type": "string"
@@ -393,7 +402,7 @@
               },
               "provenance": {
                 "type": "object",
-                "additionalProperties": true,
+                "additionalProperties": false,
                 "description": "Where this judgment came from. Present on every review, on every backend, including the offline fixture path. A consumer reading nothing but this JSON checks it before believing anything else in the payload.",
                 "properties": {
                   "model_backed": {
@@ -458,8 +467,92 @@
                 "description": "The agent-facing findings. Each item is self-describing: an agent iterating this array and applying suggestion never reads the envelope, so an item from a payload nothing judged carries its own marker.",
                 "items": {
                   "type": "object",
-                  "additionalProperties": true,
+                  "additionalProperties": false,
+                  "required": [
+                    "finding_id",
+                    "severity",
+                    "dimension",
+                    "title",
+                    "description",
+                    "route",
+                    "viewport",
+                    "element_ref",
+                    "suggestion",
+                    "evidence_id",
+                    "confidence"
+                  ],
                   "properties": {
+                    "finding_id": {
+                      "type": "string",
+                      "description": "Stable id for this finding within the review; the handle design_recheck's finding_ids input takes."
+                    },
+                    "severity": {
+                      "type": "string",
+                      "enum": [
+                        "blocker",
+                        "should_fix",
+                        "nit"
+                      ],
+                      "description": "Three-level agent-facing severity, collapsed from the engine scale."
+                    },
+                    "dimension": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "The engine's rubric dimension, passed through verbatim so findings can be grouped by reason category, or null when the engine did not report one. Never synthesized from severity."
+                    },
+                    "title": {
+                      "type": "string",
+                      "description": "One-line summary of the finding."
+                    },
+                    "description": {
+                      "type": "string",
+                      "description": "The full finding text."
+                    },
+                    "route": {
+                      "type": "string",
+                      "description": "The route this finding was observed on."
+                    },
+                    "viewport": {
+                      "type": "string",
+                      "enum": [
+                        "mobile",
+                        "tablet",
+                        "desktop"
+                      ],
+                      "description": "The viewport this finding was observed at."
+                    },
+                    "element_ref": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Selector/role hint locating the element, or null when the finding is not localizable."
+                    },
+                    "suggestion": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Concrete repair constraint (a token or class), or null. The half of a finding an agent's fix cycle acts on."
+                    },
+                    "evidence_id": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Ref for the annotated screenshot in the evidence view, or null."
+                    },
+                    "confidence": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1,
+                      "description": "Engine-produced confidence in this finding, or null for an uncalibrated result. Always null when unjudged is present."
+                    },
                     "unjudged": {
                       "const": true,
                       "description": "Present, and always true, when nothing judged the page this finding claims to describe: the condition that also replaces grade with \"unjudged\" or \"nothing_reviewed\". Absent otherwise, so its absence claims nothing on its own and provenance and coverage stay the authority."
@@ -667,7 +760,7 @@
           },
           "findings": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "properties": {
               "items": {
                 "type": "array",
@@ -688,7 +781,7 @@
           },
           "focus": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "properties": {
               "review_id": {
                 "type": "string"
@@ -710,7 +803,7 @@
           },
           "evidence": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "properties": {
               "items": {
                 "type": "array",
@@ -757,15 +850,15 @@
           },
           "recheck": {
             "type": "object",
-            "additionalProperties": true
+            "additionalProperties": false
           },
           "budget": {
             "type": "object",
-            "additionalProperties": true
+            "additionalProperties": false
           },
           "error": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
             "properties": {
               "schema_version": {
@@ -796,6 +889,15 @@
               "next_action": {
                 "type": "string",
                 "minLength": 1
+              },
+              "stage": {
+                "type": "string",
+                "description": "The pipeline stage the error was raised at, when known."
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Optional error-specific fields; a deliberately open bag, the one place in this contract additional properties are allowed."
               }
             },
             "required": [
@@ -906,7 +1008,7 @@
           },
           "job": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "required": [
               "job_id",
               "status",
@@ -960,7 +1062,7 @@
           },
           "recheck": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "properties": {
               "recheck_id": {
                 "type": "string"
@@ -985,7 +1087,7 @@
                 "type": "array",
                 "items": {
                   "type": "object",
-                  "additionalProperties": true,
+                  "additionalProperties": false,
                   "required": [
                     "finding_id",
                     "outcome",
@@ -1024,7 +1126,7 @@
               },
               "provenance": {
                 "type": "object",
-                "additionalProperties": true,
+                "additionalProperties": false,
                 "description": "Where this recheck came from. Present on every recheck, on every backend, including the offline fixture path. A recheck is what an agent reads to decide its fix landed and it can stop working, so it checks this before believing any outcome below.",
                 "properties": {
                   "model_backed": {
@@ -1083,11 +1185,37 @@
           },
           "budget": {
             "type": "object",
-            "additionalProperties": true
+            "additionalProperties": false,
+            "properties": {
+              "policy_version": {
+                "type": "string"
+              },
+              "units_reserved": {
+                "type": "number",
+                "minimum": 0
+              },
+              "units_consumed": {
+                "type": "number",
+                "minimum": 0
+              },
+              "tenant_units_remaining": {
+                "type": "number",
+                "minimum": 0
+              },
+              "repo_units_remaining_hour": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "policy_version",
+              "units_reserved",
+              "tenant_units_remaining"
+            ]
           },
           "error": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
             "properties": {
               "schema_version": {
@@ -1118,6 +1246,15 @@
               "next_action": {
                 "type": "string",
                 "minLength": 1
+              },
+              "stage": {
+                "type": "string",
+                "description": "The pipeline stage the error was raised at, when known."
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Optional error-specific fields; a deliberately open bag, the one place in this contract additional properties are allowed."
               }
             },
             "required": [
@@ -1227,7 +1364,7 @@
           },
           "error": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
             "properties": {
               "schema_version": {
@@ -1258,6 +1395,15 @@
               "next_action": {
                 "type": "string",
                 "minLength": 1
+              },
+              "stage": {
+                "type": "string",
+                "description": "The pipeline stage the error was raised at, when known."
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Optional error-specific fields; a deliberately open bag, the one place in this contract additional properties are allowed."
               }
             },
             "required": [
@@ -1358,7 +1504,7 @@
           },
           "provenance": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "description": "Where the review this action was routed from came from. A routed fix is a string the caller is expected to act on, so the payload says in-band whether anything judged the review that produced it. When model_backed is false, response.type is \"unjudged\" and no fix is returned.",
             "properties": {
               "model_backed": {
@@ -1406,6 +1552,7 @@
           },
           "response": {
             "type": "object",
+            "additionalProperties": false,
             "description": "The panel reducer's routed response: a grounded fix for the coding agent, a human_only referral, an unjudged refusal when nothing judged the review, or the recheck refs.",
             "properties": {
               "type": {
@@ -1437,7 +1584,7 @@
           },
           "error": {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "description": "Typed tool error, returned with isError: true instead of the result envelope. The full code and next_action vocabularies are in schemas/review-error.schema.json.",
             "properties": {
               "schema_version": {
@@ -1468,6 +1615,15 @@
               "next_action": {
                 "type": "string",
                 "minLength": 1
+              },
+              "stage": {
+                "type": "string",
+                "description": "The pipeline stage the error was raised at, when known."
+              },
+              "details": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Optional error-specific fields; a deliberately open bag, the one place in this contract additional properties are allowed."
               }
             },
             "required": [

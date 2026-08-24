@@ -30,6 +30,7 @@ import {
 import type { ReviewServiceDeps, RecheckRejectionReason } from "./review-service.js";
 import { TargetAuthError } from "./target-auth.js";
 import type { TargetAuthFailureReason } from "./target-auth.js";
+import { EngineDependencyError } from "./engine-http-client.js";
 import {
   designRecheckInputShape,
   designReviewCancelInputShape,
@@ -82,6 +83,40 @@ function errorResult(
     structuredContent: { error },
     isError: true,
   };
+}
+
+/**
+ * Map a judgment-engine dependency failure to a distinct upstream error, so an
+ * agent loop can tell "the engine is down or throttling" apart from a bug in
+ * this server. `/readyz` already exposes this to an operator; without this the
+ * tool result collapsed it into a generic INTERNAL_ERROR and an agent retried
+ * indefinitely with no signal about what was failing. A 429 from the engine is
+ * UPSTREAM_RATE_LIMITED; a transient outage (an unreachable host, a timeout, a
+ * 5xx) is UPSTREAM_UNAVAILABLE. Both are retriable — the dependency may recover
+ * without a restart — but the distinct code and the engine's own `Retry-After`
+ * let the agent back off instead of hammering. A deterministic engine failure
+ * is not mapped here (returns undefined) so the caller keeps INTERNAL_ERROR.
+ */
+function engineDependencyErrorResult(err: EngineDependencyError): CallToolResult | undefined {
+  if (err.status === 429) {
+    return errorResult("UPSTREAM_RATE_LIMITED", "the judgment engine is rate limiting", {
+      retriable: true,
+      nextAction: "wait",
+      ...(err.retryAfterMs !== undefined ? { retryAfterMs: err.retryAfterMs } : {}),
+    });
+  }
+  if (err.transient) {
+    return errorResult("UPSTREAM_UNAVAILABLE", "the judgment engine is unavailable", {
+      retriable: true,
+      nextAction: "wait",
+      ...(err.retryAfterMs !== undefined ? { retryAfterMs: err.retryAfterMs } : {}),
+    });
+  }
+  // A deterministic engine failure (malformed result, unsupported operation, a
+  // CLI that exited non-zero) is not a transient outage: fall through to
+  // INTERNAL_ERROR rather than inviting an agent to retry a fault a retry
+  // cannot clear.
+  return undefined;
 }
 
 /**
@@ -370,6 +405,10 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
             nextAction: "start_new_review",
           });
         }
+        if (err instanceof EngineDependencyError) {
+          const upstream = engineDependencyErrorResult(err);
+          if (upstream) return upstream;
+        }
         return errorResult("INTERNAL_ERROR", "the review could not be submitted", {
           retriable: true,
           nextAction: "wait",
@@ -407,6 +446,10 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
             retriable: false,
             nextAction: "start_new_review",
           });
+        }
+        if (err instanceof EngineDependencyError) {
+          const upstream = engineDependencyErrorResult(err);
+          if (upstream) return upstream;
         }
         return errorResult("INTERNAL_ERROR", "the review could not be retrieved", {
           retriable: true,
@@ -457,6 +500,10 @@ export function createMcpReviewServer(deps: McpReviewServerDeps = {}): McpServer
             retriable: false,
             nextAction: "start_new_review",
           });
+        }
+        if (err instanceof EngineDependencyError) {
+          const upstream = engineDependencyErrorResult(err);
+          if (upstream) return upstream;
         }
         return errorResult("INTERNAL_ERROR", "the recheck could not be submitted", {
           retriable: true,

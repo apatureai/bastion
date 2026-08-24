@@ -24,6 +24,16 @@ export class EngineDependencyError extends Error {
     message: string,
     readonly status?: number,
     readonly retryAfterMs?: number,
+    /**
+     * True when the failure is a transient outage of the engine dependency
+     * itself — an unreachable host, a timed-out connection, a 5xx or a 429 —
+     * rather than a permanent, deterministic failure of a call that did reach
+     * the engine (a malformed result, an unsupported operation, a CLI that
+     * exited non-zero). Only transient failures become a retriable UPSTREAM_*
+     * tool error; the rest stay INTERNAL_ERROR so an agent does not loop on a
+     * fault a retry cannot fix.
+     */
+    readonly transient = false,
   ) {
     super(message);
     this.name = "EngineDependencyError";
@@ -129,19 +139,32 @@ export class JudgmentEngineHttpClient implements EngineJobClient {
       const signature = createHmac("sha256", this.options.hmacSecret)
         .update(`${timestamp}.${installationId}.${body}`)
         .digest("hex");
-      const response = await this.fetchImpl(new URL(path, this.options.baseUrl), {
-        method,
-        headers: {
-          "content-type": "application/json",
-          [INSTALLATION_HEADER]: installationId,
-          [TIMESTAMP_HEADER]: timestamp,
-          [SIGNATURE_HEADER]: `sha256=${signature}`,
-          "x-correlation-id": correlationId,
-          traceparent: correlationId,
-        },
-        body: method === "POST" ? body : undefined,
-        signal: AbortSignal.timeout(this.timeoutMs),
-      });
+      let response: Response;
+      try {
+        response = await this.fetchImpl(new URL(path, this.options.baseUrl), {
+          method,
+          headers: {
+            "content-type": "application/json",
+            [INSTALLATION_HEADER]: installationId,
+            [TIMESTAMP_HEADER]: timestamp,
+            [SIGNATURE_HEADER]: `sha256=${signature}`,
+            "x-correlation-id": correlationId,
+            traceparent: correlationId,
+          },
+          body: method === "POST" ? body : undefined,
+          signal: AbortSignal.timeout(this.timeoutMs),
+        });
+      } catch (cause) {
+        // An unreachable host or a timed-out connection: the engine dependency
+        // is down, not a bug here. Surfaced as a transient EngineDependencyError
+        // so the tool reports UPSTREAM_UNAVAILABLE rather than INTERNAL_ERROR.
+        throw new EngineDependencyError(
+          `could not reach the judgment engine: ${cause instanceof Error ? cause.message : String(cause)}`,
+          undefined,
+          undefined,
+          true,
+        );
+      }
       last = response;
       if ((response.status !== 429 && response.status !== 503) || attempt === this.maxRetries) return response;
       await this.sleep(retryAfterMs(response.headers.get("retry-after"), attempt));
@@ -152,7 +175,11 @@ export class JudgmentEngineHttpClient implements EngineJobClient {
   private async error(response: Response, fallback: string): Promise<EngineDependencyError> {
     const retry = retryAfterMs(response.headers.get("retry-after"), 0);
     const text = await response.text().catch(() => "");
-    return new EngineDependencyError(text || fallback, response.status, retry);
+    // A 429 or any 5xx is a transient engine-side condition a retry may clear;
+    // a 4xx (other than 429) is a request the engine rejected on its merits and
+    // retrying it unchanged will not help.
+    const transient = response.status === 429 || response.status >= 500;
+    return new EngineDependencyError(text || fallback, response.status, retry, transient);
   }
 }
 
