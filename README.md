@@ -2,6 +2,8 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/apatureai/bastion/ci.yml?branch=main&label=CI)](https://github.com/apatureai/bastion/actions/workflows/ci.yml) [![license](https://img.shields.io/github/license/apatureai/bastion)](LICENSE) [![node](https://img.shields.io/badge/node-%3E%3D24-brightgreen)](https://nodejs.org/en/download)
 
+> Part of the [Apature stack](https://github.com/apatureai) — automated design review for rendered UI. The [org profile](https://github.com/apatureai/.github/blob/main/profile/README.md) maps how the pieces compose.
+
 **A remote MCP server for in-loop design review, and a worked reference for OAuth 2.1 auth, SSRF-safe URL handling, and long-running jobs over MCP.**
 
 A coding agent changes a UI, deploys a preview, and has no way to see whether the result looks right. `bastion` is the MCP server on the other end of that loop: the agent submits a preview URL, gets back structured findings (route, viewport, element ref, suggested fix), applies the fixes itself, then asks the server to recheck them. The server judges and verifies; it never edits code.
