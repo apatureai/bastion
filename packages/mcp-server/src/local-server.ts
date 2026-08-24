@@ -23,7 +23,12 @@ import type { EvidenceProvider } from "./evidence.js";
  * What is real here, always:
  *   - the MCP server, its tool catalog, input validation, and error taxonomy;
  *   - target authorization: canonicalization, verified-host lookup, and the full
- *     egress classification;
+ *     egress classification. Because this server runs on the agent's own machine,
+ *     it grants the one local-dev exception: a target whose LITERAL host is
+ *     loopback (localhost, 127.0.0.0/8, ::1) may be plain http and skips the
+ *     allowlist/egress checks — it is the agent's own dev server. A public name
+ *     that merely resolves to loopback is still rejected. The production edge
+ *     never grants this;
  *   - job lifecycle, idempotency, budgets, recheck rejection and throttling;
  *   - result shaping: views, multimedia content blocks, and the panel reducer.
  *
