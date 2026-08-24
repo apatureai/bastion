@@ -106,7 +106,7 @@ open out/panel.html      # macOS; use xdg-open on Linux
 
 The panel is self-contained HTML with no scripts, no external requests, and evidence embedded as `data:` URIs. The `job_*` and `rev_*` ids are freshly generated, so yours will differ from the transcript.
 
-> The `v1.3.0` in `connected to apature-mcp-review v1.3.0` is the MCP **catalog** version the server advertises on the wire, not the release version (`0.1.0`) you cloned. They are two different numbers on purpose; [Versioning: two numbers, on purpose](#versioning-two-numbers-on-purpose) explains which is which and where each one lives.
+> The `v1.3.0` in `connected to apature-mcp-review v1.3.0` is the MCP **catalog** version the server advertises on the wire, not the release version (`0.1.1`) you cloned. They are two different numbers on purpose; [Versioning: two numbers, on purpose](#versioning-two-numbers-on-purpose) explains which is which and where each one lives.
 
 If `pnpm demo` reports `Cannot find module`, `pnpm build` has not been run. If step 2 comes back `DNS_TARGET_PROHIBITED` instead of a job, something changed `LOCAL_RESOLVED_ADDRESS` in `packages/mcp-server/src/local-server.ts` to a non-public address, and that rejection is the SSRF guard working.
 
@@ -683,7 +683,7 @@ VERDICT_REPO=/tmp/verdict pnpm test
 
 Nothing in the suite touches a model, a browser, a subprocess, or the network: the engine is a fixture mock, the verdict backends are driven through their process and transport seams, DNS is stubbed or answered from a constant, and the Postgres application plane runs in-process against [PGlite](https://pglite.dev). `vitest.config.ts` raises the timeouts to 30s because a cold first run instantiates PGlite (WASM Postgres) inside a hook.
 
-`@apatureai/bastion` and `@apatureai/bastion-types` are prepared for publishing under the `@apatureai` scope (correct `files`/`exports`/`types`, `publishConfig`, and a `prepack` build), but nothing is published to npm yet: publishing waits on the maintainer adding an `NPM_TOKEN` secret and pushing a version tag. See [Releasing](#releasing) for the flow and [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and how changes get reviewed.
+`@apatureai/bastion` and `@apatureai/bastion-types` are published to npm under the `@apatureai` scope, with provenance, by the tag-driven release workflow. See [Releasing](#releasing) for the flow and [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and how changes get reviewed.
 
 ## Versioning: two numbers, on purpose
 
@@ -692,7 +692,7 @@ agree. Seeing them differ is not a bug.
 
 | | Release version | Catalog version |
 |---|---|---|
-| Value today | `0.1.0` | `1.3.0` |
+| Value today | `0.1.1` | `1.3.0` |
 | Where it lives | `package.json` (both packages), the git tag, the GitHub release, [`CHANGELOG.md`](CHANGELOG.md) | `directory/server.json`, `schemas/mcp-tools.json`, and the MCP handshake (`serverInfo.version`) |
 | Where you see it | `npm install`, the release page, the changelog | `connected to apature-mcp-review v1.3.0` when a client connects |
 | What it tracks | this codebase as a shipped artifact: what you pin, clone, and cite | the agent-facing MCP contract: the tool surface, its input and output schemas, and the protocol baseline |
