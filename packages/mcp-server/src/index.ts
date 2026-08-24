@@ -148,6 +148,7 @@ export {
   TargetAuthError,
 } from "./target-auth.js";
 export type {
+  AuthorizeTargetOptions,
   CanonicalTarget,
   DnsResolver,
   TargetAuthFailureReason,

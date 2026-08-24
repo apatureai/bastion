@@ -173,21 +173,31 @@ describe("authorizeTarget (full SSRF guard — issue #4)", () => {
     ).rejects.toMatchObject({ reason: "no_dns_records" });
   });
 
-  it("authorizes an explicitly named loopback dev host without allowlist or DNS", async () => {
+  it("authorizes a named loopback dev host without allowlist or DNS, when allowLoopback is set", async () => {
     // localhost is not on the allowlist and the resolver knows nothing about it;
-    // the exception short-circuits before either is consulted.
+    // the opted-in exception short-circuits before either is consulted.
     const emptyList: TenantAllowlist = { tenantId: "tenant-1", targets: [] };
-    const t = await authorizeTarget("http://localhost:5173/", emptyList, resolverFor({}));
+    const t = await authorizeTarget("http://localhost:5173/", emptyList, resolverFor({}), {
+      allowLoopback: true,
+    });
     expect(t.host).toBe("localhost");
     expect(t.url).toBe("http://localhost:5173/");
   });
 
-  it("still rejects a PUBLIC host that resolves ONLY to loopback (rebind, not the exception)", async () => {
+  it("does NOT grant the loopback exception by default (production edge)", async () => {
+    // Without allowLoopback, a loopback host is treated like any other: unverified.
+    const emptyList: TenantAllowlist = { tenantId: "tenant-1", targets: [] };
+    await expect(
+      authorizeTarget("http://localhost:5173/", emptyList, resolverFor({})),
+    ).rejects.toMatchObject({ reason: "domain_unverified" });
+  });
+
+  it("still rejects a PUBLIC host that resolves ONLY to loopback, even with allowLoopback on", async () => {
     // The exception is keyed on the literal host, so a verified public name that
     // resolves to 127.0.0.1 gets no relief and is stopped by the egress denylist.
     const resolver = resolverFor({ "preview.example.com": ["127.0.0.1"] });
     await expect(
-      authorizeTarget("https://preview.example.com/", allowlist, resolver),
+      authorizeTarget("https://preview.example.com/", allowlist, resolver, { allowLoopback: true }),
     ).rejects.toMatchObject({ reason: { egress: "loopback" } });
   });
 });

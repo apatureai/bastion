@@ -106,6 +106,11 @@ export function createLocalReviewServer(options: LocalReviewServerOptions = {}):
     scopes: [REVIEWS_CANCEL_SCOPE],
     allowlist: { tenantId: "local", targets: hosts.map((host) => ({ kind: "host", host })) },
     resolver: options.resolver ?? createLocalDnsResolver(),
+    // This server runs on the agent's own machine, so a loopback target is the
+    // agent's own dev server: grant the plain-http loopback exception here. The
+    // production hosted edge (production.ts) never sets this, so it keeps the
+    // full SSRF guard and refuses a loopback target like any unverified host.
+    allowLoopbackTargets: true,
     // The local host is assumed to render both surfaces, so the evidence view
     // exercises the image blocks AND the MCP-Apps panel rather than degrading.
     hostMedia: { images: true, appsPanel: true },

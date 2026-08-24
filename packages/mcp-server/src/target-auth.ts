@@ -124,6 +124,19 @@ export function isHostVerified(host: string, allowlist: TenantAllowlist): boolea
   return allowlist.targets.some((t) => t.host.toLowerCase() === host);
 }
 
+/** Options for {@link authorizeTarget}. */
+export type AuthorizeTargetOptions = {
+  /**
+   * Grant the narrow local-dev exception: an explicitly named loopback host
+   * (localhost, 127.0.0.0/8, ::1) is authorized without allowlist or egress
+   * checks. OFF by default, and MUST stay off for the production hosted edge,
+   * where "localhost" is the shared capture host's own loopback and reviewing it
+   * would be an SSRF primitive. Only the local stdio server — which runs on the
+   * agent's own machine, where loopback IS the agent's dev server — turns it on.
+   */
+  allowLoopback?: boolean;
+};
+
 /**
  * Full target authorization. Throws `TargetAuthError` on any policy failure;
  * returns the canonical target on success. The resolver is consulted only after
@@ -135,17 +148,20 @@ export async function authorizeTarget(
   raw: string,
   allowlist: TenantAllowlist,
   resolver: DnsResolver,
+  options: AuthorizeTargetOptions = {},
 ): Promise<CanonicalTarget> {
   const target = canonicalizeTarget(raw);
 
-  // Narrow local-dev exception: an explicitly named loopback target is the
-  // agent's own dev server. It needs no ownership verification (you can only
-  // reach your own machine, so there is nothing to prove you own) and MUST skip
-  // the egress denylist, which classifies every loopback address as prohibited
-  // by design. This is gated strictly on the LITERAL host via `canonicalizeTarget`
-  // + `isLoopbackHost`, so a public hostname that resolves to loopback never
-  // reaches this branch and still hits the DNS-rebind / egress checks below.
-  if (isLoopbackHost(target.host)) {
+  // Narrow local-dev exception, only where the caller opted in: an explicitly
+  // named loopback target is the agent's own dev server. It needs no ownership
+  // verification (you can only reach your own machine, so there is nothing to
+  // prove you own) and MUST skip the egress denylist, which classifies every
+  // loopback address as prohibited by design. Gated strictly on the LITERAL host
+  // via `canonicalizeTarget` + `isLoopbackHost`, so a public hostname that
+  // resolves to loopback never reaches this branch and still hits the DNS-rebind
+  // / egress checks below. Disabled by default, so the production edge treats a
+  // loopback target like any other unverified host and rejects it.
+  if (options.allowLoopback && isLoopbackHost(target.host)) {
     return target;
   }
 
