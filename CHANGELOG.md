@@ -8,7 +8,7 @@ All notable changes to this project are recorded here. The format follows
 > this changelog tracks only the first. See
 > [Versioning](README.md#versioning-two-numbers-on-purpose) for the full explanation.
 >
-> - **Release version** (`0.1.0` here): the npm package version and the git tag / GitHub release.
+> - **Release version** (`0.1.1` here): the npm package version and the git tag / GitHub release.
 >   This is what an adopter pins and what every entry below is filed under.
 > - **Catalog version** (`1.3.0`): the MCP protocol surface a client sees on the wire, advertised by
 >   `directory/server.json`, `schemas/mcp-tools.json`, and the server handshake, and locked across
@@ -16,6 +16,12 @@ All notable changes to this project are recorded here. The format follows
 >   release is cut, so it is not tracked here.
 
 ## [Unreleased]
+
+## [0.1.1] - 2026-08-24
+
+First release published to npm: `@apatureai/bastion` and `@apatureai/bastion-types` are now on the
+registry under the `@apatureai` scope, published with provenance by the tag-driven release workflow.
+No release before this one was published to npm.
 
 ### Added
 
@@ -81,5 +87,6 @@ exists as a fixed point to clone, cite, and file issues against.
 
 See the README's [Status and roadmap](README.md#status-and-roadmap) for the full, current list.
 
-[Unreleased]: https://github.com/apatureai/bastion/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/apatureai/bastion/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/apatureai/bastion/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/apatureai/bastion/releases/tag/v0.1.0

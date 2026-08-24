@@ -173,7 +173,7 @@ Please report vulnerabilities privately rather than in a pull request. See [SECU
 Maintainer flow; contributors do not cut releases. Two version numbers live in this repo and they
 are deliberately independent:
 
-- The **release version** (`0.1.0`) is the npm package version, the git tag, and the
+- The **release version** (`0.1.1`) is the npm package version, the git tag, and the
   [CHANGELOG.md](CHANGELOG.md) heading. It is what an adopter pins.
 - The **catalog version** (`1.3.0`) is the MCP contract version advertised by
   `directory/server.json`, `schemas/mcp-tools.json`, and the server handshake, held identical across
