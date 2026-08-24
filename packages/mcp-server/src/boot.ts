@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * Container entrypoint. This module exists only to run the production
  * composition root as a process.
