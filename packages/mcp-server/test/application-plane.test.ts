@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { EngineReviewResult } from "@apature/mcp-types";
-import { loadGoldenEngineResult } from "@apature/mcp-types";
+import type { EngineReviewResult } from "@apatureai/bastion-types";
+import { loadGoldenEngineResult } from "@apatureai/bastion-types";
 import {
   InMemoryReviewApplicationStore,
   InsufficientScopeError,

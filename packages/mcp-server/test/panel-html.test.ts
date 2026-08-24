@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AnnotatedImage, Critique, CritiqueFinding } from "@apature/mcp-types";
+import type { AnnotatedImage, Critique, CritiqueFinding } from "@apatureai/bastion-types";
 import { renderReviewPanel } from "../src/panel-html.js";
 import { buildPanelFindings, reviewFixItemsFromCritique } from "../src/panel-findings.js";
 

@@ -1,4 +1,4 @@
-# @apature/mcp-types
+# @apatureai/bastion-types
 
 Boundary contracts for [Apature Bastion](https://github.com/apatureai/bastion), an in-loop design-review MCP server. This package is the single source of truth for the agent-facing surface: the tool envelopes (`Job`, `Budget`, `Critique`, content blocks), the engine wire result and confidence types, the judgment-provenance contract (`model_backed`, `source`, `engine`), the typed `ReviewError` contract, the MCP-Apps panel action/response contract, and the golden engine fixture that stands in for a real critique offline.
 
@@ -7,14 +7,14 @@ It has no runtime dependencies. The types describe what a Bastion server emits a
 ## Install
 
 ```bash
-npm install @apature/mcp-types
+npm install @apatureai/bastion-types
 ```
 
 ## Usage
 
 ```ts
-import type { Critique, JudgmentProvenance } from "@apature/mcp-types";
-import { loadGoldenEngineResult } from "@apature/mcp-types";
+import type { Critique, JudgmentProvenance } from "@apatureai/bastion-types";
+import { loadGoldenEngineResult } from "@apatureai/bastion-types";
 
 // The rule an agent codes against: trust a review only when a model judged it.
 function isTrustworthy(review: Critique): boolean {
@@ -22,7 +22,7 @@ function isTrustworthy(review: Critique): boolean {
 }
 ```
 
-The golden fixture (`fixtures/`) is the same offline judgment `@apature/mcp-server` replays when no critique backend is configured; it describes a fictional pricing page and is stamped `model_backed: false`.
+The golden fixture (`fixtures/`) is the same offline judgment `@apatureai/bastion` replays when no critique backend is configured; it describes a fictional pricing page and is stamped `model_backed: false`.
 
 ## License
 

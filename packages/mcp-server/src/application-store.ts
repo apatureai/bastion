@@ -1,4 +1,4 @@
-import type { Budget, Critique, Job, Recheck } from "@apature/mcp-types";
+import type { Budget, Critique, Job, Recheck } from "@apatureai/bastion-types";
 import type { NormalizedReviewRequest } from "./normalize.js";
 
 /** Durable application state. Transport sessions never own these records. */

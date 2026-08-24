@@ -8,14 +8,14 @@ import type {
   EngineReviewResult,
   EngineSeverity,
   JudgmentProvenance,
-} from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
 import {
   coverageState,
   hasDisplayableEngineConfidence,
   gradeRetraction,
   isUnjudged,
   suppressesGradeForCoverage,
-} from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
 import {
   mapCoverage,
   mapHallucinationDrops,

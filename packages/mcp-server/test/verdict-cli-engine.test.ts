@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { loadGoldenEngineResult } from "@apature/mcp-types";
+import { loadGoldenEngineResult } from "@apatureai/bastion-types";
 import { afterEach, describe, expect, it } from "vitest";
 import { EngineDependencyError } from "../src/engine-http-client.js";
 import { EngineResultError } from "../src/engine-result.js";

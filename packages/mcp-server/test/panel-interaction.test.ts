@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { handlePanelAction } from "../src/panel-interaction.js";
 import { FIXTURE_PROVENANCE, verdictCliProvenance } from "../src/provenance.js";
-import type { PanelFinding } from "@apature/mcp-types";
+import type { PanelFinding } from "@apatureai/bastion-types";
 
 /**
  * Interactive review-panel reducer (idea #64). Load-bearing eyes-not-hands:

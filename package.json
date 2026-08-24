@@ -1,5 +1,5 @@
 {
-  "name": "@apature/mcp-review-monorepo",
+  "name": "@apatureai/bastion-mcp-review-monorepo",
   "version": "0.1.0",
   "private": true,
   "type": "module",

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { mkdir, readFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import type { EngineRecheckResult, EngineReviewResult } from "@apature/mcp-types";
+import type { EngineRecheckResult, EngineReviewResult } from "@apatureai/bastion-types";
 import type { EngineClient, EngineRecheckRequest } from "./engine-client.js";
 import { EngineDependencyError } from "./engine-http-client.js";
 import { parseEngineReviewResult } from "./engine-result.js";
@@ -21,7 +21,7 @@ import {
  * `EngineClient` interface by running verdict's `packages/cli/dist/main.js`,
  * which launches Chromium, captures the target, measures the DOM, runs the
  * grounded critique, and writes an `EngineReviewResult` to `review.json`. That
- * file is the exact contract in `@apature/mcp-types`, so nothing here reshapes
+ * file is the exact contract in `@apatureai/bastion-types`, so nothing here reshapes
  * a judgment; it validates the payload and hands it to the same mapper the
  * fixture path uses.
  *

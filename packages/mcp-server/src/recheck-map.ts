@@ -1,5 +1,5 @@
-import type { EngineRecheckResult, JudgmentProvenance, Recheck } from "@apature/mcp-types";
-import { isUnjudged } from "@apature/mcp-types";
+import type { EngineRecheckResult, JudgmentProvenance, Recheck } from "@apatureai/bastion-types";
+import { isUnjudged } from "@apatureai/bastion-types";
 import { UNATTESTED_PROVENANCE, unjudgedRecheckReason } from "./provenance.js";
 
 /**

@@ -5,7 +5,7 @@ import type {
   EngineReviewResult,
   EngineSeverity,
   EngineViewport,
-} from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
 
 /**
  * Structural validation of an `EngineReviewResult` that arrived from outside
@@ -19,7 +19,7 @@ import type {
  * surface as `undefined` in an agent-facing finding.
  *
  * This is a shape check, not a judgment check: it proves the payload is the
- * contract in `@apature/mcp-types`, and says nothing about whether a model
+ * contract in `@apatureai/bastion-types`, and says nothing about whether a model
  * produced it. Fields the type marks optional (confidence, calibration,
  * dimension) are validated only when present, so a backend that omits them
  * stays compatible.

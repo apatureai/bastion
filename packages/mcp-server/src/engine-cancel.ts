@@ -1,4 +1,4 @@
-import type { JobStatus } from "@apature/mcp-types";
+import type { JobStatus } from "@apatureai/bastion-types";
 
 /**
  * Cross-repo cancel-state mapping (#32). Verdict owns cooperative

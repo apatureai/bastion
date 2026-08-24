@@ -10,8 +10,8 @@ import type {
   ReviewError,
   ReviewErrorCode,
   NextAction,
-} from "@apature/mcp-types";
-import { SCHEMA_VERSION } from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
+import { SCHEMA_VERSION } from "@apatureai/bastion-types";
 import type { EvidenceProvider } from "./evidence.js";
 import { buildDesignReviewContent } from "./multimedia-content.js";
 import { renderReviewPanel } from "./panel-html.js";

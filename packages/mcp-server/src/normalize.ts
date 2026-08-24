@@ -1,4 +1,4 @@
-import type { Viewport } from "@apature/mcp-types";
+import type { Viewport } from "@apatureai/bastion-types";
 import { isLoopbackHost } from "./egress.js";
 
 /**

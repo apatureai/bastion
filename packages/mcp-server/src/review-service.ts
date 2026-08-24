@@ -10,8 +10,8 @@ import type {
   JobStatus,
   Recheck,
   UpstreamCancellation,
-} from "@apature/mcp-types";
-import { SCHEMA_VERSION } from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
+import { SCHEMA_VERSION } from "@apatureai/bastion-types";
 import { mapEngineResultToCritique } from "./critique-map.js";
 import { mapEngineRecheckToRecheck } from "./recheck-map.js";
 import { isTerminalStatus, mapEngineStatusToMcp } from "./engine-cancel.js";

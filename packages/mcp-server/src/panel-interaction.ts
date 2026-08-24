@@ -3,8 +3,8 @@ import type {
   PanelAction,
   PanelFinding,
   PanelResponse,
-} from "@apature/mcp-types";
-import { isUnjudged } from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
+import { isUnjudged } from "@apatureai/bastion-types";
 
 /**
  * The pure reducer behind the interactive MCP-Apps review panel (idea #64). Given
