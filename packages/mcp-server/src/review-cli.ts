@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import type { CritiqueCoverage } from "@apature/mcp-types";
+import type { CritiqueCoverage } from "@apatureai/bastion-types";
 import { coverageLines } from "./coverage.js";
 import { isLoopbackHost } from "./egress.js";
 import { EngineConfigError, resolveEngineRuntime, type EngineRuntime } from "./engine-runtime.js";

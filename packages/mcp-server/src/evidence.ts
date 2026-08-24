@@ -1,4 +1,4 @@
-import type { AnnotatedImage } from "@apature/mcp-types";
+import type { AnnotatedImage } from "@apatureai/bastion-types";
 
 /**
  * The seam that supplies annotated screenshot BYTES for a completed review.

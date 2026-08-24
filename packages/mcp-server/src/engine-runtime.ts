@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, join, resolve } from "node:path";
-import type { JudgmentProvenance } from "@apature/mcp-types";
+import type { JudgmentProvenance } from "@apatureai/bastion-types";
 import type { EngineClient } from "./engine-client.js";
 import { MockEngineClient } from "./engine-client.js";
 import { JudgmentEngineHttpClient } from "./engine-http-client.js";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { loadGoldenEngineResult } from "@apature/mcp-types";
-import type { EngineMeasurementReport, EngineReviewResult } from "@apature/mcp-types";
+import { loadGoldenEngineResult } from "@apatureai/bastion-types";
+import type { EngineMeasurementReport, EngineReviewResult } from "@apatureai/bastion-types";
 import { mapEngineResultToCritique } from "../src/index.js";
 import { stampProvenance, verdictCliProvenance } from "../src/provenance.js";
 

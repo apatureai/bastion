@@ -1,4 +1,4 @@
-import type { AnnotatedImage, Critique, CritiqueFinding, PanelFinding } from "@apature/mcp-types";
+import type { AnnotatedImage, Critique, CritiqueFinding, PanelFinding } from "@apatureai/bastion-types";
 import { coverageLines } from "./coverage.js";
 
 /**

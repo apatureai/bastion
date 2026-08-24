@@ -58,7 +58,7 @@ connected to apature-mcp-review v1.3.0 over stdio
     review rev_60ed3a95-21cd-4188-8660-51a5727bf1fa -> grade unjudged
     provenance: model_backed=false source=fixture engine=bastion-fixture
     Coverage: 1 of 2 route(s) reviewed; reviewed /pricing; skipped /checkout; viewports skipped: tablet.
-    No model judged this page, so there is no assessment of it: the offline fixture engine replayed the golden result in @apature/mcp-types; it describes a fictional pricing page and not the target that was requested. Any findings below are not observations of the target.
+    No model judged this page, so there is no assessment of it: the offline fixture engine replayed the golden result in @apatureai/bastion-types; it describes a fictional pricing page and not the target that was requested. Any findings below are not observations of the target.
     f_001  should_fix [unjudged] Primary CTA uses an off-brand color on mobile
              /pricing (mobile) button[data-testid='cta-primary']
              fix: Apply the `--color-accent` token (or the `btn-primary` class) so the CTA matches the brand accent used elsewhere.
@@ -68,7 +68,7 @@ connected to apature-mcp-review v1.3.0 over stdio
     f_003  nit        [unjudged] Inconsistent vertical rhythm between feature rows
              /pricing (desktop) .feature-row
              fix: Use a single spacing token for consistent vertical rhythm.
-    not reviewed: [bastion] no model judged this page: the offline fixture engine replayed the golden result in @apature/mcp-types; it describes a fictional pricing page and not the target that was requested. The grade is reported as "unjudged" and nothing in this result is a judgment of the target. See the README section "Getting real judgments" to configure a critique backend.
+    not reviewed: [bastion] no model judged this page: the offline fixture engine replayed the golden result in @apatureai/bastion-types; it describes a fictional pricing page and not the target that was requested. The grade is reported as "unjudged" and nothing in this result is a judgment of the target. See the README section "Getting real judgments" to configure a critique backend.
     not reviewed: route /checkout (no preview deployment matched the head SHA)
     not reviewed: viewport tablet (not configured)
 
@@ -122,7 +122,7 @@ The consumer of a review here is usually a coding agent, not a person. It never 
   "source": "fixture",
   "engine": "bastion-fixture",
   "model": null,
-  "detail": "the offline fixture engine replayed the golden result in @apature/mcp-types; it describes a fictional pricing page and not the target that was requested"
+  "detail": "the offline fixture engine replayed the golden result in @apatureai/bastion-types; it describes a fictional pricing page and not the target that was requested"
 }
 ```
 
@@ -683,7 +683,7 @@ VERDICT_REPO=/tmp/verdict pnpm test
 
 Nothing in the suite touches a model, a browser, a subprocess, or the network: the engine is a fixture mock, the verdict backends are driven through their process and transport seams, DNS is stubbed or answered from a constant, and the Postgres application plane runs in-process against [PGlite](https://pglite.dev). `vitest.config.ts` raises the timeouts to 30s because a cold first run instantiates PGlite (WASM Postgres) inside a hook.
 
-`@apature/mcp-server` and `@apature/mcp-types` are prepared for publishing under the `@apature` scope (correct `files`/`exports`/`types`, `publishConfig`, and a `prepack` build), but nothing is published to npm yet: publishing waits on the maintainer adding an `NPM_TOKEN` secret and pushing a version tag. See [Releasing](#releasing) for the flow and [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and how changes get reviewed.
+`@apatureai/bastion` and `@apatureai/bastion-types` are prepared for publishing under the `@apatureai` scope (correct `files`/`exports`/`types`, `publishConfig`, and a `prepack` build), but nothing is published to npm yet: publishing waits on the maintainer adding an `NPM_TOKEN` secret and pushing a version tag. See [Releasing](#releasing) for the flow and [CONTRIBUTING.md](CONTRIBUTING.md) for conventions and how changes get reviewed.
 
 ## Versioning: two numbers, on purpose
 

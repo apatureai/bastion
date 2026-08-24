@@ -1,7 +1,7 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
-import type { HostMediaCapability } from "@apature/mcp-types";
+import type { HostMediaCapability } from "@apatureai/bastion-types";
 import { createMcpReviewServer, type McpReviewServerDeps } from "../src/index.js";
 import { MCP_APP_PANEL_MIME } from "../src/multimedia-content.js";
 import { SyntheticEvidenceProvider } from "../src/synthetic-evidence.js";

@@ -1,5 +1,5 @@
 {
-  "name": "@apature/mcp-types",
+  "name": "@apatureai/bastion-types",
   "version": "0.1.0",
   "description": "Bastion boundary contracts: tool envelopes, Critique result, and the golden engine fixture. Single source of truth for the agent-facing surface.",
   "license": "MIT",

@@ -32,7 +32,7 @@ importers:
 
   packages/mcp-server:
     dependencies:
-      '@apature/mcp-types':
+      '@apatureai/bastion-types':
         specifier: workspace:*
         version: link:../mcp-types
       '@modelcontextprotocol/sdk':

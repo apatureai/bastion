@@ -1,4 +1,4 @@
-import { loadGoldenEngineResult, loadPreCalibrationEngineResult } from "@apature/mcp-types";
+import { loadGoldenEngineResult, loadPreCalibrationEngineResult } from "@apatureai/bastion-types";
 import { describe, expect, it } from "vitest";
 import { EngineResultError, parseEngineReviewResult } from "../src/engine-result.js";
 

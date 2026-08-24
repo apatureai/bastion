@@ -1,5 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
-import type { EngineReviewResult } from "@apature/mcp-types";
+import type { EngineReviewResult } from "@apatureai/bastion-types";
 import type { NormalizedReviewRequest } from "./normalize.js";
 import type { EngineJobClient, EngineJobPoll } from "./engine-client.js";
 import { stampProvenance, verdictHttpProvenance } from "./provenance.js";

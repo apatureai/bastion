@@ -31,9 +31,14 @@ All notable changes to this project are recorded here. The format follows
 
 ### Changed
 
-- `@apature/mcp-server` and `@apature/mcp-types` are no longer `private`. Both now declare
-  `publishConfig.access: "public"` and a `prepack` build so they can be published to npm under their
-  existing `@apature` scope. The monorepo root stays private and is never published. Publishing
+- Packages renamed to the `@apatureai/*` scope, matching the GitHub org and ahead of the first npm
+  publish (nothing was published under the old scope). `@apature/mcp-server` → `@apatureai/bastion`,
+  `@apature/mcp-types` → `@apatureai/bastion-types`, and the private monorepo root
+  `@apature/mcp-review-monorepo` → `@apatureai/bastion-mcp-review-monorepo`. All cross-package
+  dependencies, imports, tsconfig/vitest aliases, and docs were updated to match.
+- `@apatureai/bastion` and `@apatureai/bastion-types` are no longer `private`. Both now declare
+  `publishConfig.access: "public"` and a `prepack` build so they can be published to npm under the
+  `@apatureai` scope. The monorepo root stays private and is never published. Publishing
   still requires the maintainer to add the `NPM_TOKEN` secret; nothing is published automatically by
   these changes.
 - `packages/mcp-server/src/boot.ts` gained a `#!/usr/bin/env node` shebang so the

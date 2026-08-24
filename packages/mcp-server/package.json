@@ -1,5 +1,5 @@
 {
-  "name": "@apature/mcp-server",
+  "name": "@apatureai/bastion",
   "version": "0.1.0",
   "description": "Apature Bastion server: agent-facing MCP tools (design_review, design_review_get) over the Verdict review surface.",
   "license": "MIT",
@@ -31,7 +31,7 @@
     "start": "node dist/boot.js"
   },
   "dependencies": {
-    "@apature/mcp-types": "workspace:*",
+    "@apatureai/bastion-types": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "jose": "^6.2.3",
     "pg": "^8.16.3",

@@ -1,5 +1,5 @@
-import type { EngineRecheckResult, EngineReviewResult } from "@apature/mcp-types";
-import { loadGoldenEngineResult } from "@apature/mcp-types";
+import type { EngineRecheckResult, EngineReviewResult } from "@apatureai/bastion-types";
+import { loadGoldenEngineResult } from "@apatureai/bastion-types";
 import type { EnginePollStatus } from "./engine-cancel.js";
 import type { NormalizedReviewRequest } from "./normalize.js";
 import {

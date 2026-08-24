@@ -18,7 +18,7 @@
  * same anchor stay distinct. Pure and deterministic.
  */
 
-import type { Critique, PanelFinding } from "@apature/mcp-types";
+import type { Critique, PanelFinding } from "@apatureai/bastion-types";
 
 /**
  * A review-side fix item the panel is built from, structurally the combined

@@ -6,7 +6,7 @@ import addFormats from "ajv-formats";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { beforeAll, describe, expect, it } from "vitest";
-import type { EngineRecheckResult, EngineReviewResult } from "@apature/mcp-types";
+import type { EngineRecheckResult, EngineReviewResult } from "@apatureai/bastion-types";
 import type { EngineClient, EngineRecheckRequest } from "../src/engine-client.js";
 import { MockEngineClient } from "../src/engine-client.js";
 import { createLocalReviewServer } from "../src/local-server.js";

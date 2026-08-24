@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Critique, CritiqueFinding } from "@apature/mcp-types";
+import type { Critique, CritiqueFinding } from "@apatureai/bastion-types";
 import { buildPanelFindings, reviewFixItemsFromCritique } from "../src/panel-findings.js";
 import { handlePanelAction } from "../src/panel-interaction.js";
 import { FIXTURE_PROVENANCE } from "../src/provenance.js";

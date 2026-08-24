@@ -1,4 +1,4 @@
-import type { EngineRecheckResult, EngineReviewResult } from "@apature/mcp-types";
+import type { EngineRecheckResult, EngineReviewResult } from "@apatureai/bastion-types";
 import type { EngineClient, EngineJobClient, EngineRecheckRequest } from "./engine-client.js";
 import { EngineDependencyError } from "./engine-http-client.js";
 import { parseEngineReviewResult } from "./engine-result.js";

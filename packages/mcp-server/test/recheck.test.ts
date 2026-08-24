@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { EngineRecheckResult } from "@apature/mcp-types";
+import type { EngineRecheckResult } from "@apatureai/bastion-types";
 import {
   IdempotencyConflictError,
   MockEngineClient,

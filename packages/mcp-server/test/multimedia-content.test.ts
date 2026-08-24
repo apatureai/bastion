@@ -13,7 +13,7 @@ import type {
   CritiqueFinding,
   ImageContentBlock,
   TextContentBlock,
-} from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
 
 /**
  * D3 multimedia design_review content shaping (#58). Load-bearing: an overall

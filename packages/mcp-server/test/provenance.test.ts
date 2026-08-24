@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { loadGoldenEngineResult } from "@apature/mcp-types";
-import type { EngineRecheckResult, EngineReviewResult } from "@apature/mcp-types";
+import { loadGoldenEngineResult } from "@apatureai/bastion-types";
+import type { EngineRecheckResult, EngineReviewResult } from "@apatureai/bastion-types";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { describe, expect, it } from "vitest";
@@ -146,7 +146,7 @@ describe("judgment provenance is in the payload, on every path", () => {
       engine: "bastion-fixture",
       model: null,
       detail:
-        "the offline fixture engine replayed the golden result in @apature/mcp-types; " +
+        "the offline fixture engine replayed the golden result in @apatureai/bastion-types; " +
         "it describes a fictional pricing page and not the target that was requested",
     });
   });

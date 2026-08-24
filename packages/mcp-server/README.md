@@ -1,4 +1,4 @@
-# @apature/mcp-server
+# @apatureai/bastion
 
 The [Apature Bastion](https://github.com/apatureai/bastion) server: an in-loop, read-only design-review MCP server for coding agents. It exposes five agent-facing tools (`design_review`, `design_review_get`, `design_recheck`, `design_review_cancel`, `design_review_panel_action`) over two transports — a local stdio server that runs with no credentials, and a Streamable HTTP edge with OAuth 2.1 resource-server auth, per-tenant Postgres state, and submit-and-poll jobs. It judges and verifies a rendered UI; it never edits code.
 
@@ -7,7 +7,7 @@ With nothing configured the judgments come from a fixture and every review is st
 ## Install
 
 ```bash
-npm install @apature/mcp-server
+npm install @apatureai/bastion
 ```
 
 ## Usage
@@ -35,7 +35,7 @@ Register the local server with any stdio MCP client:
 Or compose the pieces directly:
 
 ```ts
-import { createLocalReviewServer } from "@apature/mcp-server";
+import { createLocalReviewServer } from "@apatureai/bastion";
 
 const server = createLocalReviewServer(); // fully offline, fixture judgments
 ```

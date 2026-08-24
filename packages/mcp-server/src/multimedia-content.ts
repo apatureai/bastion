@@ -10,7 +10,7 @@ import type {
   MultimediaCritiqueContent,
   ResourceContentBlock,
   TextContentBlock,
-} from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
 import { coverageLines } from "./coverage.js";
 
 /**

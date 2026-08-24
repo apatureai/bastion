@@ -1,5 +1,5 @@
 import { deflateSync } from "node:zlib";
-import type { AnnotatedImage } from "@apature/mcp-types";
+import type { AnnotatedImage } from "@apatureai/bastion-types";
 import type { EvidenceProvider } from "./evidence.js";
 
 /**

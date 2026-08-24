@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import type { EngineReviewResult } from "@apature/mcp-types";
+import type { EngineReviewResult } from "@apatureai/bastion-types";
 import { mapEngineResultToCritique } from "../src/index.js";
 import {
   FIXTURE_PROVENANCE,

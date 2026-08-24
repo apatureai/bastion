@@ -1,15 +1,15 @@
-import type { Critique, CritiqueCoverage, EngineReviewResult } from "@apature/mcp-types";
+import type { Critique, CritiqueCoverage, EngineReviewResult } from "@apatureai/bastion-types";
 import {
   coverageState,
   hallucinationDrops,
   routesSkipped,
   viewportsSkipped,
-} from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
 
 /**
  * Everything Bastion SAYS about coverage, in one module.
  *
- * The classification itself lives in `@apature/mcp-types`
+ * The classification itself lives in `@apatureai/bastion-types`
  * (`coverage.ts`: `CoverageState`, `coverageState`,
  * `suppressesGradeForCoverage`), next to `isUnjudged`, because it is a pure
  * reading of the engine contract. The sentences live here, next to

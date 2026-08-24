@@ -2,7 +2,7 @@ import type {
   EngineRecheckResult,
   EngineReviewResult,
   JudgmentProvenance,
-} from "@apature/mcp-types";
+} from "@apatureai/bastion-types";
 
 /**
  * Where every judgment-provenance stamp in this server is minted.
@@ -31,7 +31,7 @@ export const FIXTURE_PROVENANCE: JudgmentProvenance = {
   engine: "bastion-fixture",
   model: null,
   detail:
-    "the offline fixture engine replayed the golden result in @apature/mcp-types; " +
+    "the offline fixture engine replayed the golden result in @apatureai/bastion-types; " +
     "it describes a fictional pricing page and not the target that was requested",
 };
 

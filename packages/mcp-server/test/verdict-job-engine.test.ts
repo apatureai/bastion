@@ -1,4 +1,4 @@
-import { loadGoldenEngineResult } from "@apature/mcp-types";
+import { loadGoldenEngineResult } from "@apatureai/bastion-types";
 import { describe, expect, it } from "vitest";
 import type { EngineJobClient, EngineJobPoll } from "../src/engine-client.js";
 import { EngineDependencyError } from "../src/engine-http-client.js";
