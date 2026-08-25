@@ -1,14 +1,50 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-label="bastion: in-loop design review over MCP">
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300"
+     role="img" aria-label="bastion: in-loop design review over MCP">
   <!-- ground -->
-  <rect width="1200" height="260" fill="#FFFFFF"/>
-  <!-- wordmark -->
-  <text x="600" y="126" text-anchor="middle"
+  <rect width="1200" height="300" fill="#FFFFFF"/>
+
+  <!-- texture: fine dot grid, 24px pitch, 5% -->
+  <defs>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="12" r="1.1" fill="#1B1F24"/>
+    </pattern>
+  </defs>
+  <rect width="1200" height="300" fill="url(#dots)" opacity="0.05" aria-hidden="true"/>
+
+  <!-- motif: concentric bastion walls with one aligned keyhole gap on the +x axis;
+       a request arrow drives in through the channel to the inner keep, a dashed
+       review arrow returns back out - one gate, request in, review out. -->
+  <g aria-hidden="true" stroke-linecap="round" stroke-linejoin="round">
+
+    <!-- outer wall r=96, gap ~26 centered on +x axis -->
+    <path d="M 289.55 128.41 A 96 96 0 1 1 289.55 171.59" fill="none"
+          stroke="#C7CFD7" stroke-width="2.5"/>
+    <!-- middle wall r=72 -->
+    <path d="M 266.16 133.81 A 72 72 0 1 1 266.16 166.19" fill="none"
+          stroke="#9AA6B5" stroke-width="2.5"/>
+    <!-- inner wall r=48, accent -->
+    <path d="M 242.77 139.20 A 48 48 0 1 1 242.77 160.80" fill="none"
+          stroke="#46586E" stroke-width="2.5"/>
+
+    <!-- inner keep -->
+    <circle cx="196" cy="150" r="10" fill="#46586E"/>
+
+    <!-- handshake in: request arrow driving toward the keep -->
+    <line x1="344" y1="144" x2="216" y2="144" stroke="#46586E" stroke-width="2.5"/>
+    <path d="M 224 137 L 212 144 L 224 151" fill="none" stroke="#46586E" stroke-width="2.5"/>
+
+    <!-- handshake back: dashed review arrow returning out through the same gap -->
+    <line x1="224" y1="162" x2="316" y2="162" stroke="#8B949E" stroke-width="2"
+          stroke-dasharray="5 4"/>
+    <path d="M 308 155 L 320 162 L 308 169" fill="none" stroke="#8B949E" stroke-width="2"/>
+  </g>
+
+  <!-- type -->
+  <text x="428" y="142"
         font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
-        font-size="68" font-weight="600" letter-spacing="-1" fill="#1B1F24">bastion</text>
-  <!-- accent rule: the single accent element -->
-  <rect x="564" y="152" width="72" height="3" rx="1.5" fill="#4D5E73"/>
-  <!-- tagline -->
-  <text x="600" y="198" text-anchor="middle"
+        font-size="76" font-weight="600" letter-spacing="-1.5" fill="#1B1F24">bastion</text>
+  <rect x="430" y="164" width="96" height="4" rx="2" fill="#46586E"/>
+  <text x="428" y="210"
         font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
-        font-size="21" font-weight="400" letter-spacing="0.2" fill="#57606A">in-loop design review over MCP</text>
+        font-size="22" font-weight="400" letter-spacing="0.2" fill="#57606A">in-loop design review over MCP</text>
 </svg>
