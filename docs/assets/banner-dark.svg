@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="260" viewBox="0 0 1200 260" role="img" aria-label="bastion: in-loop design review over MCP">
+  <!-- ground -->
+  <rect width="1200" height="260" fill="#0D1117"/>
+  <!-- wordmark -->
+  <text x="600" y="126" text-anchor="middle"
+        font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="68" font-weight="600" letter-spacing="-1" fill="#E6EDF3">bastion</text>
+  <!-- accent rule: the single accent element -->
+  <rect x="564" y="152" width="72" height="3" rx="1.5" fill="#93A7C0"/>
+  <!-- tagline -->
+  <text x="600" y="198" text-anchor="middle"
+        font-family="ui-sans-serif, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif"
+        font-size="21" font-weight="400" letter-spacing="0.2" fill="#8B949E">in-loop design review over MCP</text>
+</svg>
