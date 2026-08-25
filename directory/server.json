@@ -1,15 +1,27 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-09-29/server.schema.json",
-  "name": "ai.apature/mcp-review",
-  "description": "In-loop, read-only design review for coding agents: inspect a verified preview, return grounded findings with element refs and fixes, and recheck the agent's fix before CI.",
-  "version": "1.3.0",
+  "name": "io.github.apatureai/bastion",
+  "description": "In-loop, read-only design review for coding agents: grounded findings, fixes, and recheck before CI.",
+  "version": "0.1.2",
   "websiteUrl": "https://github.com/apatureai/bastion",
   "repository": {
     "url": "https://github.com/apatureai/bastion",
     "source": "github"
   },
+  "packages": [
+    {
+      "registryType": "npm",
+      "registryBaseUrl": "https://registry.npmjs.org",
+      "identifier": "@apatureai/bastion",
+      "version": "0.1.2",
+      "runtimeHint": "npx",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ],
   "_meta": {
-    "ai.apature/status": "self-hosted. No public endpoint is operated, so this listing intentionally declares no `remotes`: an MCP client reading it cannot be pointed at a host that does not answer. Run the server yourself (see the README), then add the `remotes` entry described by `ai.apature/self_hosted_remote_template` with your own host before submitting this listing to a registry.",
+    "ai.apature/status": "Installable from npm as `@apatureai/bastion` and launched over stdio (`npx -y @apatureai/bastion`); see the `packages` entry above. No public hosted endpoint is operated, so this listing intentionally declares no `remotes`: an MCP client reading it cannot be pointed at a host that does not answer. To self-host the Streamable HTTP edge instead, run the server yourself (see the README), then add the `remotes` entry described by `ai.apature/self_hosted_remote_template` with your own host.",
     "ai.apature/self_hosted_remote_template": {
       "type": "streamable-http",
       "url": "https://<your-mcp-host>/mcp",

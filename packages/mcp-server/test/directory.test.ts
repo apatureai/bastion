@@ -20,10 +20,30 @@ describe("directory/server.json listing", () => {
     tools: Array<{ name: string }>;
   };
 
-  it("declares the namespaced server name and a semver version", () => {
-    expect(manifest.name).toBe("ai.apature/mcp-review");
+  it("declares the GitHub-namespaced registry server name and a semver version", () => {
+    // The MCP Registry namespace is the GitHub org (`io.github.<org>/<name>`),
+    // because ownership is proven by authenticating as the org on GitHub, not by
+    // controlling a DNS zone. This is distinct from the on-the-wire handshake
+    // name (`apature-mcp-review`), which is deliberately left unchanged.
+    expect(manifest.name).toBe("io.github.apatureai/bastion");
     expect(typeof manifest.version).toBe("string");
     expect(manifest.version).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  it("advertises the npm package the registry verifies ownership through", () => {
+    // The server is installable from npm and spoken over stdio. The registry
+    // proves npm ownership by matching this identifier against the `mcpName`
+    // field published in the package's package.json, so the two must agree.
+    const packages = manifest.packages as Array<Record<string, unknown>>;
+    expect(Array.isArray(packages)).toBe(true);
+    const npm = packages.find((p) => p.registryType === "npm");
+    expect(npm).toBeDefined();
+    expect(npm?.identifier).toBe("@apatureai/bastion");
+    // The registry rejects version ranges; the package version must be exact and
+    // must match the listing version so the entry and the artifact line up.
+    expect(npm?.version).toBe(manifest.version);
+    expect(npm?.version).toMatch(/^\d+\.\d+\.\d+$/);
+    expect((npm?.transport as Record<string, unknown>)?.type).toBe("stdio");
   });
 
   it("advertises no remote endpoint, because none is operated", () => {
