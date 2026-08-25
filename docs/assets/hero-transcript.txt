@@ -1,0 +1,60 @@
+mcp-review local server ready on stdio
+  engine: FIXTURE engine: no critique backend configured. Findings are replayed from the golden fixture and describe a fictional pricing page, NOT the URL you pass. Set VERDICT_CLI (a built verdict checkout) for real judgments.
+  authorized hosts: preview.example.com
+connected to apature-mcp-review v1.3.0 over stdio
+
+[1] tools/list
+    design_review                metered
+    design_review_get            free
+    design_recheck               metered
+    design_review_cancel         free
+    design_review_panel_action   free
+
+[2] design_review  https://preview.example.com/pricing
+    job job_41f8786f-8636-45cd-8bd7-809d71d2d2a3 -> completed, 1 unit(s)
+
+[3] design_review_get  view=status
+    status=completed, review body present: false
+
+[4] design_review_get  view=summary
+    review rev_0b2c294e-d303-4a5d-8409-c702423a8cc8 -> grade unjudged
+    provenance: model_backed=false source=fixture engine=bastion-fixture
+    Coverage: 1 of 2 route(s) reviewed; reviewed /pricing; skipped /checkout; viewports skipped: tablet.
+    No model judged this page, so there is no assessment of it: the offline fixture engine replayed the golden result in @apatureai/bastion-types; it describes a fictional pricing page and not the target that was requested. Any findings below are not observations of the target.
+    f_001  should_fix [unjudged] Primary CTA uses an off-brand color on mobile
+             /pricing (mobile) button[data-testid='cta-primary']
+             fix: Apply the `--color-accent` token (or the `btn-primary` class) so the CTA matches the brand accent used elsewhere.
+    f_002  should_fix [unjudged] Pricing card grid overflows the mobile viewport
+             /pricing (mobile) .pricing-grid
+             fix: Switch the grid to a single column under the `sm` breakpoint.
+    f_003  nit        [unjudged] Inconsistent vertical rhythm between feature rows
+             /pricing (desktop) .feature-row
+             fix: Use a single spacing token for consistent vertical rhythm.
+    not reviewed: [bastion] no model judged this page: the offline fixture engine replayed the golden result in @apatureai/bastion-types; it describes a fictional pricing page and not the target that was requested. The grade is reported as "unjudged" and nothing in this result is a judgment of the target. See the README section "Getting real judgments" to configure a critique backend.
+    not reviewed: route /checkout (no preview deployment matched the head SHA)
+    not reviewed: viewport tablet (not configured)
+
+[5] design_review_get  view=focus  (nits dropped)
+    2 actionable of 3 findings
+
+[6] design_review_get  view=evidence  (multimedia + MCP-Apps panel)
+    content blocks: resource, text, text, text, image, text, image, text, text
+    panel=true multimedia=true withheld=[]
+    wrote out/review.json and out/panel.html
+
+[7] design_review_panel_action  apply_fix  (eyes, not hands)
+    f_001 -> unjudged
+    nothing to hand over: no model judged this review, so its fix text is fixture text
+
+[8] design_recheck  after the agent claims a fix
+    provenance: model_backed=false source=fixture engine=bastion-fixture
+    f_001  unjudged     confidence=null
+    f_002  unjudged     confidence=null
+    f_003  unjudged     confidence=null
+    reason on every outcome: [bastion] no model judged this page: the offline fixture engine derived each outcome from a hash of the finding id; nothing captured, compared or observed the target before or after the change. The outcome is reported as "unjudged": whether this finding is resolved at the target is unknown, and nothing here is an observation of it. See the README section "Getting real judgments" to configure a critique backend.
+
+[9] design_review  https://evil.example.org/  (SSRF boundary)
+    rejected: DOMAIN_UNVERIFIED (next_action: verify_domain)
+
+Done. 3 findings, 3 recheck outcomes.
+Open out/panel.html in a browser to see the review panel.
