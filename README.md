@@ -17,7 +17,8 @@
 
 </div>
 
-<img src="docs/assets/hero.png" alt="Terminal transcript of pnpm demo: nine numbered steps ending in Done. 3 findings, 3 recheck outcomes" width="760">
+<img src="docs/assets/demo.svg" alt="Terminal transcript of pnpm demo: nine numbered steps ending in Done. 3 findings, 3 recheck outcomes" width="100%">
+<p align="center"><sub><a href="docs/assets/hero.png">static version</a></sub></p>
 
 An MCP server that gives a coding agent eyes on the UI it just changed: submit a preview URL, get findings with route, viewport, element ref and a suggested fix, apply them yourself, then ask the server to recheck. It judges and verifies; it never edits code, drives a browser, or opens a pull request — the server is the eyes, the agent is the hands. Everything runs offline with no credentials, and with nothing configured the judgments come from a golden fixture that says so in every payload; one clone and one environment variable swap in a real critique of a real page.
 

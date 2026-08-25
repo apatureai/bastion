@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="682" viewBox="0 0 1200 682"
+     role="img" aria-label="bastion terminal session: an MCP design review runs, then an SSRF-boundary request to an unverified domain is rejected"
+     xml:space="preserve">
+  <style>
+    text { font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Consolas, monospace;
+           font-size: 15px; }
+    .chrome { fill: #8B949E; font-size: 13px; }
+    .out    { fill: #C9D1D9; }
+    .dim    { fill: #8B949E; }
+    .acc    { fill: #93A6BE; }
+    .hd     { fill: #E6EDF3; }
+
+    .line   { opacity: 0; }
+    .beat   { opacity: 0; }
+
+    /* one keyframes block per line: hidden 0->a, ramp a->a+2.2 (opacity + 6px rise),
+       hold ->90, fade ->94, blank ->100. Cycle T = 16s. */
+    @keyframes l0  { 0%,3.75%   { opacity:0; transform:translateY(6px); } 5.95%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l1  { 0%,7.19%   { opacity:0; transform:translateY(6px); } 9.39%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l2  { 0%,14.38%  { opacity:0; transform:translateY(6px); } 16.58%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l3  { 0%,17.81%  { opacity:0; transform:translateY(6px); } 20.01%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l4  { 0%,21.25%  { opacity:0; transform:translateY(6px); } 23.45%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l5  { 0%,28.44%  { opacity:0; transform:translateY(6px); } 30.64%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l6  { 0%,31.88%  { opacity:0; transform:translateY(6px); } 34.08%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l7  { 0%,39.06%  { opacity:0; transform:translateY(6px); } 41.26%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l8  { 0%,42.50%  { opacity:0; transform:translateY(6px); } 44.70%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l9  { 0%,45.94%  { opacity:0; transform:translateY(6px); } 48.14%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l10 { 0%,49.38%  { opacity:0; transform:translateY(6px); } 51.58%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l11 { 0%,52.81%  { opacity:0; transform:translateY(6px); } 55.01%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l12 { 0%,60.00%  { opacity:0; transform:translateY(6px); } 62.20%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l13 { 0%,63.44%  { opacity:0; transform:translateY(6px); } 65.64%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+    @keyframes l14 { 0%,66.88%  { opacity:0; transform:translateY(6px); } 69.08%,90% { opacity:1; transform:none; } 94%,100% { opacity:0; } }
+
+    /* payoff highlight: lands after the last line, ~78% */
+    @keyframes beat { 0%,78% { opacity:0; } 82%,90% { opacity:1; } 94%,100% { opacity:0; } }
+
+    .l0 { animation: l0 16s linear infinite; }
+    .l1 { animation: l1 16s linear infinite; }
+    .l2 { animation: l2 16s linear infinite; }
+    .l3 { animation: l3 16s linear infinite; }
+    .l4 { animation: l4 16s linear infinite; }
+    .l5 { animation: l5 16s linear infinite; }
+    .l6 { animation: l6 16s linear infinite; }
+    .l7 { animation: l7 16s linear infinite; }
+    .l8 { animation: l8 16s linear infinite; }
+    .l9 { animation: l9 16s linear infinite; }
+    .l10 { animation: l10 16s linear infinite; }
+    .l11 { animation: l11 16s linear infinite; }
+    .l12 { animation: l12 16s linear infinite; }
+    .l13 { animation: l13 16s linear infinite; }
+    .l14 { animation: l14 16s linear infinite; }
+    .beat { animation: beat 16s linear infinite; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .line, .beat { animation: none !important; opacity: 1 !important; transform: none !important; }
+    }
+  </style>
+
+  <!-- terminal chrome (always dark; outside stays transparent so both README themes work) -->
+  <g aria-hidden="true">
+    <rect x="40" y="24" width="1120" height="618" rx="12"
+          fill="#0D1117" stroke="#30363D" stroke-width="1.5"/>
+    <circle cx="70" cy="52" r="6" fill="#30363D"/>
+    <circle cx="92" cy="52" r="6" fill="#30363D"/>
+    <circle cx="114" cy="52" r="6" fill="#30363D"/>
+    <line x1="40" y1="76" x2="1160" y2="76" stroke="#21262D" stroke-width="1.5"/>
+  </g>
+  <text x="140" y="57" class="chrome">$ npx @apatureai/mcp-review</text>
+
+  <!-- payoff highlight, behind the rejected line (baseline y=546) -->
+  <g class="beat" aria-hidden="true">
+    <rect x="58" y="529" width="1084" height="26" rx="4" fill="#93A6BE" opacity="0.14"/>
+    <rect x="58" y="529" width="3" height="26" fill="#93A6BE"/>
+  </g>
+
+  <!-- transcript: first baseline y=104, line-height 26, x=72.
+       Every line verbatim from hero-transcript.txt (indentation kept). -->
+  <g class="line l0"><text xml:space="preserve" x="72" y="104" class="out">mcp-review local server ready on stdio</text></g>
+  <g class="line l1"><text xml:space="preserve" x="72" y="130" class="dim">connected to apature-mcp-review v1.3.0 over stdio</text></g>
+
+  <g class="line l2"><text xml:space="preserve" x="72" y="182" class="out">[1] tools/list</text></g>
+  <g class="line l3"><text xml:space="preserve" x="72" y="208" class="dim">    design_review                metered</text></g>
+  <g class="line l4"><text xml:space="preserve" x="72" y="234" class="dim">    design_recheck               metered</text></g>
+
+  <g class="line l5"><text xml:space="preserve" x="72" y="286" class="out">[2] design_review  https://preview.example.com/pricing</text></g>
+  <g class="line l6"><text xml:space="preserve" x="72" y="312" class="dim">    job job_41f8786f-8636-45cd-8bd7-809d71d2d2a3 -&gt; completed, 1 unit(s)</text></g>
+
+  <g class="line l7"><text xml:space="preserve" x="72" y="364" class="out">[4] design_review_get  view=summary</text></g>
+  <g class="line l8"><text xml:space="preserve" x="72" y="390" class="dim">    review rev_0b2c294e-d303-4a5d-8409-c702423a8cc8 -&gt; grade unjudged</text></g>
+  <g class="line l9"><text xml:space="preserve" x="72" y="416" class="dim">    f_001  should_fix [unjudged] Primary CTA uses an off-brand color on mobile</text></g>
+  <g class="line l10"><text xml:space="preserve" x="72" y="442" class="dim">    f_002  should_fix [unjudged] Pricing card grid overflows the mobile viewport</text></g>
+  <g class="line l11"><text xml:space="preserve" x="72" y="468" class="dim">    f_003  nit        [unjudged] Inconsistent vertical rhythm between feature rows</text></g>
+
+  <g class="line l12"><text xml:space="preserve" x="72" y="520" class="out">[9] design_review  https://evil.example.org/  (SSRF boundary)</text></g>
+  <g class="line l13"><text xml:space="preserve" x="72" y="546" class="acc">    rejected: DOMAIN_UNVERIFIED (next_action: verify_domain)</text></g>
+
+  <g class="line l14"><text xml:space="preserve" x="72" y="598" class="acc">Done. 3 findings, 3 recheck outcomes.</text></g>
+</svg>
