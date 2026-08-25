@@ -1,6 +1,7 @@
 {
   "name": "@apatureai/bastion",
-  "version": "0.1.1",
+  "version": "0.1.2",
+  "mcpName": "io.github.apatureai/bastion",
   "description": "Apature Bastion server: agent-facing MCP tools (design_review, design_review_get) over the Verdict review surface.",
   "license": "MIT",
   "author": "Aditya Prathapa",
@@ -44,8 +45,9 @@
     "ajv-formats": "^3.0.1"
   },
   "bin": {
-    "mcp-review-server": "./dist/boot.js",
-    "mcp-review-local": "./dist/local-stdio.js",
-    "mcp-review": "./dist/review-cli.js"
+    "bastion": "./dist/local-stdio.js",
+    "bastion-local": "./dist/local-stdio.js",
+    "bastion-server": "./dist/boot.js",
+    "bastion-review": "./dist/review-cli.js"
   }
 }

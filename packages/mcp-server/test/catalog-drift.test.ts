@@ -41,7 +41,10 @@ const catalog = readJson("schemas/mcp-tools.json") as unknown as {
   protocol_baseline: string;
   tools: CatalogTool[];
 };
-const manifest = readJson("directory/server.json") as { version: string };
+const manifest = readJson("directory/server.json") as {
+  version: string;
+  _meta: Record<string, string>;
+};
 
 async function connect() {
   const server = createMcpReviewServer({
@@ -129,10 +132,22 @@ describe("live catalog drift gate (#29)", () => {
     }
   });
 
-  it("serverInfo.version, the registry listing version, and catalog_version move together", async () => {
+  it("serverInfo.version and the wire catalog version move together", async () => {
     const client = await connect();
     const serverVersion = client.getServerVersion();
-    expect(serverVersion?.version).toBe(manifest.version);
-    expect(catalog.catalog_version).toBe(manifest.version);
+    // The version a client negotiates against on the wire IS the catalog
+    // version: held identical in schemas/mcp-tools.json and in the registry
+    // listing's `_meta.ai.apature/catalog_version`. It tracks the tool contract,
+    // not the release calendar, and is deliberately NOT the npm/release version.
+    expect(serverVersion?.version).toBe(catalog.catalog_version);
+    expect(manifest._meta["ai.apature/catalog_version"]).toBe(catalog.catalog_version);
+  });
+
+  it("the registry listing's top-level version is the release/package version", () => {
+    // directory/server.json's top-level `version` is what the MCP Registry pins
+    // to the published npm artifact, so it tracks the release version and must
+    // equal the package version — a separate axis from the catalog version above.
+    const pkg = readJson("packages/mcp-server/package.json") as unknown as { version: string };
+    expect(manifest.version).toBe(pkg.version);
   });
 });

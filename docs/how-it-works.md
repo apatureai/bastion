@@ -51,7 +51,7 @@ packages/mcp-server/
   src/tool-catalog.ts              schemas/mcp-tools.json served verbatim: what tools/list advertises
   src/server.ts                    the five MCP tools, views, and typed error mapping
   src/local-server.ts              local composition root (fixture engine unless one is configured)
-  src/local-stdio.ts               `mcp-review-local` process entrypoint (stdio transport)
+  src/local-stdio.ts               `bastion` / `bastion-local` process entrypoint (stdio transport)
   src/demo.ts                      the quickstart client: spawns the server, drives the loop
   src/review-cli.ts                `pnpm review <url>`: the same client, pointed at your target
   src/engine-runtime.ts            which critique backend this process runs, read from the env

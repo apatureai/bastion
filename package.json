@@ -1,6 +1,6 @@
 {
   "name": "@apatureai/bastion-mcp-review-monorepo",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "description": "Apature Bastion - in-loop, read-only design review for coding agents over MCP",

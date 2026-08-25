@@ -41,9 +41,11 @@ import { advertiseCatalogSchemas } from "./tool-catalog.js";
 import type { ToolListingMetadata } from "./tool-catalog.js";
 
 const SERVER_NAME = "apature-mcp-review";
-// Locked to directory/server.json `version` and schemas/mcp-tools.json
-// `catalog_version` by the catalog-drift gate (#29): the version a client sees
-// in serverInfo is the version the registry listing advertises.
+// The wire CATALOG version, locked to schemas/mcp-tools.json `catalog_version`
+// and directory/server.json `_meta.ai.apature/catalog_version` by the
+// catalog-drift gate (#29). It is what a client sees in serverInfo and
+// negotiates against; it tracks the tool contract, not the npm/release version.
+// (The registry listing's top-level `version` is the release version instead.)
 const SERVER_VERSION = "1.3.0";
 
 /**

@@ -6,16 +6,44 @@ All notable changes to this project are recorded here. The format follows
 
 > **Two version numbers, on purpose.** This repository carries two independent version schemes and
 > this changelog tracks only the first. See
-> [Versioning](README.md#versioning-two-numbers-on-purpose) for the full explanation.
+> [Versioning](docs/design-notes.md#versioning-two-numbers-on-purpose) for the full explanation.
 >
-> - **Release version** (`0.1.1` here): the npm package version and the git tag / GitHub release.
+> - **Release version** (`0.1.2` here): the npm package version, the git tag / GitHub release, and
+>   the top-level `version` in `directory/server.json` that the MCP Registry pins to the npm artifact.
 >   This is what an adopter pins and what every entry below is filed under.
 > - **Catalog version** (`1.3.0`): the MCP protocol surface a client sees on the wire, advertised by
->   `directory/server.json`, `schemas/mcp-tools.json`, and the server handshake, and locked across
->   all three by the `catalog-drift` test. It moves when the tool contract changes, not when a
->   release is cut, so it is not tracked here.
+>   `schemas/mcp-tools.json`, `directory/server.json`'s `_meta.ai.apature/catalog_version`, and the
+>   server handshake, and locked across all three by the `catalog-drift` test. It moves when the tool
+>   contract changes, not when a release is cut, so it is not tracked here.
 
 ## [Unreleased]
+
+## [0.1.2] - 2026-08-24
+
+Registry-ready metadata so the server can be listed on the official
+[MCP Registry](https://registry.modelcontextprotocol.io), and a bin rename so a bare
+`npx -y @apatureai/bastion` launches the local stdio server.
+
+### Added
+
+- `directory/server.json` now carries a `packages` entry (npm `@apatureai/bastion`, stdio transport,
+  `npx` runtime hint) and is renamed to the GitHub-org registry namespace
+  `io.github.apatureai/bastion` — ownership is proven by authenticating as the org on GitHub, not by
+  a DNS zone. Its top-level `version` now tracks the release version (`0.1.2`); the wire
+  `catalog_version` in `_meta` is unchanged. The `_meta` prose is updated to say the server is
+  installable from npm with no public hosted endpoint.
+- `mcpName: "io.github.apatureai/bastion"` in `packages/mcp-server/package.json`: the field the
+  registry reads to verify npm ownership of the published package.
+- A default `bastion` bin aliasing the local stdio server, so `npx -y @apatureai/bastion` resolves
+  without naming a bin.
+
+### Changed
+
+- The three package bins are renamed from the legacy `mcp-review*` names to `bastion-local`
+  (stdio server), `bastion-review` (one-shot review CLI), and `bastion-server` (production
+  Streamable HTTP root); target paths are unchanged. Nothing published depended on the old names.
+  READMEs and `docs/` are updated to match. The on-the-wire handshake name (`apature-mcp-review`)
+  is deliberately left unchanged.
 
 ## [0.1.1] - 2026-08-24
 
@@ -87,6 +115,7 @@ exists as a fixed point to clone, cite, and file issues against.
 
 See the README's [Status and roadmap](README.md#status-and-roadmap) for the full, current list.
 
-[Unreleased]: https://github.com/apatureai/bastion/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/apatureai/bastion/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/apatureai/bastion/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/apatureai/bastion/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/apatureai/bastion/releases/tag/v0.1.0

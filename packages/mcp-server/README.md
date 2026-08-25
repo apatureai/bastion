@@ -12,13 +12,15 @@ npm install @apatureai/bastion
 
 ## Usage
 
-The package ships three binaries:
+The package ships four binaries. `bastion` is the default: `npx -y @apatureai/bastion`
+launches the local stdio MCP server, which is what an MCP client spawns.
 
 | Binary | What it is |
 |---|---|
-| `mcp-review-local` | the local stdio MCP server (fixture engine unless one is configured) |
-| `mcp-review` | one-shot review of a URL through the configured backend |
-| `mcp-review-server` | the production Streamable HTTP composition root (needs a database, issuer, and engine) |
+| `bastion` | default entrypoint; an alias for `bastion-local` so bare `npx @apatureai/bastion` just works |
+| `bastion-local` | the local stdio MCP server (fixture engine unless one is configured) |
+| `bastion-review` | one-shot review of a URL through the configured backend |
+| `bastion-server` | the production Streamable HTTP composition root (needs a database, issuer, and engine) |
 
 Register the local server with any stdio MCP client:
 
@@ -26,7 +28,8 @@ Register the local server with any stdio MCP client:
 {
   "mcpServers": {
     "apature-review-local": {
-      "command": "mcp-review-local"
+      "command": "npx",
+      "args": ["-y", "@apatureai/bastion"]
     }
   }
 }

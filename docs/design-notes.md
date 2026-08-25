@@ -40,7 +40,7 @@ Most MCP servers are thin wrappers: one tool call maps to one function call, ret
 
 **Multimodal results with an honest downgrade.** A design review's most useful output is a picture. `multimedia-content.ts` shapes a critique into ordered MCP content blocks: the interactive panel first where the host supports MCP-Apps, then per-finding text, then annotated crops as image blocks. A host that cannot render images gets the identical text and structured findings plus an explicit `images_withheld` list of the evidence it is not seeing, never a broken block and never a silent drop. Image blocks are only emitted for evidence that actually exists with a real `image/*` MIME type; evidence is never fabricated to fill a slot.
 
-**One published contract, served verbatim.** `tools/list` advertises `schemas/mcp-tools.json` itself: the catalog's own `inputSchema` and `outputSchema` per tool, read from that file and handed to the client unchanged. Previously the SDK derived a laxer input schema from the Zod shapes and advertised no output schema at all, so there were two published contracts and a client could not validate structured content for itself. Now the Zod shapes are only what the server *parses*, the catalog is only what a client is *told*, and `schema-conformance.test.ts` drives real calls through both and fails if they disagree. A test also performs a `tools/list` against a real server instance over an in-process transport and compares it to the catalog and to the `directory/server.json` registry listing, failing the build if any of the three disagree, including the version string.
+**One published contract, served verbatim.** `tools/list` advertises `schemas/mcp-tools.json` itself: the catalog's own `inputSchema` and `outputSchema` per tool, read from that file and handed to the client unchanged. Previously the SDK derived a laxer input schema from the Zod shapes and advertised no output schema at all, so there were two published contracts and a client could not validate structured content for itself. Now the Zod shapes are only what the server *parses*, the catalog is only what a client is *told*, and `schema-conformance.test.ts` drives real calls through both and fails if they disagree. A test also performs a `tools/list` against a real server instance over an in-process transport and compares it to the catalog and to the `directory/server.json` registry listing, failing the build if any of the three disagree — including the catalog version, held identical across `schemas/mcp-tools.json`, the listing's `_meta.ai.apature/catalog_version`, and the server handshake. (The listing's *top-level* `version` is the release version, verified separately against the package version.)
 
 ## Versioning: two numbers, on purpose
 
@@ -49,15 +49,19 @@ agree. Seeing them differ is not a bug.
 
 | | Release version | Catalog version |
 |---|---|---|
-| Value today | `0.1.1` | `1.3.0` |
-| Where it lives | `package.json` (both packages), the git tag, the GitHub release, [`CHANGELOG.md`](../CHANGELOG.md) | `directory/server.json`, `schemas/mcp-tools.json`, and the MCP handshake (`serverInfo.version`) |
+| Value today | `0.1.2` | `1.3.0` |
+| Where it lives | `package.json` (both packages), the git tag, the GitHub release, [`CHANGELOG.md`](../CHANGELOG.md), and the `directory/server.json` **top-level** `version` (what the MCP Registry pins to the npm artifact) | `schemas/mcp-tools.json`, `directory/server.json` `_meta.ai.apature/catalog_version`, and the MCP handshake (`serverInfo.version`) |
 | Where you see it | `npm install`, the release page, the changelog | `connected to apature-mcp-review v1.3.0` when a client connects |
 | What it tracks | this codebase as a shipped artifact: what you pin, clone, and cite | the agent-facing MCP contract: the tool surface, its input and output schemas, and the protocol baseline |
 | When it moves | when a release is cut | when the published tool contract changes |
 
-The **catalog version** is deliberately held identical across `directory/server.json`,
-`schemas/mcp-tools.json`, and the server's `serverInfo`, and the `catalog-drift` test
-(`packages/mcp-server/test/catalog-drift.test.ts`) fails the build if the three ever drift apart. It
+The **catalog version** is deliberately held identical across `schemas/mcp-tools.json`,
+`directory/server.json`'s `_meta.ai.apature/catalog_version`, and the server's `serverInfo`, and the
+`catalog-drift` test (`packages/mcp-server/test/catalog-drift.test.ts`) fails the build if the three
+ever drift apart. (Before the registry listing carried a `packages` entry, the listing's top-level
+`version` held the catalog version too; it now holds the release version so the MCP Registry can pin
+the listing to the published npm package, and that field is checked against the package version
+instead.) The catalog version
 is the number a coding agent negotiates against, so it belongs to the contract, not to the release
 calendar: the tool surface reached `1.x` and settled long before the repository was first tagged for
 release at `0.1.0`.
