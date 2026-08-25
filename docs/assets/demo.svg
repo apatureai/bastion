@@ -65,7 +65,7 @@
     <circle cx="114" cy="52" r="6" fill="#30363D"/>
     <line x1="40" y1="76" x2="1160" y2="76" stroke="#21262D" stroke-width="1.5"/>
   </g>
-  <text x="140" y="57" class="chrome">$ npx @apatureai/mcp-review</text>
+  <text x="140" y="57" class="chrome">$ pnpm demo</text>
 
   <!-- payoff highlight, behind the rejected line (baseline y=546) -->
   <g class="beat" aria-hidden="true">
